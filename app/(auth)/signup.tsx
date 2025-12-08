@@ -55,8 +55,6 @@ const SignupScreen: React.FC = () => {
         return;
       }
 
-      // TODO: tratar confirmação de e-mail, roles etc.
-      // Após cadastro, encaminha para seleção de tipo de usuário
       router.replace('/(auth)/user-type-selection');
     } catch (e) {
       console.log('Erro inesperado signup', e);

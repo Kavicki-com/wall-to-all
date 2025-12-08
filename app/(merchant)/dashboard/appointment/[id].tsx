@@ -167,7 +167,6 @@ const AppointmentDetailScreen: React.FC = () => {
           'Não foi possível atualizar o status do agendamento. Verifique sua conexão e tente novamente.'
         );
       } else {
-        // Não mostrar alerta de sucesso para não interromper o fluxo
         loadAppointment();
       }
     } catch (error) {

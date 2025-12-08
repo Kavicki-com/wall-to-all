@@ -17,7 +17,6 @@ import { IconBack, IconNotification, IconSchedule, IconRatingStar, IconKidStar, 
 import { MaterialIcons } from '@expo/vector-icons';
 import BackgroundSvg from '../../../assets/background.svg';
 
-// Tipos
 type BusinessProfile = {
   id: string;
   business_name: string;
@@ -74,7 +73,6 @@ const StoreProfileScreen: React.FC = () => {
     try {
       setLoading(true);
 
-      // Buscar perfil do negócio
       const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
         .select(`
@@ -97,7 +95,6 @@ const StoreProfileScreen: React.FC = () => {
         setBusinessProfile(businessData as BusinessProfile);
       }
 
-      // Buscar serviços do negócio
       if (businessData) {
         const { data: servicesData, error: servicesError } = await supabase
           .from('services')
@@ -115,7 +112,6 @@ const StoreProfileScreen: React.FC = () => {
         if (servicesError) {
           console.error('Erro ao buscar serviços:', servicesError);
         } else if (servicesData) {
-          // Buscar avaliações por serviço
           const servicesWithRatings = await Promise.all(
             (servicesData as Service[]).map(async (service) => {
               const { data: serviceReviews } = await supabase
@@ -139,7 +135,6 @@ const StoreProfileScreen: React.FC = () => {
           setServices(servicesWithRatings);
         }
 
-        // Buscar estatísticas de avaliações do negócio
         const { data: reviewsData, error: reviewsError } = await supabase
           .from('reviews')
           .select('rating')
@@ -402,8 +397,6 @@ const StoreProfileScreen: React.FC = () => {
             style={styles.scheduleButton}
             activeOpacity={0.8}
             onPress={() => {
-              console.log('Iniciar agendamento para loja:', businessId);
-              // TODO: Navegar para tela de seleção de serviço
               if (services.length > 0) {
                 router.push(`/(client)/schedule/service?businessId=${businessId}`);
               }
@@ -417,8 +410,6 @@ const StoreProfileScreen: React.FC = () => {
             style={styles.reviewButton}
             activeOpacity={0.8}
             onPress={() => {
-              console.log('Avaliar loja:', businessId);
-              // TODO: Navegar para tela de avaliação
             }}
           >
             <Text style={styles.reviewButtonText}>Avaliar</Text>

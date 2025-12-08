@@ -20,10 +20,13 @@ type Service = {
   name: string;
   price: number;
   photos: string[] | string | null;
-  category: string | null;
   business_id: string;
   business_profiles: {
     business_name: string;
+  } | null;
+  categories?: {
+    id: number;
+    name: string;
   } | null;
   rating?: number;
   review_count?: number;
@@ -42,10 +45,16 @@ const ServicesAvailableScreen: React.FC = () => {
     try {
       setLoading(true);
 
-      // Buscar todos os serviços disponíveis
       const { data: servicesData, error } = await supabase
         .from('services')
-        .select('*, business_profiles(business_name)')
+        .select(`
+          *,
+          business_profiles(business_name),
+          categories:category_id (
+            id,
+            name
+          )
+        `)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -75,7 +84,7 @@ const ServicesAvailableScreen: React.FC = () => {
       }
     }
     const firstImage = imagesArray.length > 0 ? imagesArray[0] : null;
-    const categoryName = item.category || item.business_profiles?.business_name || 'Serviço';
+    const categoryName = item.categories?.name || item.business_profiles?.business_name || 'Serviço';
 
     return (
       <TouchableOpacity

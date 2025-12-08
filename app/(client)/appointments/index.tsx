@@ -60,7 +60,6 @@ const ClientAppointmentsScreen: React.FC = () => {
         return aptDate.toISOString().split('T')[0] === todayString;
       });
       
-      // Se não houver agendamentos hoje, selecionar a data do primeiro agendamento
       if (!hasTodayAppointments) {
         const firstAppointment = appointments[0];
         const firstDate = new Date(firstAppointment.start_time);
@@ -215,7 +214,6 @@ const ClientAppointmentsScreen: React.FC = () => {
     });
   };
 
-  // Gerar calendário mensal
   const generateCalendar = () => {
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth();
@@ -224,12 +222,10 @@ const ClientAppointmentsScreen: React.FC = () => {
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
 
-    // Pegar último dia do mês anterior
     const prevMonthLastDay = new Date(year, month, 0).getDate();
 
     const days: Array<{ day: number; isCurrentMonth: boolean; isPrevMonth: boolean; isNextMonth: boolean }> = [];
     
-    // Adicionar dias do mês anterior
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       days.push({ 
         day: prevMonthLastDay - i, 
@@ -239,7 +235,6 @@ const ClientAppointmentsScreen: React.FC = () => {
       });
     }
     
-    // Adicionar dias do mês atual
     for (let i = 1; i <= daysInMonth; i++) {
       days.push({ 
         day: i, 
@@ -249,7 +244,6 @@ const ClientAppointmentsScreen: React.FC = () => {
       });
     }
 
-    // Completar a última semana com dias do próximo mês
     const remainingDays = days.length % 7;
     if (remainingDays !== 0) {
       for (let i = 1; i <= (7 - remainingDays); i++) {
@@ -267,7 +261,6 @@ const ClientAppointmentsScreen: React.FC = () => {
 
   const getFirstWeek = () => {
     const allDays = generateCalendar();
-    // Retorna apenas os primeiros 7 dias (primeira semana completa)
     return allDays.slice(0, 7);
   };
 
@@ -292,8 +285,7 @@ const ClientAppointmentsScreen: React.FC = () => {
         style={styles.appointmentCard}
         activeOpacity={0.8}
         onPress={() => {
-          // TODO: Navegar para detalhes do agendamento
-          console.log('Ver detalhes do agendamento:', item.id);
+          router.push(`/(client)/appointments/${item.id}`);
         }}
       >
         {/* Service Image */}

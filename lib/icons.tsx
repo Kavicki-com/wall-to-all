@@ -1,6 +1,3 @@
-// Helper para ícones - prioriza SVGs do Figma, usa MaterialIcons como fallback
-// Mantém a mesma interface (width, height, color, size) para facilitar a migração
-
 import React from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
@@ -52,27 +49,19 @@ interface IconProps {
   size?: number;
 }
 
-// Função helper para criar ícones SVG com interface compatível
-// Nota: Alguns SVGs podem ter cores fixas no arquivo. Para sobrescrever,
-// o SVG precisa ter fill="currentColor" ou não ter fill definido
 const createSvgIcon = (SvgComponent: React.FC<any>) => {
   return ({ width, height, color = '#000E3D', size }: IconProps) => {
     const iconSize = size || width || height || 24;
-    // Passa todas as props necessárias - react-native-svg aplicará fill se o SVG usar currentColor
     return <SvgComponent width={iconSize} height={iconSize} fill={color} color={color} />;
   };
 };
 
-// Função helper para criar ícones MaterialIcons com interface compatível com SVGs
 const createMaterialIcon = (name: keyof typeof MaterialIcons.glyphMap) => {
   return ({ width, height, color = '#000E3D', size }: IconProps) => {
     const iconSize = size || width || height || 24;
     return <MaterialIcons name={name} size={iconSize} color={color} />;
   };
 };
-
-// ===== ÍCONES DO FIGMA (SVG) =====
-// Prioridade: usar SVGs do Figma quando disponíveis
 
 export const IconBack = createSvgIcon(BackIconSvg);
 export const IconChevronDown = createSvgIcon(ChevronDownIconSvg);
@@ -113,8 +102,5 @@ export const IconBusinessCenter = createSvgIcon(BusinessCenterIconSvg);
 export const IconProfileTabBar = createSvgIcon(ProfileTabBarIconSvg);
 export const IconForkSpoon = createSvgIcon(ForkSpoonIconSvg);
 export const IconSelfCare = createSvgIcon(SelfCareIconSvg);
-
-// ===== ÍCONES MATERIAL (FALLBACK) =====
-// Usar apenas para ícones que não temos SVG do Figma
 
 export const IconProfile = createMaterialIcon('person');

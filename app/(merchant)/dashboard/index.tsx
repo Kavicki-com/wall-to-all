@@ -150,7 +150,6 @@ const MerchantDashboardScreen: React.FC = () => {
     });
   };
 
-  // Gerar calendário mensal - mesma lógica do cliente
   const generateCalendar = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -159,12 +158,10 @@ const MerchantDashboardScreen: React.FC = () => {
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
 
-    // Pegar último dia do mês anterior
     const prevMonthLastDay = new Date(year, month, 0).getDate();
 
     const days: Array<{ day: number; isCurrentMonth: boolean; isPrevMonth: boolean; isNextMonth: boolean }> = [];
     
-    // Adicionar dias do mês anterior
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       days.push({ 
         day: prevMonthLastDay - i, 
@@ -174,7 +171,6 @@ const MerchantDashboardScreen: React.FC = () => {
       });
     }
     
-    // Adicionar dias do mês atual
     for (let i = 1; i <= daysInMonth; i++) {
       days.push({ 
         day: i, 
@@ -184,7 +180,6 @@ const MerchantDashboardScreen: React.FC = () => {
       });
     }
 
-    // Completar a última semana com dias do próximo mês
     const remainingDays = days.length % 7;
     if (remainingDays !== 0) {
       for (let i = 1; i <= (7 - remainingDays); i++) {

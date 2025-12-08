@@ -53,7 +53,6 @@ const ChangePasswordScreen: React.FC = () => {
         return;
       }
 
-      // Atualizar senha
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });

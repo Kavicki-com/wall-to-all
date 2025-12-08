@@ -28,7 +28,10 @@ type BusinessProfile = {
   business_name: string;
   description: string | null;
   logo_url: string | null;
-  category: string | null;
+  categories?: {
+    id: number;
+    name: string;
+  } | null;
 };
 
 const SettingsScreen: React.FC = () => {
@@ -55,7 +58,16 @@ const SettingsScreen: React.FC = () => {
 
       const { data: businessData, error } = await supabase
         .from('business_profiles')
-        .select('id, business_name, description, logo_url, category')
+        .select(`
+          id,
+          business_name,
+          description,
+          logo_url,
+          categories:category_id (
+            id,
+            name
+          )
+        `)
         .eq('owner_id', user.id)
         .single();
 
@@ -178,7 +190,7 @@ const SettingsScreen: React.FC = () => {
               {businessProfile?.business_name || 'Nome do Negócio'}
             </Text>
             <Text style={styles.businessCategory}>
-              {businessProfile?.category || 'Cortes masculinos e femininos'}
+              {businessProfile?.categories?.name || 'Cortes masculinos e femininos'}
             </Text>
           </View>
         </View>

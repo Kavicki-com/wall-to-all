@@ -7,10 +7,6 @@ export type Category = {
   created_at: string;
 };
 
-/**
- * Busca todas as categorias da tabela categories
- * Retorna ordenadas alfabeticamente, mas "outros" sempre por último
- */
 export const fetchCategories = async (): Promise<Category[]> => {
   try {
     const { data, error } = await supabase
@@ -28,7 +24,6 @@ export const fetchCategories = async (): Promise<Category[]> => {
       return [];
     }
 
-    // Ordenar: alfabética, mas "outros" sempre por último
     const sortedCategories = sortCategories(data);
     
     return sortedCategories;
@@ -38,9 +33,6 @@ export const fetchCategories = async (): Promise<Category[]> => {
   }
 };
 
-/**
- * Busca uma categoria pelo nome (case-insensitive)
- */
 export const findCategoryByName = async (name: string): Promise<Category | null> => {
   try {
     const { data, error } = await supabase
@@ -60,9 +52,6 @@ export const findCategoryByName = async (name: string): Promise<Category | null>
   }
 };
 
-/**
- * Busca uma categoria pelo ID
- */
 export const findCategoryById = async (id: number): Promise<Category | null> => {
   try {
     const { data, error } = await supabase

@@ -29,7 +29,10 @@ type Service = {
   photos: string[] | string | null;
   rating?: number;
   review_count?: number;
-  category?: string;
+  categories?: {
+    id: number;
+    name: string;
+  } | null;
 };
 
 type Business = {
@@ -37,9 +40,12 @@ type Business = {
   business_name: string;
   logo_url: string | null;
   hero_image_url: string | null;
-  category: string | null;
   description: string | null;
   work_days: Record<string, { start: string; end: string }> | null;
+  categories?: {
+    id: number;
+    name: string;
+  } | null;
   accepted_payment_methods: {
     pix?: boolean;
     card?: boolean;
@@ -124,10 +130,15 @@ const ClientProfileScreen: React.FC = () => {
         setAppointments(appointmentsData as Appointment[]);
       }
 
-      // Buscar serviços mais contratados
       const { data: servicesData } = await supabase
         .from('services')
-        .select('*')
+        .select(`
+          *,
+          categories:category_id (
+            id,
+            name
+          )
+        `)
         .in(
           'id',
           appointmentsData?.map((a: any) => a.service_id).filter(Boolean) || []
@@ -169,7 +180,14 @@ const ClientProfileScreen: React.FC = () => {
       if (businessIds.length > 0) {
         const { data: businessesData } = await supabase
           .from('business_profiles')
-          .select('*, services(id, name, price)')
+          .select(`
+            *,
+            services(id, name, price),
+            categories:category_id (
+              id,
+              name
+            )
+          `)
           .in('id', businessIds)
           .limit(3);
 
@@ -315,9 +333,9 @@ const ClientProfileScreen: React.FC = () => {
                       ) : (
                         <View style={[styles.serviceImage, styles.placeholderImage]} />
                       )}
-                      {service.category && (
+                      {service.categories?.name && (
                         <View style={styles.serviceCategoryBadge}>
-                          <Text style={styles.serviceCategoryText}>{service.category}</Text>
+                          <Text style={styles.serviceCategoryText}>{service.categories.name}</Text>
                         </View>
                       )}
                     </View>
@@ -402,7 +420,7 @@ const ClientProfileScreen: React.FC = () => {
                           <View style={styles.businessInfo}>
                             <Text style={styles.businessName}>{business.business_name}</Text>
                             <Text style={styles.businessCategory}>
-                              {business.category || 'Serviços profissionais'}
+                              {business.categories?.name || 'Serviços profissionais'}
                             </Text>
                           </View>
                         </View>

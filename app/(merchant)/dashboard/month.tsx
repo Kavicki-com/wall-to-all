@@ -123,22 +123,19 @@ const MerchantMonthDashboardScreen: React.FC = () => {
     const startDay = startOfMonthDate.getDay(); // 0 for Sunday, 1 for Monday
     const dates: Date[] = [];
 
-    // Fill in leading days from previous month
     for (let i = startDay; i > 0; i--) {
       const prevDay = new Date(startOfMonthDate);
       prevDay.setDate(startOfMonthDate.getDate() - i);
       dates.push(prevDay);
     }
 
-    // Fill in days of current month
     const daysInMonth = eachDayOfInterval({
       start: startOfMonthDate,
       end: endOfMonthDate,
     });
     dates.push(...daysInMonth);
 
-    // Fill in trailing days from next month
-    const totalCells = 42; // 6 weeks * 7 days
+    const totalCells = 42;
     const remainingCells = totalCells - dates.length;
     for (let i = 1; i <= remainingCells; i++) {
       const nextDay = new Date(endOfMonthDate);
@@ -186,7 +183,6 @@ const MerchantMonthDashboardScreen: React.FC = () => {
     return colorMap[status] || '#474747';
   };
 
-  // Group appointments by date
   const groupedAppointments: DayAppointments[] = [];
   const appointmentsByDate = new Map<string, Appointment[]>();
 

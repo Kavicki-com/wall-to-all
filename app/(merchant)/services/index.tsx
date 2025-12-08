@@ -22,10 +22,13 @@ type Service = {
   price: number;
   description: string | null;
   photos: string[] | string | null;
-  category: string | null;
   duration_minutes: number | null;
   rating?: number;
   review_count?: number;
+  categories?: {
+    id: number;
+    name: string;
+  } | null;
 };
 
 const MerchantServicesScreen: React.FC = () => {
@@ -76,10 +79,15 @@ const MerchantServicesScreen: React.FC = () => {
 
       setBusinessId(businessData.id);
 
-      // Buscar serviços do negócio
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
-        .select('*')
+        .select(`
+          *,
+          categories:category_id (
+            id,
+            name
+          )
+        `)
         .eq('business_id', businessData.id)
         .order('created_at', { ascending: false });
 
@@ -142,7 +150,7 @@ const MerchantServicesScreen: React.FC = () => {
     return (
       service.name.toLowerCase().includes(query) ||
       (service.description && service.description.toLowerCase().includes(query)) ||
-      (service.category && service.category.toLowerCase().includes(query))
+      (service.categories?.name && service.categories.name.toLowerCase().includes(query))
     );
   });
 
@@ -186,8 +194,8 @@ const MerchantServicesScreen: React.FC = () => {
               <IconRatingStar size={12} color="#FFD700" />
               <Text style={styles.reviewCount}>({item.review_count || 25})</Text>
             </View>
-            {item.category && (
-              <Text style={styles.categoryText}>{item.category}</Text>
+            {item.categories?.name && (
+              <Text style={styles.categoryText}>{item.categories.name}</Text>
             )}
           </View>
           <Text style={styles.servicePrice}>

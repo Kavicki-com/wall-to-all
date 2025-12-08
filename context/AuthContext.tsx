@@ -8,7 +8,7 @@ interface AuthContextType {
   session: Session | null;
   userRole: UserRole;
   isLoading: boolean;
-  profileError: string | null; // ✅ Novo: erro quando perfil não existe
+  profileError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -37,7 +37,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .maybeSingle();
 
       if (error) {
-        // Se o erro é PGRST116 (perfil não encontrado), é esperado durante cadastro
         if (error.code !== 'PGRST116') {
           console.error('[AuthContext] Erro ao buscar user_type:', error);
         }
@@ -45,14 +44,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (!data) {
-        console.warn('⚠️ [AuthContext] PERFIL NÃO ENCONTRADO na tabela profiles!');
-        console.warn('⚠️ UserId:', userId);
+        console.warn('[AuthContext] Perfil não encontrado na tabela profiles. UserId:', userId);
         return null;
       }
 
       const userType = data?.user_type as UserRole;
-      
-      // ✅ Limpar erro de perfil se encontrado com sucesso
       setProfileError(null);
       
       return userType || null;
@@ -63,12 +59,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    // Função para inicializar sessão e role
     const initializeAuth = async () => {
       try {
         setIsLoading(true);
 
-        // Verifica sessão atual
         const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
@@ -81,12 +75,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         setSession(currentSession);
 
-        // Se há sessão, busca o role do usuário
         if (currentSession?.user?.id) {
           const role = await fetchUserRole(currentSession.user.id);
           setUserRole(role);
           
-          // ✅ Se login bem-sucedido mas sem perfil, definir erro
           if (!role) {
             setProfileError('Perfil não encontrado no banco de dados. Entre em contato com o suporte.');
           }
@@ -103,21 +95,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    // Inicializa na montagem
     initializeAuth();
 
-    // Escuta mudanças de autenticação em tempo real
     const {
       data: { subscription },
-    } =     supabase.auth.onAuthStateChange(async (event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setSession(newSession);
 
-      // Se há nova sessão, busca o role
       if (newSession?.user?.id) {
         const role = await fetchUserRole(newSession.user.id);
         setUserRole(role);
         
-        // ✅ Se login bem-sucedido mas sem perfil, definir erro
         if (!role) {
           setProfileError('Perfil não encontrado no banco de dados. Entre em contato com o suporte.');
         }
@@ -127,7 +115,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     });
 
-    // Cleanup subscription
     return () => {
       subscription.unsubscribe();
     };

@@ -18,7 +18,6 @@ import { formatWorkDays } from '../../../lib/workDaysUtils';
 import { IconPix, IconCreditCard, IconCash, IconRatingStar, IconNotification, IconSearch, IconFilter, IconSelfCare } from '../../../lib/icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 
-// Tipos
 type Appointment = {
   id: string;
   client_id: string;
@@ -62,13 +61,12 @@ type Service = {
     business_name: string;
   } | null;
   business_id: string;
-  category?: string;
   rating?: number;
   review_count?: number;
   categories?: {
     id: number;
     name: string;
-  };
+  } | null;
 };
 
 const ClientHomeScreen: React.FC = () => {
@@ -423,8 +421,6 @@ const ClientHomeScreen: React.FC = () => {
                 <TouchableOpacity 
                   style={styles.notificationButton}
                   onPress={() => {
-                    // TODO: Implementar tela de notificações
-                    console.log('Abrir notificações');
                   }}
                   activeOpacity={0.8}
                   accessibilityRole="button"

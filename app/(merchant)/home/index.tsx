@@ -29,9 +29,12 @@ type Service = {
   name: string;
   price: number;
   photos: string[] | string | null;
-  category: string | null;
   rating?: number;
   review_count?: number;
+  categories?: {
+    id: number;
+    name: string;
+  } | null;
 };
 
 const MerchantHomeScreen: React.FC = () => {
@@ -83,10 +86,15 @@ const MerchantHomeScreen: React.FC = () => {
       setBusinessId(businessData.id);
       setBusinessProfile(businessData as BusinessProfile);
 
-      // Buscar serviços do negócio (últimos 5 para o carrossel)
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
-        .select('*')
+        .select(`
+          *,
+          categories:category_id (
+            id,
+            name
+          )
+        `)
         .eq('business_id', businessData.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
@@ -177,9 +185,9 @@ const MerchantHomeScreen: React.FC = () => {
           ) : (
             <View style={[styles.serviceImage, styles.placeholderImage]} />
           )}
-          {item.category && (
+          {item.categories?.name && (
             <View style={styles.categoryBadge}>
-              <Text style={styles.categoryText}>{item.category}</Text>
+              <Text style={styles.categoryText}>{item.categories.name}</Text>
             </View>
           )}
         </View>

@@ -15,7 +15,6 @@ import { supabase } from '../../../lib/supabase';
 import { IconPix, IconCreditCard, IconCash, IconRatingStar } from '../../../lib/icons';
 import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
-// Tipos
 type BusinessProfile = {
   id: string;
   business_name: string;
@@ -423,7 +422,6 @@ const styles = StyleSheet.create({
     right: 0,
     height: 390,
     opacity: 0.08,
-    // Pattern de bricks seria implementado com uma imagem ou componente
   },
   scrollView: {
     flex: 1,
