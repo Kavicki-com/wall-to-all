@@ -134,21 +134,6 @@ npm run ios
 # Executar na web
 npm run web
 ```
-
-## 🐛 Troubleshooting
-
-### Problema: Login sem perfil
-
-Se você conseguir fazer login mas o app não redireciona, verifique se o perfil existe na tabela `profiles`.
-
-**Solução**: Veja `docs/troubleshooting/TROUBLESHOOTING_LOGIN.md`
-
-### Problema: Variáveis de ambiente não funcionam
-
-No Expo, variáveis de ambiente devem ter o prefixo `EXPO_PUBLIC_` para serem acessíveis no cliente.
-
-**Solução**: Certifique-se de que suas variáveis começam com `EXPO_PUBLIC_`
-
 ## 📚 Documentação Adicional
 
 - `ARCHITECTURE.md`: Arquitetura completa do projeto
@@ -158,19 +143,9 @@ No Expo, variáveis de ambiente devem ter o prefixo `EXPO_PUBLIC_` para serem ac
 
 ## 🔒 Segurança
 
-⚠️ **IMPORTANTE**: Nunca commite arquivos `.env*` no repositório!
-
 As chaves do Supabase devem estar apenas em:
 - `.env.local` (local, não versionado)
 - Variáveis de ambiente do servidor (produção)
-
-## 📄 Licença
-
-[Adicione a licença do projeto aqui]
-
-## 👥 Contribuidores
-
-[Adicione os contribuidores aqui]
 
 ---
 
