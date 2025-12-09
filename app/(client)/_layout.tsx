@@ -81,7 +81,7 @@ const ClientLayout: React.FC = () => {
         }}
       />
       
-      {/* Services - Lista de serviços */}
+      {/* Services - fallback para rota antiga (redireciona) */}
       <Tabs.Screen
         name="services/index"
         options={{

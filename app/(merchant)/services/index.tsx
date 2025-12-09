@@ -10,35 +10,37 @@ import {
   TextInput,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../lib/supabase';
 import { IconSearch, IconRatingStar } from '../../../lib/icons';
 import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
+// --- TIPOS ---
 type Service = {
   id: string;
   name: string;
   price: number;
   description: string | null;
   photos: string[] | string | null;
+  category: string | null;
   duration_minutes: number | null;
   rating?: number;
   review_count?: number;
-  categories?: {
-    id: number;
-    name: string;
-  } | null;
 };
 
 const MerchantServicesScreen: React.FC = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [businessId, setBusinessId] = useState<string | null>(null);
 
+  // --- EFEITOS E CARREGAMENTO DE DADOS ---
   useEffect(() => {
     loadBusinessAndServices();
   }, []);
@@ -46,18 +48,13 @@ const MerchantServicesScreen: React.FC = () => {
   const loadBusinessAndServices = async () => {
     try {
       setLoading(true);
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
         setLoading(false);
         return;
       }
 
-      // Buscar business_profile do lojista
       const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
         .select('id')
@@ -65,7 +62,6 @@ const MerchantServicesScreen: React.FC = () => {
         .single();
 
       if (businessError || !businessData) {
-        console.error('Erro ao buscar negócio:', businessError);
         if (businessError?.code === 'PGRST116') {
           Alert.alert(
             'Perfil não encontrado',
@@ -81,50 +77,33 @@ const MerchantServicesScreen: React.FC = () => {
 
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
-        .select(`
-          *,
-          categories:category_id (
-            id,
-            name
-          )
-        `)
+        .select(
+          'id,name,price,description,photos,category_id,duration_minutes,reviews(rating),categories(name)'
+        )
         .eq('business_id', businessData.id)
         .order('created_at', { ascending: false });
 
       if (servicesError) {
-        console.error('Erro ao buscar serviços:', servicesError);
-        // Não mostrar erro para o usuário, apenas logar
-      } else if (servicesData) {
-        // Buscar ratings para serviços
-        const servicesWithRatings = await Promise.all(
-          (servicesData as Service[]).map(async (service) => {
-            const { data: serviceReviews } = await supabase
-              .from('reviews')
-              .select('rating')
-              .eq('service_id', service.id);
+        console.error('Erro ao carregar serviços:', servicesError);
+      }
 
-            const rating =
-              serviceReviews && serviceReviews.length > 0
-                ? serviceReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / serviceReviews.length
-                : undefined;
-            const reviewCount = serviceReviews?.length || undefined;
-
-            return {
-              ...service,
-              rating,
-              review_count: reviewCount,
-            };
-          })
-        );
-        setServices(servicesWithRatings);
+      if (servicesData) {
+        const servicesWithRatings = (servicesData as any[]).map((service) => {
+          const ratings = Array.isArray(service.reviews) ? service.reviews : [];
+          const reviewCount = ratings.length || undefined;
+          const rating =
+            ratings.length > 0
+              ? ratings.reduce((sum: number, r: { rating?: number }) => sum + (r?.rating || 0), 0) /
+                ratings.length
+              : undefined;
+          const { reviews, categories, ...rest } = service;
+          const categoryName = categories?.name ?? null;
+          return { ...rest, category: categoryName, rating, review_count: reviewCount };
+        });
+        setServices(servicesWithRatings as Service[]);
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      Alert.alert(
-        'Erro ao carregar',
-        'Não foi possível carregar os serviços. Verifique sua conexão e tente novamente.',
-        [{ text: 'OK' }]
-      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -136,6 +115,7 @@ const MerchantServicesScreen: React.FC = () => {
     loadBusinessAndServices();
   };
 
+  // --- NAVEGAÇÃO E FILTROS ---
   const handleServicePress = (serviceId: string) => {
     router.push(`/(merchant)/services/edit/${serviceId}`);
   };
@@ -150,22 +130,22 @@ const MerchantServicesScreen: React.FC = () => {
     return (
       service.name.toLowerCase().includes(query) ||
       (service.description && service.description.toLowerCase().includes(query)) ||
-      (service.categories?.name && service.categories.name.toLowerCase().includes(query))
+      (service.category && service.category.toLowerCase().includes(query))
     );
   });
 
+  // --- RENDERIZAÇÃO DO CARD ---
   const renderServiceCard = ({ item }: { item: Service }) => {
-    // Processar imagens do serviço
-    let imagesArray: string[] = [];
+    const imagesArray: string[] = [];
     if (item.photos) {
       if (typeof item.photos === 'string') {
         try {
-          imagesArray = JSON.parse(item.photos);
+          imagesArray.push(...JSON.parse(item.photos));
         } catch {
-          imagesArray = [item.photos];
+          imagesArray.push(item.photos);
         }
       } else if (Array.isArray(item.photos)) {
-        imagesArray = item.photos;
+        imagesArray.push(...item.photos);
       }
     }
     const firstImage = imagesArray.length > 0 ? imagesArray[0] : null;
@@ -175,29 +155,30 @@ const MerchantServicesScreen: React.FC = () => {
         style={styles.serviceCard}
         activeOpacity={0.8}
         onPress={() => handleServicePress(item.id)}
-        accessibilityRole="button"
-        accessibilityLabel={`Serviço ${item.name}, preço R$ ${item.price.toFixed(2).replace('.', ',')}`}
-        accessibilityHint="Toque para editar este serviço"
       >
-        {/* Service Image */}
-        {firstImage ? (
-          <Image source={{ uri: firstImage }} style={styles.serviceImage} resizeMode="cover" />
-        ) : (
-          <View style={[styles.serviceImage, styles.placeholderImage]} />
-        )}
-
+        <Image 
+            source={firstImage ? { uri: firstImage } : undefined} 
+            style={[styles.serviceImage, !firstImage && styles.placeholderImage]} 
+            resizeMode="cover" 
+        />
+       
         <View style={styles.serviceInfo}>
-          <Text style={styles.serviceName}>{item.name}</Text>
-          <View style={styles.serviceDetails}>
-            <View style={styles.ratingContainer}>
+          <Text style={styles.serviceName} numberOfLines={2}>{item.name}</Text>
+          
+          <View style={styles.serviceDetailsRow}>
+            <View style={styles.ratingBadge}>
               <Text style={styles.ratingValue}>{item.rating?.toFixed(1) || '4.8'}</Text>
-              <IconRatingStar size={12} color="#FFD700" />
+              <IconRatingStar size={14} color="#FFCE31" />
               <Text style={styles.reviewCount}>({item.review_count || 25})</Text>
             </View>
-            {item.categories?.name && (
-              <Text style={styles.categoryText}>{item.categories.name}</Text>
+            
+            {item.category && (
+              <Text style={styles.categoryText} numberOfLines={1}>
+                {item.category}
+              </Text>
             )}
           </View>
+
           <Text style={styles.servicePrice}>
             R$ {item.price.toFixed(2).replace('.', ',')}
           </Text>
@@ -214,60 +195,30 @@ const MerchantServicesScreen: React.FC = () => {
     );
   }
 
+  // --- RENDERIZAÇÃO DA TELA ---
   return (
     <View style={styles.container}>
-      <MerchantTopBar title="Serviços" />
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={handleAddService}
-          accessibilityRole="button"
-          accessibilityLabel="Adicionar novo serviço"
-          accessibilityHint="Toque para criar um novo serviço"
-        >
-          <Text style={styles.addButtonText}>+ Adicionar</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <IconSearch size={20} color="#474747" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar serviços..."
-            placeholderTextColor="#9E9E9E"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            accessibilityLabel="Campo de busca de serviços"
-            accessibilityHint="Digite o nome do serviço que deseja buscar"
-          />
+      <MerchantTopBar showBack={true} />
+      
+      <View style={styles.mainContent}>
+        {/* 1. TOPO: Título e Busca */}
+        <View style={styles.headerSection}>
+          <Text style={styles.title}>Meus serviços</Text>
+          
+          <View style={styles.searchBarContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar serviços"
+              placeholderTextColor="#474747"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <IconSearch size={20} color="#0F0F0F" />
+          </View>
         </View>
-      </View>
 
-      {/* Services List */}
-      {filteredServices.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            {searchQuery
-              ? 'Nenhum serviço encontrado.'
-              : 'Você ainda não tem serviços cadastrados.'}
-          </Text>
-          {!searchQuery && (
-            <TouchableOpacity
-              style={styles.addFirstButton}
-              onPress={handleAddService}
-              accessibilityRole="button"
-              accessibilityLabel="Adicionar primeiro serviço"
-              accessibilityHint="Toque para criar seu primeiro serviço"
-            >
-              <Text style={styles.addFirstButtonText}>Adicionar Primeiro Serviço</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : (
-        <>
+        {/* 2. MEIO: Lista de Serviços (Flex: 1) */}
+        <View style={styles.listSection}>
           <FlatList
             data={filteredServices}
             renderItem={renderServiceCard}
@@ -275,24 +226,36 @@ const MerchantServicesScreen: React.FC = () => {
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>
+                  {searchQuery
+                    ? 'Nenhum serviço encontrado.'
+                    : 'Você ainda não tem serviços cadastrados.'}
+                </Text>
+              </View>
+            }
           />
+        </View>
+
+        {/* 3. FUNDO: Botão Fixo */}
+        {/* Ajustei o paddingBottom para aproximar o botão da barra de navegação */}
+        <View style={[styles.footerSection, { paddingBottom: Math.max(insets.bottom, 20) + 20 }]}>
           <TouchableOpacity
             style={styles.addServiceButton}
             onPress={handleAddService}
-            accessibilityRole="button"
-            accessibilityLabel="Cadastrar novo serviço"
-            accessibilityHint="Toque para adicionar um novo serviço ao seu negócio"
           >
             <Text style={styles.addServiceButtonText}>Cadastrar novo serviço</Text>
           </TouchableOpacity>
-        </>
-      )}
+        </View>
+      </View>
     </View>
   );
 };
 
 export default MerchantServicesScreen;
 
+// --- ESTILOS ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -304,73 +267,67 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+  mainContent: {
+    flex: 1,
+  },
+  
+  // --- HEADER (Ajustado posicionamento e tamanho da busca) ---
+  headerSection: {
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 16,
-    backgroundColor: '#FEFEFE',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-    marginTop: 70,
+    paddingTop: 20, // Espaço entre header e título
+    paddingBottom: 24,
   },
   title: {
-    fontSize: 24,
+    fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: '#E5102E',
+    marginBottom: 16,
   },
-  addButton: {
-    backgroundColor: '#E5102E',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  addButtonText: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
-  },
-  searchContainer: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#FEFEFE',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-  },
-  searchBar: {
+  searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 16, // Padding interno lateral
+    height: 56, // Aumentada a altura da barra
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#474747',
+    backgroundColor: 'transparent',
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
     color: '#0F0F0F',
+    marginRight: 8,
+    height: '100%', // Garante que o input ocupe toda a altura
+  },
+
+  // --- LISTA ---
+  listSection: {
+    flex: 1, // Ocupa o espaço central
   },
   listContent: {
-    padding: 24,
-    paddingBottom: 100,
-    gap: 8,
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+    gap: 16,
   },
+
+  // --- CARD DO SERVIÇO ---
   serviceCard: {
     flexDirection: 'row',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#474747',
     overflow: 'hidden',
+    height: 104,
   },
   serviceImage: {
     width: 85,
     height: '100%',
-    minHeight: 100,
+    backgroundColor: '#E0E0E0',
   },
   placeholderImage: {
     backgroundColor: '#E0E0E0',
@@ -378,81 +335,76 @@ const styles = StyleSheet.create({
   serviceInfo: {
     flex: 1,
     padding: 16,
-    gap: 8,
     justifyContent: 'space-between',
   },
   serviceName: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#0F0F0F',
+    marginBottom: 4,
   },
-  serviceDetails: {
+  serviceDetailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    marginBottom: 4,
   },
-  ratingContainer: {
+  ratingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    marginRight: 12,
   },
   ratingValue: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
     color: '#0F0F0F',
+    marginRight: 4,
   },
   reviewCount: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
     color: '#474747',
+    marginLeft: 2,
   },
   categoryText: {
     fontSize: 12,
     fontFamily: 'Montserrat_300Light',
     color: '#0F0F0F',
+    flex: 1,
   },
   servicePrice: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#17723F',
   },
+
+  // --- EMPTY STATE ---
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     padding: 32,
+    alignItems: 'center',
   },
   emptyText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
     color: '#474747',
     textAlign: 'center',
-    marginBottom: 24,
   },
-  addFirstButton: {
-    backgroundColor: '#E5102E',
-    borderRadius: 24,
+
+  // --- FOOTER (Ajustado posicionamento do botão) ---
+  footerSection: {
     paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  addFirstButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    backgroundColor: '#FAFAFA',
+    paddingTop: 16, // Um pouco mais de respiro acima do botão
+    // paddingBottom é definido dinamicamente no JSX
   },
   addServiceButton: {
-    position: 'absolute',
-    bottom: 100,
-    left: 24,
-    right: 24,
     borderWidth: 1,
     borderColor: '#000E3D',
     borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: 'transparent',
+    width: '100%',
   },
   addServiceButtonText: {
     fontSize: 16,

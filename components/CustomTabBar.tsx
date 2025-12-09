@@ -89,8 +89,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingHorizontal: 24,
     backgroundColor: '#FEFEFE',
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
+    alignItems: 'center', // Alinhar itens no centro vertical da barra
+    justifyContent: 'flex-start', // Itens lado a lado, sem espaçamento extra
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
     width: '100%',
@@ -107,28 +107,30 @@ const styles = StyleSheet.create({
     }),
   },
   tabButton: {
-    minWidth: 48,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    flex: 1, // Cada botão ocupa espaço igual (conforme Figma: flex-[1_0_0])
+    height: '100%', // Altura completa do container (conforme Figma: h-full)
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 24,
+    paddingHorizontal: 4, // Padding mínimo para evitar que ícones encostem nas bordas
+    paddingVertical: 3, // Padding vertical mínimo
+    marginTop: 2, // Deslocar ícones 2px para baixo
   },
   tabButtonActive: {
-    height: 56,
-    minWidth: 56,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    height: 56, // Altura fixa para o botão ativo (conforme Figma: h-[72px] mas com padding)
     backgroundColor: '#E5102E',
     shadowColor: '#1D1D1D',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.16,
     shadowRadius: 16,
     elevation: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
+    marginTop: 2, // Deslocar ícones 2px para baixo
   },
   tabIconWrapper: {
-    width: 36, // ✅ Container para ícones de 28-30px
-    height: 36, // ✅ Container para ícones de 28-30px
+    width: 24, // Tamanho do container do ícone (conforme Figma: size-[24px])
+    height: 24, // Tamanho do container do ícone (conforme Figma: size-[24px])
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',

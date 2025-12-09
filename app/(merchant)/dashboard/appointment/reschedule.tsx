@@ -69,7 +69,7 @@ const MerchantRescheduleScreen: React.FC = () => {
 
       if (!params.appointmentId) {
         console.error('ID do agendamento não fornecido');
-        router.back();
+        router.replace('/(merchant)/dashboard');
         return;
       }
 
@@ -78,7 +78,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.back();
+        router.replace('/(auth)/login');
         return;
       }
 
@@ -89,7 +89,7 @@ const MerchantRescheduleScreen: React.FC = () => {
         .single();
 
       if (!businessData) {
-        router.back();
+        router.replace('/(merchant)/dashboard');
         return;
       }
 
@@ -108,7 +108,7 @@ const MerchantRescheduleScreen: React.FC = () => {
 
       if (error || !appointmentData) {
         console.error('Erro ao buscar agendamento:', error);
-        router.back();
+        router.replace('/(merchant)/dashboard');
         return;
       }
 
@@ -116,7 +116,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       generateAvailableDates(appointmentData as Appointment);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      router.back();
+      router.replace('/(merchant)/dashboard');
     } finally {
       setLoading(false);
     }

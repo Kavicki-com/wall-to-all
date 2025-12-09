@@ -87,7 +87,7 @@ const AppointmentDetailScreen: React.FC = () => {
 
       if (!user) {
         console.log('Usuário não autenticado');
-        router.back();
+        router.replace('/(auth)/login');
         return;
       }
 
@@ -100,7 +100,7 @@ const AppointmentDetailScreen: React.FC = () => {
 
       if (!businessData) {
         console.error('Negócio não encontrado');
-        router.back();
+        router.replace('/(merchant)/dashboard');
         return;
       }
 
@@ -126,7 +126,7 @@ const AppointmentDetailScreen: React.FC = () => {
         } else {
           Alert.alert('Erro', 'Não foi possível carregar o agendamento. Verifique sua conexão e tente novamente.');
         }
-        router.back();
+        router.replace('/(merchant)/dashboard');
       } else if (appointmentData) {
         // Buscar reagendamentos pendentes
         const { data: pendingReschedules } = await supabase

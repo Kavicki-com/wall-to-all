@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,9 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { sortCategories } from '../../../lib/categoryUtils';
 import { formatWorkDays } from '../../../lib/workDaysUtils';
-import { IconPix, IconCreditCard, IconCash, IconRatingStar, IconNotification, IconSearch, IconFilter, IconSelfCare } from '../../../lib/icons';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { IconPix, IconCreditCard, IconCash, IconRatingStar, IconSearch, IconFilter, IconSelfCare } from '../../../lib/icons';
+import { useCardWidth } from '../../../lib/responsive';
+import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
 type Appointment = {
   id: string;
@@ -76,6 +77,14 @@ const ClientHomeScreen: React.FC = () => {
   const [allFeaturedBusinesses, setAllFeaturedBusinesses] = useState<BusinessProfile[]>([]);
   const [allPopularServices, setAllPopularServices] = useState<Service[]>([]);
   const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([]);
+
+  // Cards de negócios (~1.5 visíveis em scroll horizontal)
+  const businessCardWidth = useCardWidth(1.5, 24, 10);
+  const businessGap = 10; // Gap entre cards de negócios (marginRight)
+
+  // Cards de serviços (~2 visíveis em scroll horizontal)
+  const serviceCardWidth = useCardWidth(2, 24, 14);
+  const serviceGap = 14; // Gap entre cards de serviços (marginRight)
 
   useEffect(() => {
     loadData();
@@ -245,13 +254,17 @@ const ClientHomeScreen: React.FC = () => {
 
         {/* Service Pills */}
         {services.length > 0 && (
-          <View style={styles.servicePillsContainer}>
-            {services.slice(0, 4).map((service) => (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.servicePillsContainer}
+          >
+            {services.slice(0, 8).map((service) => (
               <View key={service.id} style={styles.servicePill}>
                 <Text style={styles.servicePillText}>{service.name}</Text>
               </View>
             ))}
-          </View>
+          </ScrollView>
         )}
 
         {/* Horário de funcionamento */}
@@ -318,8 +331,8 @@ const ClientHomeScreen: React.FC = () => {
         style={styles.serviceCard}
         activeOpacity={0.8}
         onPress={() => {
-          // Redirecionar para a tela de serviços disponíveis
-          router.push('/(client)/services');
+          // Ir para o perfil da loja que oferece o serviço
+          router.push(`/(client)/store/${item.business_id}`);
         }}
         accessibilityRole="button"
         accessibilityLabel={`Serviço: ${item.name}`}
@@ -372,248 +385,8 @@ const ClientHomeScreen: React.FC = () => {
     <ServiceCard item={item} />
   );
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.topBarDivider} />
-        <View style={styles.topBarContent}>
-          {/* Gradiente Radial + Linear conforme Figma */}
-          <View style={styles.topBarGradientContainer}>
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
-              <Defs>
-                <RadialGradient
-                  id="topBarRadialGradient"
-                  cx="50%"
-                  cy="50%"
-                  r="50%"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <Stop offset="0%" stopColor="rgba(214,224,255,0.2)" />
-                  <Stop offset="25%" stopColor="rgba(161,172,207,0.2)" />
-                  <Stop offset="37.5%" stopColor="rgba(134,145,182,0.2)" />
-                  <Stop offset="50%" stopColor="rgba(107,119,158,0.2)" />
-                  <Stop offset="62.5%" stopColor="rgba(80,93,134,0.2)" />
-                  <Stop offset="75%" stopColor="rgba(54,67,110,0.2)" />
-                  <Stop offset="87.5%" stopColor="rgba(27,40,85,0.2)" />
-                  <Stop offset="93.75%" stopColor="rgba(13,27,73,0.2)" />
-                  <Stop offset="100%" stopColor="rgba(0,14,61,0.2)" />
-                </RadialGradient>
-              </Defs>
-              <Rect x="0" y="0" width="410" height="56" fill="url(#topBarRadialGradient)" />
-            </Svg>
-            <LinearGradient
-              colors={['rgba(0,14,61,0.2)', 'rgba(214,224,255,0.2)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-          </View>
-          <View style={styles.topBarGradientOverlay} />
-                <TouchableOpacity 
-                  style={styles.notificationButton}
-                  onPress={() => {
-                  }}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Ver notificações"
-                  accessibilityHint="Toque para abrir suas notificações"
-                >
-                  <IconNotification size={24} color="#FEFEFE" />
-                </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Search Bar */}
-        <View style={styles.searchBarContainer}>
-          <TouchableOpacity
-            style={styles.searchInputContainer}
-            onPress={() => router.push('/(client)/search')}
-            activeOpacity={0.8}
-            accessibilityRole="search"
-            accessibilityLabel="Buscar serviços"
-            accessibilityHint="Toque para abrir a tela de busca"
-          >
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Procurar serviços"
-              placeholderTextColor="#0f0f0f"
-              editable={false}
-              accessibilityElementsHidden={true}
-              importantForAccessibility="no"
-            />
-            <View style={styles.searchIconContainer}>
-              <IconSearch size={25} color="#0F0F0F" />
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.filterButton} 
-            activeOpacity={0.8}
-            onPress={() => router.push('/(client)/search')}
-            accessibilityRole="button"
-            accessibilityLabel="Abrir filtros de busca"
-            accessibilityHint="Toque para abrir a tela de busca com filtros"
-          >
-            <IconFilter width={25} height={25} color="#FEFEFE" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Categories */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoriesContainer}
-          contentContainerStyle={styles.categoriesContent}
-        >
-          {categories.map((category) => (
-            <TouchableOpacity
-              key={category.id}
-              style={styles.categoryChip}
-              activeOpacity={0.7}
-              onPress={() => {
-                router.push({
-                  pathname: '/(client)/search/results',
-                  params: { category: category.name },
-                });
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Buscar serviços de ${category.name}`}
-              accessibilityHint="Toque para ver serviços desta categoria"
-            >
-              <Text style={styles.categoryChipText}>
-                {category.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Meus Agendamentos */}
-        {appointments.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
-            {appointments.slice(0, 3).map((appointment) => {
-              const startDate = new Date(appointment.start_time);
-              const timeString = startDate.toLocaleTimeString('pt-BR', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: false 
-              });
-              const dateString = `Data ${startDate.toLocaleDateString('pt-BR', { 
-                day: '2-digit',
-                month: '2-digit',
-                year: '2-digit'
-              })}`;
-              
-              return (
-                <TouchableOpacity
-                  key={appointment.id}
-                  style={styles.appointmentCard}
-                  activeOpacity={0.8}
-                  onPress={() => router.push(`/(client)/appointments/${appointment.id}`)}
-                >
-                  <View style={styles.appointmentHeader}>
-                    <Text style={styles.appointmentTime}>{timeString}</Text>
-                    <Text style={styles.appointmentDate}>{dateString}</Text>
-                  </View>
-                  <View style={styles.appointmentContent}>
-                    <IconSelfCare size={24} color="#000E3D" />
-                    <Text style={styles.appointmentServiceName} numberOfLines={1}>
-                      {appointment.service?.name || 'Serviço'}
-                    </Text>
-                    <Text style={styles.appointmentChevron}>›</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Lojas em destaque */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Lojas em destaque</Text>
-          {allFeaturedBusinesses.length > 0 ? (
-            <FlatList
-              data={allFeaturedBusinesses}
-              renderItem={renderBusinessCard}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.businessesList}
-              initialNumToRender={3}
-              maxToRenderPerBatch={5}
-              windowSize={5}
-              removeClippedSubviews={true}
-              getItemLayout={(data, index) => ({
-                length: 265,
-                offset: 265 * index,
-                index,
-              })}
-            />
-          ) : (
-            <Text style={styles.emptyText}>Nenhuma loja em destaque no momento</Text>
-          )}
-        </View>
-
-        {/* Serviços mais contratados */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
-          {allPopularServices.length > 0 ? (
-            <FlatList
-              data={allPopularServices}
-              renderItem={renderServiceCard}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.servicesList}
-              initialNumToRender={4}
-              maxToRenderPerBatch={6}
-              windowSize={5}
-              removeClippedSubviews={true}
-              getItemLayout={(data, index) => ({
-                length: 207,
-                offset: 207 * index,
-                index,
-              })}
-            />
-          ) : (
-            <Text style={styles.emptyText}>Nenhum serviço disponível no momento</Text>
-          )}
-
-          {/* Botão Agendar serviços - dentro da seção de serviços */}
-          <TouchableOpacity
-            style={styles.scheduleButton}
-            activeOpacity={0.8}
-            onPress={() => {
-              console.log('Navegar para agendamento');
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Agendar serviços"
-            accessibilityHint="Toque para agendar um novo serviço"
-          >
-            <Text style={styles.scheduleButtonText}>Agendar serviços</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
-  );
-};
-
-export default ClientHomeScreen;
-
-const styles = StyleSheet.create({
+  // Estilos dinâmicos usando useMemo
+  const styles = useMemo(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
@@ -624,44 +397,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  topBarDivider: {
-    height: 14,
-    backgroundColor: '#EBEFFF',
-  },
-  topBarContent: {
-    height: 56,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    backgroundColor: '#000E3D',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  topBarGradientContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  topBarGradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000E3D',
-  },
-  notificationButton: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   scrollView: {
     flex: 1,
-    marginTop: 70,
   },
   scrollContent: {
     paddingBottom: 100,
@@ -793,24 +530,25 @@ const styles = StyleSheet.create({
     paddingRight: 24,
   },
   businessCard: {
-    width: 255,
+    width: businessCardWidth,
     backgroundColor: '#FEFEFE',
     borderRadius: 16,
-    padding: 16,
-    marginRight: 10,
-    // Sem sombra conforme design do Figma
+    overflow: 'hidden',
+    marginRight: businessGap,
+    shadowColor: '#1D1D1D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   businessHeroContainer: {
-    paddingBottom: 72, // Espaço para o avatar sobreposto
-    marginBottom: 0,
+    width: '100%',
     position: 'relative',
   },
   businessImageContainer: {
     height: 122,
-    borderRadius: 8,
-    marginBottom: -72, // Sobreposição para o avatar
-    overflow: 'visible', // Mudado para visible para permitir que o avatar apareça
     position: 'relative',
+    overflow: 'visible',
   },
   businessHeroImage: {
     width: '100%',
@@ -828,8 +566,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    marginBottom: 8,
-    marginTop: 8,
+    paddingTop: 80,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   priceRangeLabel: {
     fontSize: 12,
@@ -846,16 +585,14 @@ const styles = StyleSheet.create({
   },
   businessProfileContainer: {
     position: 'absolute',
-    bottom: 0,
+    bottom: -72,
     left: 0,
+    right: 0,
     flexDirection: 'row',
-    alignItems: 'center', // Alinhar ao centro verticalmente
+    alignItems: 'flex-end',
     gap: 8,
     paddingLeft: 16,
-    paddingRight: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
-    height: 72,
+    paddingBottom: 8,
     zIndex: 2,
   },
   businessAvatarContainer: {
@@ -867,6 +604,9 @@ const styles = StyleSheet.create({
   businessAvatar: {
     width: '100%',
     height: '100%',
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: '#FEFEFE',
   },
   businessInfo: {
     flex: 1,
@@ -875,18 +615,18 @@ const styles = StyleSheet.create({
   businessName: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE', // Branco porque está sobreposto na imagem
+      color: '#FEFEFE',
   },
   businessDescription: {
     fontSize: 8,
     fontFamily: 'Montserrat_500Medium',
-    color: '#FEFEFE', // Branco porque está sobreposto na imagem
+      color: '#FEFEFE',
   },
   servicePillsContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    marginBottom: 8,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   servicePill: {
     borderWidth: 1,
@@ -894,6 +634,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    marginRight: 8,
   },
   servicePillText: {
     fontSize: 12,
@@ -903,6 +644,7 @@ const styles = StyleSheet.create({
   operatingHours: {
     marginBottom: 8,
     paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   operatingHoursTitle: {
     fontSize: 12,
@@ -921,6 +663,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   paymentMethodsTitle: {
     fontSize: 12,
@@ -949,8 +692,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   serviceCard: {
-    width: 193,
-    marginRight: 14,
+      width: serviceCardWidth,
+      marginRight: serviceGap,
   },
   serviceImageContainer: {
     height: 94,
@@ -1044,4 +787,197 @@ const styles = StyleSheet.create({
   placeholderAvatar: {
     backgroundColor: '#E0E0E0',
   },
-});
+  }), [businessCardWidth, serviceCardWidth]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#E5102E" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <MerchantTopBar showNotification fallbackPath="/(client)/home" />
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Search Bar */}
+        <View style={styles.searchBarContainer}>
+          <TouchableOpacity
+            style={styles.searchInputContainer}
+            onPress={() => router.push('/(client)/search')}
+            activeOpacity={0.8}
+            accessibilityRole="search"
+            accessibilityLabel="Buscar serviços"
+            accessibilityHint="Toque para abrir a tela de busca"
+          >
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Procurar serviços"
+              placeholderTextColor="#0f0f0f"
+              editable={false}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no"
+            />
+            <View style={styles.searchIconContainer}>
+              <IconSearch size={25} color="#0F0F0F" />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.filterButton} 
+            activeOpacity={0.8}
+            onPress={() => router.push('/(client)/search')}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir filtros de busca"
+            accessibilityHint="Toque para abrir a tela de busca com filtros"
+          >
+            <IconFilter width={25} height={25} color="#FEFEFE" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Categories */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoriesContainer}
+          contentContainerStyle={styles.categoriesContent}
+        >
+          {categories.map((category) => (
+            <TouchableOpacity
+              key={category.id}
+              style={styles.categoryChip}
+              activeOpacity={0.7}
+              onPress={() => {
+                router.push({
+                  pathname: '/(client)/search/results',
+                  params: { category: category.name },
+                });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Buscar serviços de ${category.name}`}
+              accessibilityHint="Toque para ver serviços desta categoria"
+            >
+              <Text style={styles.categoryChipText}>
+                {category.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Meus Agendamentos */}
+        {appointments.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
+            {appointments.slice(0, 3).map((appointment) => {
+              const startDate = new Date(appointment.start_time);
+              const timeString = startDate.toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+              });
+              const dateString = `Data ${startDate.toLocaleDateString('pt-BR', { 
+                day: '2-digit',
+                month: '2-digit',
+                year: '2-digit'
+              })}`;
+              
+              return (
+                <TouchableOpacity
+                  key={appointment.id}
+                  style={styles.appointmentCard}
+                  activeOpacity={0.8}
+                  onPress={() => router.push(`/(client)/appointments/${appointment.id}`)}
+                >
+                  <View style={styles.appointmentHeader}>
+                    <Text style={styles.appointmentTime}>{timeString}</Text>
+                    <Text style={styles.appointmentDate}>{dateString}</Text>
+                  </View>
+                  <View style={styles.appointmentContent}>
+                    <IconSelfCare size={24} color="#000E3D" />
+                    <Text style={styles.appointmentServiceName} numberOfLines={1}>
+                      {appointment.service?.name || 'Serviço'}
+                    </Text>
+                    <Text style={styles.appointmentChevron}>›</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Lojas em destaque */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Lojas em destaque</Text>
+          {allFeaturedBusinesses.length > 0 ? (
+            <FlatList
+              data={allFeaturedBusinesses}
+              renderItem={renderBusinessCard}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.businessesList}
+              initialNumToRender={3}
+              maxToRenderPerBatch={5}
+              windowSize={5}
+              removeClippedSubviews={true}
+              getItemLayout={(data, index) => ({
+                length: businessCardWidth + businessGap,
+                offset: (businessCardWidth + businessGap) * index,
+                index,
+              })}
+            />
+          ) : (
+            <Text style={styles.emptyText}>Nenhuma loja em destaque no momento</Text>
+          )}
+        </View>
+
+        {/* Serviços mais contratados */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
+          {allPopularServices.length > 0 ? (
+            <FlatList
+              data={allPopularServices}
+              renderItem={renderServiceCard}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.servicesList}
+              initialNumToRender={4}
+              maxToRenderPerBatch={6}
+              windowSize={5}
+              removeClippedSubviews={true}
+              getItemLayout={(data, index) => ({
+                length: serviceCardWidth + serviceGap,
+                offset: (serviceCardWidth + serviceGap) * index,
+                index,
+              })}
+            />
+          ) : (
+            <Text style={styles.emptyText}>Nenhum serviço disponível no momento</Text>
+          )}
+
+          {/* Botão Agendar serviços - dentro da seção de serviços */}
+          <TouchableOpacity
+            style={styles.scheduleButton}
+            activeOpacity={0.8}
+            onPress={() => {
+              console.log('Navegar para agendamento');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Agendar serviços"
+            accessibilityHint="Toque para agendar um novo serviço"
+          >
+            <Text style={styles.scheduleButtonText}>Agendar serviços</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+export default ClientHomeScreen;

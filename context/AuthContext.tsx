@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, clearInvalidAuthTokens } from '../lib/supabase';
 
 type UserRole = 'client' | 'merchant' | null;
 
@@ -27,6 +27,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+
+  // Usa a função utilitária do supabase.ts para limpar tokens
+  const clearInvalidTokens = clearInvalidAuthTokens;
+
+  // Verifica se o erro é relacionado a refresh token inválido
+  const isInvalidRefreshTokenError = (error: any): boolean => {
+    if (!error) return false;
+    const errorMessage = error.message || error.toString() || '';
+    return (
+      errorMessage.includes('Invalid Refresh Token') ||
+      errorMessage.includes('Refresh Token Not Found') ||
+      errorMessage.includes('refresh_token_not_found') ||
+      error.code === 'refresh_token_not_found'
+    );
+  };
 
   const fetchUserRole = async (userId: string): Promise<UserRole> => {
     try {
@@ -59,13 +74,65 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
+    let subscription: { unsubscribe: () => void } | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const initializeAuth = async () => {
       try {
         setIsLoading(true);
 
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+        // Timeout de segurança: garante que isLoading não fique travado
+        timeoutId = setTimeout(() => {
+          console.warn('[AuthContext] Timeout na inicialização - forçando isLoading = false');
+          setIsLoading(false);
+        }, 5000);
+
+        let currentSession: Session | null = null;
+        let sessionError: any = null;
+
+        try {
+          const result = await supabase.auth.getSession();
+          currentSession = result.data.session;
+          sessionError = result.error;
+        } catch (error: any) {
+          // Captura erros não tratados, especialmente refresh token inválido
+          if (isInvalidRefreshTokenError(error)) {
+            console.warn('[AuthContext] Refresh token inválido detectado, limpando tokens...');
+            await clearInvalidTokens();
+            // Tentar fazer signOut para limpar completamente
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              // Ignora erros no signOut
+            }
+            sessionError = null; // Tratar como se não houvesse sessão
+            currentSession = null;
+          } else {
+            sessionError = error;
+          }
+        }
+
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
 
         if (sessionError) {
+          // Se for erro de refresh token inválido, limpar e continuar sem sessão
+          if (isInvalidRefreshTokenError(sessionError)) {
+            console.warn('[AuthContext] Refresh token inválido no getSession, limpando...');
+            await clearInvalidTokens();
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutError) {
+              // Ignora erros no signOut
+            }
+            setSession(null);
+            setUserRole(null);
+            setIsLoading(false);
+            return;
+          }
+          
           console.error('Erro ao buscar sessão:', sessionError);
           setSession(null);
           setUserRole(null);
@@ -86,37 +153,92 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUserRole(null);
           setProfileError(null);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Erro ao inicializar autenticação:', error);
+        
+        // Se for erro de refresh token inválido, limpar tokens
+        if (isInvalidRefreshTokenError(error)) {
+          console.warn('[AuthContext] Refresh token inválido na inicialização, limpando...');
+          await clearInvalidTokens();
+          try {
+            await supabase.auth.signOut();
+          } catch (signOutError) {
+            // Ignora erros no signOut
+          }
+        }
+        
         setSession(null);
         setUserRole(null);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
-    initializeAuth();
+    try {
+      initializeAuth();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      setSession(newSession);
+      const {
+        data: { subscription: authSubscription },
+        error: subscriptionError,
+      } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        try {
+          // Se o evento for relacionado a erro de token, limpar
+          if (event === 'TOKEN_REFRESHED' && !newSession) {
+            console.warn('[AuthContext] Token refresh falhou, limpando sessão...');
+            await clearInvalidTokens();
+            setSession(null);
+            setUserRole(null);
+            setProfileError(null);
+            return;
+          }
 
-      if (newSession?.user?.id) {
-        const role = await fetchUserRole(newSession.user.id);
-        setUserRole(role);
-        
-        if (!role) {
-          setProfileError('Perfil não encontrado no banco de dados. Entre em contato com o suporte.');
+          setSession(newSession);
+
+          if (newSession?.user?.id) {
+            const role = await fetchUserRole(newSession.user.id);
+            setUserRole(role);
+            
+            if (!role) {
+              setProfileError('Perfil não encontrado no banco de dados. Entre em contato com o suporte.');
+            }
+          } else {
+            setUserRole(null);
+            setProfileError(null);
+          }
+        } catch (error: any) {
+          console.error('[AuthContext] Erro no onAuthStateChange:', error);
+          
+          // Se for erro de refresh token, limpar
+          if (isInvalidRefreshTokenError(error)) {
+            console.warn('[AuthContext] Refresh token inválido no onAuthStateChange, limpando...');
+            await clearInvalidTokens();
+            setSession(null);
+            setUserRole(null);
+            setProfileError(null);
+          }
         }
+      });
+
+      if (subscriptionError) {
+        console.error('[AuthContext] Erro ao criar subscription:', subscriptionError);
       } else {
-        setUserRole(null);
-        setProfileError(null);
+        subscription = authSubscription;
       }
-    });
+    } catch (error) {
+      console.error('[AuthContext] Erro crítico na inicialização:', error);
+      setIsLoading(false);
+    }
 
     return () => {
-      subscription.unsubscribe();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, []);
 

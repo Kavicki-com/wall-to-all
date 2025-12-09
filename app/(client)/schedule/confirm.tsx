@@ -10,21 +10,16 @@ import {
   TextInput,
   Image,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import {
-  IconBack,
   IconPix,
   IconCreditCard,
   IconCash,
-  IconNotification,
   IconCheckCircle,
-  IconRadioFill,
-  IconRadioNoFill,
 } from '../../../lib/icons';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import AppointmentSuccessModal from '../../../components/AppointmentSuccessModal';
+import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
 type Service = {
   id: string;
@@ -143,6 +138,9 @@ const ScheduleConfirmScreen: React.FC = () => {
     try {
       setSubmitting(true);
 
+      const now = new Date();
+      const startDate = params.date && params.time ? new Date(`${params.date}T${params.time}:00`) : null;
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -159,14 +157,40 @@ const ScheduleConfirmScreen: React.FC = () => {
         return;
       }
 
+      if (startDate && startDate.getTime() < now.getTime()) {
+        Alert.alert('Horário inválido', 'Selecione um horário futuro para o agendamento.');
+        setSubmitting(false);
+        return;
+      }
+
       // Calcular start_time e end_time
-      const startTime = `${params.date}T${params.time}:00`;
+      const startTime = startDate ? startDate.toISOString() : `${params.date}T${params.time}:00`;
       const durationMinutes = service.duration_minutes || 60; // Default 1 hora se não especificado
-      const startDate = new Date(startTime);
-      const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+      const normalizedStartDate = startDate ?? new Date(startTime);
+      const endDate = new Date(normalizedStartDate.getTime() + durationMinutes * 60000);
       const endTime = endDate.toISOString();
 
-      // Criar agendamento
+      const { count: conflictCount, error: conflictError } = await supabase
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('business_id', params.businessId)
+        .in('status', ['pending', 'confirmed'])
+        .lte('start_time', endTime)
+        .gte('end_time', startTime);
+
+      if (conflictError) {
+        console.error('Erro ao validar disponibilidade:', conflictError);
+        Alert.alert('Erro', 'Não foi possível validar o horário. Tente novamente.');
+        setSubmitting(false);
+        return;
+      }
+
+      if (conflictCount && conflictCount > 0) {
+        Alert.alert('Horário indisponível', 'Selecione outro horário, este já está ocupado.');
+        setSubmitting(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('appointments')
         .insert({
@@ -209,52 +233,11 @@ const ScheduleConfirmScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.topBarDivider} />
-        <View style={styles.topBarContent}>
-          <View style={styles.topBarGradientContainer}>
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
-              <Defs>
-                <RadialGradient
-                  id="topBarRadialGradient"
-                  cx="50%"
-                  cy="50%"
-                  r="50%"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <Stop offset="0%" stopColor="rgba(214,224,255,0.2)" />
-                  <Stop offset="25%" stopColor="rgba(161,172,207,0.2)" />
-                  <Stop offset="37.5%" stopColor="rgba(134,145,182,0.2)" />
-                  <Stop offset="50%" stopColor="rgba(107,119,158,0.2)" />
-                  <Stop offset="62.5%" stopColor="rgba(80,93,134,0.2)" />
-                  <Stop offset="75%" stopColor="rgba(54,67,110,0.2)" />
-                  <Stop offset="87.5%" stopColor="rgba(27,40,85,0.2)" />
-                  <Stop offset="93.75%" stopColor="rgba(13,27,73,0.2)" />
-                  <Stop offset="100%" stopColor="rgba(0,14,61,0.2)" />
-                </RadialGradient>
-              </Defs>
-              <Rect x="0" y="0" width="410" height="56" fill="url(#topBarRadialGradient)" />
-            </Svg>
-            <LinearGradient
-              colors={['rgba(0,14,61,0.2)', 'rgba(214,224,255,0.2)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-          </View>
-          <View style={styles.topBarGradientOverlay} />
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <IconBack size={24} color="#FEFEFE" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.notificationButton}>
-            <IconNotification size={24} color="#FEFEFE" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <MerchantTopBar
+        showBack
+        onBackPress={() => router.back()}
+        fallbackPath="/(client)/home"
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -307,11 +290,14 @@ const ScheduleConfirmScreen: React.FC = () => {
                 activeOpacity={0.8}
                 onPress={() => setSelectedPaymentMethod('pix')}
               >
-                {selectedPaymentMethod === 'pix' ? (
-                  <IconRadioFill size={24} color="#000E3D" />
-                ) : (
-                  <IconRadioNoFill size={24} color="#000E3D" />
-                )}
+                <View
+                  style={[
+                    styles.radioOuter,
+                    selectedPaymentMethod === 'pix' && styles.radioOuterSelected,
+                  ]}
+                >
+                  {selectedPaymentMethod === 'pix' && <View style={styles.radioInner} />}
+                </View>
                 <IconPix size={24} color="#000E3D" />
                 <Text style={styles.paymentMethodLabel}>PIX</Text>
               </TouchableOpacity>
@@ -321,11 +307,14 @@ const ScheduleConfirmScreen: React.FC = () => {
                 activeOpacity={0.8}
                 onPress={() => setSelectedPaymentMethod('card')}
               >
-                {selectedPaymentMethod === 'card' ? (
-                  <IconRadioFill size={24} color="#000E3D" />
-                ) : (
-                  <IconRadioNoFill size={24} color="#000E3D" />
-                )}
+                <View
+                  style={[
+                    styles.radioOuter,
+                    selectedPaymentMethod === 'card' && styles.radioOuterSelected,
+                  ]}
+                >
+                  {selectedPaymentMethod === 'card' && <View style={styles.radioInner} />}
+                </View>
                 <IconCreditCard size={24} color="#000E3D" />
                 <Text style={styles.paymentMethodLabel}>Cartão</Text>
               </TouchableOpacity>
@@ -335,11 +324,14 @@ const ScheduleConfirmScreen: React.FC = () => {
                 activeOpacity={0.8}
                 onPress={() => setSelectedPaymentMethod('cash')}
               >
-                {selectedPaymentMethod === 'cash' ? (
-                  <IconRadioFill size={24} color="#000E3D" />
-                ) : (
-                  <IconRadioNoFill size={24} color="#000E3D" />
-                )}
+                <View
+                  style={[
+                    styles.radioOuter,
+                    selectedPaymentMethod === 'cash' && styles.radioOuterSelected,
+                  ]}
+                >
+                  {selectedPaymentMethod === 'cash' && <View style={styles.radioInner} />}
+                </View>
                 <IconCash size={24} color="#000E3D" />
                 <Text style={styles.paymentMethodLabel}>Dinheiro</Text>
               </TouchableOpacity>
@@ -405,36 +397,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  topBarDivider: {
-    height: 14,
-    backgroundColor: '#EBEFFF',
-  },
-  topBarContent: {
-    height: 56,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#000E3D',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  topBarGradientContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  topBarGradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000E3D',
-    opacity: 0.8,
-  },
   backButton: {
     width: 24,
     height: 24,
@@ -449,7 +411,6 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    marginTop: 70,
   },
   scrollContent: {
     padding: 0,
@@ -545,6 +506,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  radioOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#000E3D',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  radioOuterSelected: {
+    borderColor: '#000E3D',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#000E3D',
   },
   paymentMethodLabel: {
     fontSize: 16,

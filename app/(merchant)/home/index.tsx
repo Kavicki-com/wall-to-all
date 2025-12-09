@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,11 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../lib/supabase';
 import { IconShare, IconRatingStar } from '../../../lib/icons';
 import { MerchantTopBar } from '../../../components/MerchantTopBar';
+import { useCardWidth } from '../../../lib/responsive';
 
 type BusinessProfile = {
   id: string;
@@ -39,11 +41,28 @@ type Service = {
 
 const MerchantHomeScreen: React.FC = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
+
+  // Cards de serviços (~2 visíveis em scroll horizontal)
+  // ⚠️ VERIFICADO: Cards de serviços têm width: 193px e marginRight: 14px
+  const serviceCardWidth = useCardWidth(2, 24, 14);
+  const serviceGap = 14; // ✅ Gap confirmado: marginRight do serviceCard
+
+  // Estilos dinâmicos que dependem de serviceCardWidth
+  const dynamicStyles = useMemo(() => StyleSheet.create({
+    serviceCard: {
+      width: serviceCardWidth,
+      marginRight: serviceGap,
+      backgroundColor: '#FAFAFA',
+      borderRadius: 8,
+      overflow: 'hidden',
+    },
+  }), [serviceCardWidth]);
 
   useEffect(() => {
     loadBusinessAndServices();
@@ -144,15 +163,8 @@ const MerchantHomeScreen: React.FC = () => {
     loadBusinessAndServices();
   };
 
-  const handleShareProfile = async () => {
-    try {
-      const result = await Share.share({
-        message: `Conheça ${businessProfile?.business_name || 'meu negócio'} no Wall-to-all!`,
-        url: `https://wall-to-all.com/business/${businessId}`,
-      });
-    } catch (error) {
-      console.error('Erro ao compartilhar:', error);
-    }
+  const handleShareProfile = () => {
+    router.push('/(merchant)/home/share');
   };
 
   const renderServiceCard = ({ item }: { item: Service }) => {
@@ -172,7 +184,7 @@ const MerchantHomeScreen: React.FC = () => {
 
     return (
       <TouchableOpacity
-        style={styles.serviceCard}
+        style={[styles.serviceCard, dynamicStyles.serviceCard]}
         activeOpacity={0.8}
         onPress={() => router.push(`/(merchant)/services/edit/${item.id}`)}
         accessibilityRole="button"
@@ -224,12 +236,13 @@ const MerchantHomeScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <MerchantTopBar />
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.pageContent}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
+        >
         {/* Avatar e Nome do Negócio */}
         <View style={styles.avatarSection}>
           {businessProfile?.logo_url ? (
@@ -286,6 +299,10 @@ const MerchantHomeScreen: React.FC = () => {
           ) : (
             <Text style={styles.emptyServicesText}>Nenhum serviço cadastrado</Text>
           )}
+        </View>
+        </ScrollView>
+
+        <View style={[styles.footerSection, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
           <TouchableOpacity
             style={styles.addServiceButton}
             onPress={() => router.push('/(merchant)/services/create')}
@@ -296,7 +313,7 @@ const MerchantHomeScreen: React.FC = () => {
             <Text style={styles.addServiceButtonText}>Cadastrar novo serviço</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 };
@@ -322,7 +339,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    marginTop: 70,
+  },
+  pageContent: {
+    flex: 1,
   },
   scrollContent: {
     padding: 24,
@@ -394,12 +413,6 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingRight: 24,
   },
-  serviceCard: {
-    width: 193,
-    backgroundColor: '#FAFAFA',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
   serviceImageContainer: {
     height: 94,
     position: 'relative',
@@ -470,15 +483,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#000E3D',
     borderRadius: 24,
+    height: 48,
     paddingHorizontal: 16,
-    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FAFAFA',
+    width: '100%',
   },
   addServiceButtonText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#000E3D',
+  },
+  footerSection: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    backgroundColor: '#FAFAFA',
   },
   emptyServicesText: {
     fontSize: 14,

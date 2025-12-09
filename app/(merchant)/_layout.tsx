@@ -101,6 +101,12 @@ const MerchantLayout: React.FC = () => {
           tabBarButton: () => null,
         }}
       />
+      <Tabs.Screen
+        name="home/share"
+        options={{
+          tabBarButton: () => null,
+        }}
+      />
     </Tabs>
   );
 };

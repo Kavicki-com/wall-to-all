@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
@@ -51,7 +51,7 @@ const EditProfileScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.back();
+        router.replace('/(auth)/login');
         return;
       }
 
@@ -65,7 +65,7 @@ const EditProfileScreen: React.FC = () => {
       if (error) {
         console.error('Erro ao buscar perfil:', error);
         Alert.alert('Erro', 'Não foi possível carregar o perfil.');
-        router.back();
+        router.replace('/(client)/profile');
         return;
       }
 
@@ -469,9 +469,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoUploadSection: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     marginBottom: 16,
     gap: 4,
+    alignSelf: 'center',
   },
   logoUploadLabel: {
     fontSize: 12,
@@ -500,8 +502,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   form: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     gap: 16,
+    alignSelf: 'center',
   },
   inputSection: {
     gap: 4,

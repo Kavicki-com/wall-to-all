@@ -225,7 +225,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   optionsContainer: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
+    alignSelf: 'center',
   },
   optionsList: {
     gap: 12,

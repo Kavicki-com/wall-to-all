@@ -65,7 +65,7 @@ const SignupScreen: React.FC = () => {
   };
 
   const handleGoToLogin = () => {
-    router.back();
+    router.replace('/(auth)/login');
   };
 
   return (

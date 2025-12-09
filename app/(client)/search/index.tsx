@@ -9,12 +9,11 @@ import {
   FlatList,
   ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconBack, IconSearch, IconNotification } from '../../../lib/icons';
+import { IconBack, IconSearch } from '../../../lib/icons';
 import { sortCategories } from '../../../lib/categoryUtils';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
 type Service = {
   id: string;
@@ -127,38 +126,11 @@ const SearchScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Bar with Gradient */}
-      <View style={styles.topBarContainer}>
-        <LinearGradient
-          colors={['#000E3D', '#000E3D']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.headerGradient}
-        >
-          <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
-            <Defs>
-              <RadialGradient
-                id="grad"
-                cx="50%"
-                cy="50%"
-                r="50%"
-                gradientUnits="userSpaceOnUse"
-                gradientTransform="matrix(1 0 0 0.5 0 0)"
-              >
-                <Stop offset="0%" stopColor="#D6E0FF" />
-                <Stop offset="100%" stopColor="#000E3D" />
-              </RadialGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#grad)" opacity="0.2" />
-          </Svg>
-          <View style={styles.topBarContent}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <IconBack size={24} color="#FEFEFE" />
-            </TouchableOpacity>
-            <IconNotification size={24} color="#FEFEFE" />
-          </View>
-        </LinearGradient>
-      </View>
+      <MerchantTopBar
+        showBack
+        fallbackPath="/(client)/home"
+        onBackPress={() => router.back()}
+      />
 
       {/* Search Section */}
       <View style={styles.searchSection}>
@@ -231,26 +203,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
-  },
-  topBarContainer: {
-    height: 70,
-  },
-  headerGradient: {
-    height: '100%',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-  },
-  topBarContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   searchSection: {
     backgroundColor: '#FEFEFE',

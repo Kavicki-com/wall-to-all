@@ -8,13 +8,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   FlatList,
+  Share,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { formatWorkDays } from '../../../lib/workDaysUtils';
-import { IconBack, IconNotification, IconSchedule, IconRatingStar, IconKidStar, IconPix, IconCreditCard, IconCash } from '../../../lib/icons';
-import { MaterialIcons } from '@expo/vector-icons';
+import { IconBack, IconSchedule, IconRatingStar, IconKidStar, IconPix, IconCreditCard, IconCash, IconShare } from '../../../lib/icons';
 import BackgroundSvg from '../../../assets/background.svg';
 
 type BusinessProfile = {
@@ -44,6 +44,10 @@ type Service = {
   photos: string[] | string | null;
   rating?: number;
   review_count?: number;
+  categories?: {
+    id: number;
+    name: string;
+  } | null;
 };
 
 type ReviewStats = {
@@ -51,28 +55,32 @@ type ReviewStats = {
   total_reviews: number;
 };
 
-const StoreProfileScreen: React.FC = () => {
+const ShareProfileScreen: React.FC = () => {
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
-  const businessId = params.id;
-
   const [loading, setLoading] = useState(true);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [reviewStats, setReviewStats] = useState<ReviewStats>({ average_rating: 0, total_reviews: 0 });
 
   useEffect(() => {
-    if (businessId) {
-      loadBusinessData();
-    }
-  }, [businessId]);
+    loadBusinessData();
+  }, []);
 
   const loadBusinessData = async () => {
-    if (!businessId) return;
-
     try {
       setLoading(true);
 
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.log('Usuário não autenticado');
+        setLoading(false);
+        return;
+      }
+
+      // Buscar perfil do negócio
       const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
         .select(`
@@ -82,7 +90,7 @@ const StoreProfileScreen: React.FC = () => {
             name
           )
         `)
-        .eq('id', businessId)
+        .eq('owner_id', user.id)
         .single();
 
       if (businessError) {
@@ -106,6 +114,7 @@ const StoreProfileScreen: React.FC = () => {
             )
           `)
           .eq('business_id', businessData.id)
+          .eq('is_active', true)
           .order('created_at', { ascending: false });
 
         if (servicesError) {
@@ -158,7 +167,6 @@ const StoreProfileScreen: React.FC = () => {
     }
   };
 
-
   const getPriceRange = (services: Service[]) => {
     if (services.length === 0) return '$$$$$';
     const prices = services.map((s) => s.price).filter((p) => p > 0);
@@ -168,6 +176,22 @@ const StoreProfileScreen: React.FC = () => {
     if (avg < 50) return '$$$$$';
     if (avg < 100) return '$$$$$';
     return '$$$$$';
+  };
+
+  const handleShare = async () => {
+    if (!businessProfile) return;
+
+    try {
+      const shareUrl = `https://wall-to-all.com/store/${businessProfile.id}`;
+      const message = `Conheça ${businessProfile.business_name} no Wall-to-all! ${shareUrl}`;
+      
+      await Share.share({
+        message,
+        url: shareUrl,
+      });
+    } catch (error) {
+      console.error('Erro ao compartilhar:', error);
+    }
   };
 
   const renderServiceCard = ({ item }: { item: Service }) => {
@@ -186,16 +210,7 @@ const StoreProfileScreen: React.FC = () => {
     const firstImage = imagesArray.length > 0 ? imagesArray[0] : null;
 
     return (
-      <TouchableOpacity
-        style={styles.serviceCard}
-        activeOpacity={0.8}
-        onPress={() => {
-          router.push(`/(client)/schedule/service?businessId=${businessId}`);
-        }}
-        accessibilityRole="button"
-        accessibilityLabel={`Selecionar serviço ${item.name}`}
-        accessibilityHint="Toque para iniciar o agendamento deste serviço"
-      >
+      <View style={styles.serviceCard}>
         <View style={styles.serviceImageContainer}>
           {firstImage ? (
             <Image source={{ uri: firstImage }} style={styles.serviceImage} resizeMode="cover" />
@@ -207,17 +222,19 @@ const StoreProfileScreen: React.FC = () => {
           <Text style={styles.serviceName}>{item.name}</Text>
           <View style={styles.serviceRatingContainer}>
             <View style={styles.serviceRating}>
-              <Text style={styles.serviceRatingValue}>{item.rating || 4.8}</Text>
+              <Text style={styles.serviceRatingValue}>{item.rating?.toFixed(1) || '4.8'}</Text>
               <IconRatingStar size={24} color="#FFD700" />
               <Text style={styles.serviceRatingCount}>({item.review_count || 25})</Text>
             </View>
-            <Text style={styles.serviceCategory}>Cortes</Text>
+            {item.categories?.name && (
+              <Text style={styles.serviceCategory}>{item.categories.name}</Text>
+            )}
           </View>
           <Text style={styles.servicePrice}>
             R$ {item.price.toFixed(2).replace('.', ',')}
           </Text>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -232,7 +249,7 @@ const StoreProfileScreen: React.FC = () => {
   if (!businessProfile) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Loja não encontrada</Text>
+        <Text style={styles.errorText}>Perfil não encontrado</Text>
       </View>
     );
   }
@@ -263,8 +280,12 @@ const StoreProfileScreen: React.FC = () => {
           >
             <IconBack size={24} color="#FEFEFE" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.notificationButton} activeOpacity={0.8}>
-            <IconNotification size={24} color="#FEFEFE" />
+          <TouchableOpacity 
+            style={styles.shareButtonTop} 
+            activeOpacity={0.8}
+            onPress={handleShare}
+          >
+            <IconShare size={24} color="#FEFEFE" />
           </TouchableOpacity>
         </View>
       </View>
@@ -307,7 +328,7 @@ const StoreProfileScreen: React.FC = () => {
             <View style={styles.profileInfo}>
               <Text style={styles.businessName}>{businessProfile.business_name}</Text>
               <Text style={styles.businessDescription}>
-                {businessProfile.description || 'Serviços profissionais'}
+                {businessProfile.description || businessProfile.categories?.name || 'Serviços profissionais'}
               </Text>
             </View>
           </View>
@@ -384,9 +405,6 @@ const StoreProfileScreen: React.FC = () => {
               keyExtractor={(item) => item.id}
               scrollEnabled={false}
               contentContainerStyle={styles.servicesList}
-              ItemSeparatorComponent={() => <View style={styles.serviceSeparator} />}
-              removeClippedSubviews={false}
-              initialNumToRender={services.length}
             />
           ) : (
             <Text style={styles.emptyServicesText}>Nenhum serviço disponível</Text>
@@ -398,11 +416,7 @@ const StoreProfileScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.scheduleButton}
             activeOpacity={0.8}
-            onPress={() => {
-              if (services.length > 0) {
-                router.push(`/(client)/schedule/service?businessId=${businessId}`);
-              }
-            }}
+            onPress={handleShare}
           >
             <Text style={styles.scheduleButtonText}>Agendar serviços</Text>
             <IconSchedule size={24} color="#FEFEFE" />
@@ -412,6 +426,7 @@ const StoreProfileScreen: React.FC = () => {
             style={styles.reviewButton}
             activeOpacity={0.8}
             onPress={() => {
+              // Navegar para tela de avaliações quando implementada
             }}
           >
             <Text style={styles.reviewButtonText}>Avaliar</Text>
@@ -423,7 +438,7 @@ const StoreProfileScreen: React.FC = () => {
   );
 };
 
-export default StoreProfileScreen;
+export default ShareProfileScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -477,7 +492,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  notificationButton: {
+  shareButtonTop: {
     width: 24,
     height: 24,
     justifyContent: 'center',
@@ -684,35 +699,28 @@ const styles = StyleSheet.create({
     color: '#E5102E',
   },
   servicesList: {
-    paddingTop: 0,
-  },
-  serviceSeparator: {
-    height: 16,
+    gap: 16,
   },
   serviceCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEFEFE',
     borderWidth: 1,
     borderColor: '#474747',
     borderRadius: 16,
     overflow: 'hidden',
-    height: 104,
+    gap: 16,
   },
   serviceImageContainer: {
     width: 85,
     height: '100%',
-    backgroundColor: '#E0E0E0',
   },
   serviceImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
   },
   serviceInfo: {
     flex: 1,
     padding: 16,
-    gap: 4,
+    gap: 8,
     justifyContent: 'space-between',
   },
   serviceName: {
@@ -723,7 +731,7 @@ const styles = StyleSheet.create({
   serviceRatingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   serviceRating: {
     flexDirection: 'row',
@@ -749,7 +757,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#17723F',
-    marginTop: 2,
   },
   actionsContainer: {
     marginHorizontal: 24,

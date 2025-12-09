@@ -18,6 +18,7 @@ import {
   GoogleLogo,
 } from '../../lib/assets';
 import { IconAccountCircle, IconVisibilityOff } from '../../lib/icons';
+import { responsiveWidth } from '../../lib/responsive';
 
 const LoginScreen: React.FC = () => {
   const router = useRouter();
@@ -267,6 +268,9 @@ const LoginScreen: React.FC = () => {
 
 export default LoginScreen;
 
+// Calcular largura responsiva para containers absolutos
+const formWidth = responsiveWidth(342);
+
 const styles = StyleSheet.create({
   background: {
     flex: 1,
@@ -296,11 +300,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 24,
     top: 339.5,
-    width: 342,
+    width: formWidth,
     flexDirection: 'column',
   },
   inputWrapper: {
-    width: 342,
+    width: '100%',
     marginBottom: 23,
   },
   label: {
@@ -310,7 +314,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   inputContainer: {
-    width: 342,
+    width: '100%',
     backgroundColor: '#FEFEFE',
     borderWidth: 1,
     borderColor: '#474747',
@@ -347,11 +351,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_400Regular',
     color: '#FEFEFE',
     textAlign: 'right',
-    width: 342,
+    width: '100%',
     marginTop: 4,
   },
   messageContainer: {
-    width: 342,
+    width: '100%',
     marginTop: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -373,11 +377,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 24,
     top: 629.5,
-    width: 342,
+    width: formWidth,
     flexDirection: 'column',
   },
   buttonContained: {
-    width: 342,
+    width: '100%',
     height: 44,
     backgroundColor: '#E5102E',
     borderRadius: 24,
@@ -394,7 +398,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   buttonOutline: {
-    width: 342,
+    width: '100%',
     height: 44,
     borderWidth: 1,
     borderColor: '#FEFEFE',
@@ -413,7 +417,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   buttonGoogle: {
-    width: 342,
+    width: '100%',
     height: 54,
     backgroundColor: '#FEFEFE',
     borderRadius: 10,

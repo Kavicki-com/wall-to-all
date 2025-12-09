@@ -383,7 +383,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 24,
     alignItems: 'center',
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
+    alignSelf: 'center',
   },
   logoutButtonText: {
     fontSize: 16,

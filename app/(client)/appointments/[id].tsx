@@ -10,12 +10,11 @@ import {
   TextInput,
   Animated,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconBack, IconNotification, IconPix, IconCreditCard, IconCash } from '../../../lib/icons';
+import { IconPix, IconCreditCard, IconCash } from '../../../lib/icons';
 import { MaterialIcons } from '@expo/vector-icons';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
 type Appointment = {
   id: string;
@@ -50,6 +49,17 @@ const AppointmentDetailScreen: React.FC = () => {
   useEffect(() => {
     loadAppointment();
   }, [params.id]);
+
+  // Resetar campos quando a tela é focada (quando volta de outras telas)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Resetar o campo de justificativa
+      setRescheduleReason('');
+      // Resetar também o estado do formulário
+      setShowRescheduleForm(false);
+      slideAnim.setValue(0);
+    }, [])
+  );
 
   const loadAppointment = async () => {
     try {
@@ -183,52 +193,11 @@ const AppointmentDetailScreen: React.FC = () => {
   if (!appointment) {
     return (
       <View style={styles.container}>
-        <View style={styles.topBar}>
-          <View style={styles.topBarDivider} />
-          <View style={styles.topBarContent}>
-            <View style={styles.topBarGradientContainer}>
-              <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
-                <Defs>
-                  <RadialGradient
-                    id="topBarRadialGradient"
-                    cx="50%"
-                    cy="50%"
-                    r="50%"
-                    gradientUnits="userSpaceOnUse"
-                  >
-                    <Stop offset="0%" stopColor="rgba(214,224,255,0.2)" />
-                    <Stop offset="25%" stopColor="rgba(161,172,207,0.2)" />
-                    <Stop offset="37.5%" stopColor="rgba(134,145,182,0.2)" />
-                    <Stop offset="50%" stopColor="rgba(107,119,158,0.2)" />
-                    <Stop offset="62.5%" stopColor="rgba(80,93,134,0.2)" />
-                    <Stop offset="75%" stopColor="rgba(54,67,110,0.2)" />
-                    <Stop offset="87.5%" stopColor="rgba(27,40,85,0.2)" />
-                    <Stop offset="93.75%" stopColor="rgba(13,27,73,0.2)" />
-                    <Stop offset="100%" stopColor="rgba(0,14,61,0.2)" />
-                  </RadialGradient>
-                </Defs>
-                <Rect x="0" y="0" width="410" height="56" fill="url(#topBarRadialGradient)" />
-              </Svg>
-              <LinearGradient
-                colors={['rgba(0,14,61,0.2)', 'rgba(214,224,255,0.2)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-            </View>
-            <View style={styles.topBarGradientOverlay} />
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <IconBack size={24} color="#FEFEFE" />
-            </TouchableOpacity>
-            <View style={styles.topBarSpacer} />
-            <TouchableOpacity style={styles.notificationButton}>
-              <IconNotification size={24} color="#FEFEFE" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <MerchantTopBar
+          showBack
+          onBackPress={() => router.back()}
+          fallbackPath="/(client)/home"
+        />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Agendamento não encontrado</Text>
         </View>
@@ -238,53 +207,11 @@ const AppointmentDetailScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.topBarDivider} />
-        <View style={styles.topBarContent}>
-          <View style={styles.topBarGradientContainer}>
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
-              <Defs>
-                <RadialGradient
-                  id="topBarRadialGradient"
-                  cx="50%"
-                  cy="50%"
-                  r="50%"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <Stop offset="0%" stopColor="rgba(214,224,255,0.2)" />
-                  <Stop offset="25%" stopColor="rgba(161,172,207,0.2)" />
-                  <Stop offset="37.5%" stopColor="rgba(134,145,182,0.2)" />
-                  <Stop offset="50%" stopColor="rgba(107,119,158,0.2)" />
-                  <Stop offset="62.5%" stopColor="rgba(80,93,134,0.2)" />
-                  <Stop offset="75%" stopColor="rgba(54,67,110,0.2)" />
-                  <Stop offset="87.5%" stopColor="rgba(27,40,85,0.2)" />
-                  <Stop offset="93.75%" stopColor="rgba(13,27,73,0.2)" />
-                  <Stop offset="100%" stopColor="rgba(0,14,61,0.2)" />
-                </RadialGradient>
-              </Defs>
-              <Rect x="0" y="0" width="410" height="56" fill="url(#topBarRadialGradient)" />
-            </Svg>
-            <LinearGradient
-              colors={['rgba(0,14,61,0.2)', 'rgba(214,224,255,0.2)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-          </View>
-          <View style={styles.topBarGradientOverlay} />
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <IconBack size={24} color="#FEFEFE" />
-          </TouchableOpacity>
-          <View style={styles.topBarSpacer} />
-          <TouchableOpacity style={styles.notificationButton}>
-            <IconNotification size={24} color="#FEFEFE" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <MerchantTopBar
+        showBack
+        onBackPress={() => router.back()}
+        fallbackPath="/(client)/home"
+      />
 
       <ScrollView
         ref={scrollViewRef}
@@ -419,54 +346,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_400Regular',
     color: '#0F0F0F',
   },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  topBarDivider: {
-    height: 14,
-    backgroundColor: '#EBEFFF',
-  },
-  topBarContent: {
-    height: 56,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#000E3D',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  topBarGradientContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  topBarGradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000E3D',
-    opacity: 0.8,
-  },
-  backButton: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topBarSpacer: {
-    flex: 1,
-  },
-  notificationButton: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   scrollView: {
     flex: 1,
-    marginTop: 70,
   },
   scrollContent: {
     paddingBottom: 24,

@@ -1,15 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, SafeAreaView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
 import { IconBack, IconNotification } from '../lib/icons';
+import { safeGoBack } from '../lib/router-utils';
 
 interface MerchantTopBarProps {
   title?: string;
   showBack?: boolean;
   onBackPress?: () => void;
   showNotification?: boolean;
+  fallbackPath?: string;
 }
 
 export const MerchantTopBar: React.FC<MerchantTopBarProps> = ({
@@ -17,6 +18,7 @@ export const MerchantTopBar: React.FC<MerchantTopBarProps> = ({
   showBack = false,
   onBackPress,
   showNotification = true,
+  fallbackPath = '/(merchant)/dashboard',
 }) => {
   const router = useRouter();
 
@@ -24,139 +26,151 @@ export const MerchantTopBar: React.FC<MerchantTopBarProps> = ({
     if (onBackPress) {
       onBackPress();
     } else {
-      router.back();
+      safeGoBack(fallbackPath);
     }
   };
 
   return (
-    <View style={styles.topBarContainer}>
-      <View style={styles.topBarDivider} />
-      <View style={styles.topBarContent}>
-        <View style={styles.topBarGradientContainer}>
-          <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
-            <Defs>
-              <RadialGradient
-                id="topBarRadialGradient"
-                cx="50%"
-                cy="50%"
-                r="50%"
-                gradientUnits="userSpaceOnUse"
-              >
-                <Stop offset="0%" stopColor="rgba(214,224,255,1)" />
-                <Stop offset="25%" stopColor="rgba(161,172,207,1)" />
-                <Stop offset="37.5%" stopColor="rgba(134,145,182,1)" />
-                <Stop offset="50%" stopColor="rgba(107,119,158,1)" />
-                <Stop offset="62.5%" stopColor="rgba(80,93,134,1)" />
-                <Stop offset="75%" stopColor="rgba(54,67,110,1)" />
-                <Stop offset="87.5%" stopColor="rgba(27,40,85,1)" />
-                <Stop offset="93.75%" stopColor="rgba(13,27,73,1)" />
-                <Stop offset="100%" stopColor="rgba(0,14,61,1)" />
-              </RadialGradient>
-            </Defs>
-            <Rect x="0" y="0" width="410" height="56" fill="url(#topBarRadialGradient)" opacity={0.2} />
-          </Svg>
-          <LinearGradient
-            colors={['rgba(0, 14, 61, 0.2)', 'rgba(214, 224, 255, 0.2)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <LinearGradient
-            colors={['rgba(0, 14, 61, 1)', 'rgba(0, 14, 61, 1)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.topBarInner}>
-            {showBack ? (
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={handleBack}
-                accessibilityRole="button"
-                accessibilityLabel="Voltar"
-                accessibilityHint="Toque para voltar à tela anterior"
-              >
-                <IconBack size={24} color="#FEFEFE" />
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.backButton} />
-            )}
-            {title && (
-              <Text
-                style={styles.topBarTitle}
-                accessibilityRole="header"
-                accessibilityLabel={title}
-              >
-                {title}
-              </Text>
-            )}
-            {showNotification ? (
-              <TouchableOpacity
-                style={styles.notificationButton}
-                accessibilityRole="button"
-                accessibilityLabel="Notificações"
-                accessibilityHint="Toque para ver suas notificações"
-              >
-                <IconNotification size={24} color="#FEFEFE" />
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.notificationButton} />
-            )}
-          </View>
-        </View>
+    <View style={styles.container}>
+      {/* 1. StatusBar Transparente: 
+          Para que o gradiente comece desde o topo absoluto da tela 
+      */}
+      <StatusBar 
+        barStyle="light-content" 
+        backgroundColor="transparent" 
+        translucent 
+      />
+
+      {/* 2. CAMADA DE FUNDO */}
+      <View style={styles.backgroundLayer}>
+        {/* Fundo Sólido - Base Dark Navy */}
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: '#000E3D' },
+          ]}
+        />
+
+        {/* Svg Radial Gradient - Efeito Difuso */}
+        <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+          <Defs>
+            <SvgRadialGradient
+              id="headerRadialGradient"
+              cx="0.5"
+              cy="0.3" 
+              rx="100%" 
+              ry="100%" 
+              gradientUnits="objectBoundingBox"
+            >
+              {/* CORREÇÃO AQUI: 
+                1. rx="100%" estica a luz horizontalmente para não formar uma "bola".
+                2. cy="0.3" sobe um pouco a luz para vir de cima.
+                3. Cor central muito mais escura e desaturada (rgba 50, 70, 140).
+                   Antes estava muito neon (74, 108, 255), o que causava o brilho excessivo.
+              */}
+              <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
+              
+              {/* As pontas fundem perfeitamente com o background */}
+              <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
+            </SvgRadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
+        </Svg>
       </View>
+
+      {/* 3. CONTEÚDO */}
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.contentRow}>
+          {showBack ? (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBack}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Voltar"
+              accessibilityHint="Toque para voltar à tela anterior"
+            >
+              <IconBack size={24} color="#FEFEFE" />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.backButton} />
+          )}
+          {title ? (
+            <View style={styles.titleContainer}>
+              <Text style={styles.topBarTitle}>{title}</Text>
+            </View>
+          ) : null}
+          {/* Lado direito: Ícone de notificação */}
+          {showNotification ? (
+            <TouchableOpacity 
+              activeOpacity={0.7} 
+              style={styles.notificationButton}
+              accessibilityRole="button"
+              accessibilityLabel="Notificações"
+              accessibilityHint="Toque para ver suas notificações"
+            >
+              <IconNotification size={24} color="#FEFEFE" />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.notificationButton} />
+          )}
+        </View>
+      </SafeAreaView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  topBarContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+  container: {
+    width: '100%',
+    // Sem altura fixa rígida, deixamos o padding do SafeAreaView + content definirem,
+    // mas garantimos um minHeight para visual consistente.
+    // Aproximadamente 100-110px total em dispositivos modernos.
+    minHeight: Platform.OS === 'ios' ? 100 : 80,
+    backgroundColor: '#000E3D', // Fallback
     zIndex: 10,
   },
-  topBarDivider: {
-    height: 14,
-    backgroundColor: '#EBEFFF',
+  backgroundLayer: {
+    ...StyleSheet.absoluteFillObject, // Cobre tudo, inclusive a área da StatusBar
+    zIndex: 0,
   },
-  topBarContent: {
-    height: 56,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#000E3D',
-    position: 'relative',
-    overflow: 'hidden',
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end', // Garante que o conteúdo fique na parte de baixo da barra
   },
-  topBarGradientContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  topBarInner: {
+  contentRow: {
+    width: '100%',
+    height: 56, // Altura exata da área de conteúdo do CSS (sem contar padding)
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: '100%',
+    justifyContent: 'space-between', // Alinha itens (back/title à esquerda, notification à direita)
+    alignItems: 'center', // Centraliza verticalmente no bloco de 56px
+    paddingHorizontal: 24,
+    // O padding bottom extra ajuda a dar o respiro que existia no design original
+    paddingBottom: 8,
   },
   backButton: {
-    width: 24,
-    height: 24,
+    width: 40, // Área de toque confortável
+    height: 40,
     justifyContent: 'center',
+    alignItems: 'flex-start', // Alinha à esquerda
+  },
+  titleContainer: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   topBarTitle: {
     fontSize: 18,
     fontFamily: 'Montserrat_700Bold',
     color: '#FEFEFE',
-    flex: 1,
     textAlign: 'center',
-    marginHorizontal: 16,
   },
   notificationButton: {
-    width: 24,
-    height: 24,
+    width: 40, // Área de toque confortável
+    height: 40,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'flex-end', // Garante alinhamento visual à direita
   },
 });
 

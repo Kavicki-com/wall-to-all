@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -9,9 +9,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { RadialGradient, LinearGradient } from 'react-native-gradients';
+import Svg, { Defs, RadialGradient as SvgRadialGradient, LinearGradient as SvgLinearGradient, Stop, Rect } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { responsiveHeight } from '../../lib/responsive';
 
 const ClientSignupPersonalScreen: React.FC = () => {
   const router = useRouter();
@@ -24,19 +25,45 @@ const ClientSignupPersonalScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
+
+  const isStrongPassword = (value: string) => {
+    if (!value || value.length < 8) return false;
+    const hasNumber = /\d/.test(value);
+    const hasLetter = /[A-Za-z]/.test(value);
+    const hasSpecial = /[^A-Za-z0-9]/.test(value);
+    return hasNumber && hasLetter && hasSpecial;
+  };
+
   const handleContinue = async () => {
-    if (!fullName || !email || !password) {
+    const trimmedName = fullName.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedConfirmEmail = confirmEmail.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+
+    if (!trimmedName || !trimmedEmail || !trimmedPassword) {
       setError('Preencha nome, e-mail e senha.');
       return;
     }
 
-    if (email !== confirmEmail) {
+    if (!emailRegex.test(trimmedEmail)) {
+      setError('Informe um e-mail válido.');
+      return;
+    }
+
+    if (trimmedEmail !== trimmedConfirmEmail) {
       setError('Os e-mails não coincidem.');
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (trimmedPassword !== trimmedConfirmPassword) {
       setError('As senhas não coincidem.');
+      return;
+    }
+
+    if (!isStrongPassword(trimmedPassword)) {
+      setError('Use senha com 8+ caracteres, letras, números e símbolo.');
       return;
     }
 
@@ -44,14 +71,13 @@ const ClientSignupPersonalScreen: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // 1) Cria usuário no Supabase Auth com metadados para a trigger de profiles
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: trimmedEmail,
+        password: trimmedPassword,
         options: {
           emailRedirectTo: 'walltoall://auth/login',
           data: {
-            full_name: fullName,
+            full_name: trimmedName,
             user_type: 'client',
             avatar_url: null,
           },
@@ -67,13 +93,17 @@ const ClientSignupPersonalScreen: React.FC = () => {
         return;
       }
 
-      const user = data?.user;
-      if (!user) {
+      if (!data?.user) {
         setError('Não foi possível criar o usuário.');
         return;
       }
 
-      // 2) Vai para tela de endereço
+      const { data: sessionCheck } = await supabase.auth.getSession();
+      if (!sessionCheck?.session) {
+        setError('Conta criada. Confirme o e-mail e faça login para prosseguir.');
+        return;
+      }
+
       router.push('/(auth)/client-signup-address');
     } catch (e: any) {
       setError(e?.message ?? 'Erro inesperado ao criar conta.');
@@ -88,45 +118,41 @@ const ClientSignupPersonalScreen: React.FC = () => {
         style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Header com o mesmo gradiente da tela de seleção de tipo */}
         <View style={styles.header}>
           <View style={styles.headerBackground}>
-            {/* base: surface/primary (#000E3D) */}
+            {/* Fundo Sólido - Base Dark Navy */}
             <View
               style={[
                 StyleSheet.absoluteFillObject,
                 { backgroundColor: '#000E3D' },
               ]}
             />
-            {/* linear escuro */}
-            <LinearGradient
-              style={StyleSheet.absoluteFillObject}
-              angle={0}
-              colorList={[
-                { offset: '0%', color: 'rgba(0, 14, 61, 0.80)', opacity: '1' },
-                { offset: '100%', color: 'rgba(0, 14, 61, 0.95)', opacity: '1' },
-              ]}
-            />
-            {/* radial suave ocupando a faixa inteira */}
-            <RadialGradient
-              style={StyleSheet.absoluteFillObject}
-              x={0.5}
-              y={0.55}
-              rx={2.0}
-              ry={1.0}
-              colorList={[
-                {
-                  offset: '0%',
-                  color: 'rgba(214, 224, 255, 0.18)',
-                  opacity: '1',
-                },
-                {
-                  offset: '100%',
-                  color: 'rgba(0, 14, 61, 0.0)',
-                  opacity: '1',
-                },
-              ]}
-            />
+
+            {/* Svg Radial Gradient - Efeito Difuso */}
+            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+              <Defs>
+                <SvgRadialGradient
+                  id="headerRadialGradient"
+                  cx="0.5"
+                  cy="0.3" 
+                  rx="100%" 
+                  ry="100%" 
+                  gradientUnits="objectBoundingBox"
+                >
+                  {/* CORREÇÃO AQUI: 
+                    1. rx="100%" estica a luz horizontalmente para não formar uma "bola".
+                    2. cy="0.3" sobe um pouco a luz para vir de cima.
+                    3. Cor central muito mais escura e desaturada (rgba 50, 70, 140).
+                       Antes estava muito neon (74, 108, 255), o que causava o brilho excessivo.
+                  */}
+                  <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
+                  
+                  {/* As pontas fundem perfeitamente com o background */}
+                  <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
+                </SvgRadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
+            </Svg>
           </View>
 
           <View style={styles.headerContent}>
@@ -220,10 +246,11 @@ const ClientSignupPersonalScreen: React.FC = () => {
         {/* Botão Continuar */}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={styles.buttonContained}
+            style={[styles.buttonContained, loading && { opacity: 0.6 }]}
             activeOpacity={0.8}
             onPress={handleContinue}
             disabled={loading}
+            accessibilityState={{ disabled: loading, busy: loading }}
           >
             {loading ? (
               <ActivityIndicator color="#FEFEFE" />
@@ -238,6 +265,9 @@ const ClientSignupPersonalScreen: React.FC = () => {
 };
 
 export default ClientSignupPersonalScreen;
+
+// Calcular altura responsiva do header ANTES do StyleSheet.create
+const headerHeight = responsiveHeight(129);
 
 const styles = StyleSheet.create({
   background: {
@@ -254,7 +284,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   header: {
-    height: 129,
+    height: headerHeight,
     paddingVertical: 40,
     paddingHorizontal: 24,
     alignItems: 'center',
@@ -269,11 +299,13 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   headerContent: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     height: 49,
     gap: 4,
     alignItems: 'flex-start',
     zIndex: 1,
+    alignSelf: 'center',
   },
   welcomeTitle: {
     fontFamily: 'Montserrat_700Bold',
@@ -290,7 +322,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
     marginTop: 24,
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
   },
   stepSegment: {
@@ -305,7 +338,8 @@ const styles = StyleSheet.create({
   stepLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
     marginTop: 4,
   },
@@ -325,7 +359,8 @@ const styles = StyleSheet.create({
   },
   form: {
     marginTop: 24,
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
     gap: 16,
   },
@@ -363,7 +398,8 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 'auto',
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
   },
   buttonContained: {

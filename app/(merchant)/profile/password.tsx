@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { IconBack, IconNotification, IconVisibilityOff, IconCheckCircle } from '../../../lib/icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { responsiveWidth, useResponsiveHeight } from '../../../lib/responsive';
 
 const ChangePasswordScreen: React.FC = () => {
   const router = useRouter();
@@ -24,6 +25,7 @@ const ChangePasswordScreen: React.FC = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const topBarHeight = useResponsiveHeight(56); // Altura responsiva do header SVG (viewBox="0 0 410 56")
 
   const handleChangePassword = async () => {
     if (!newPassword || !confirmPassword) {
@@ -79,7 +81,7 @@ const ChangePasswordScreen: React.FC = () => {
         <View style={styles.topBarDivider} />
         <View style={styles.topBarContent}>
           <View style={styles.topBarGradientContainer}>
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
+            <Svg style={[StyleSheet.absoluteFill, { height: topBarHeight }]} viewBox="0 0 410 56" preserveAspectRatio="none">
               <Defs>
                 <RadialGradient
                   id="topBarRadialGradient"
@@ -228,6 +230,10 @@ const ChangePasswordScreen: React.FC = () => {
 
 export default ChangePasswordScreen;
 
+// Calcular largura responsiva para footer absoluto
+const footerWidth = responsiveWidth(342);
+const footerTransformX = -footerWidth / 2;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -333,8 +339,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 32,
     left: '50%',
-    transform: [{ translateX: -171 }],
-    width: 342,
+    transform: [{ translateX: footerTransformX }],
+    width: footerWidth,
   },
   changePasswordButton: {
     backgroundColor: '#000E3D',

@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { IconBack } from '../../../lib/icons';
+import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
 const ScheduleDateScreen: React.FC = () => {
   const router = useRouter();
@@ -95,21 +95,11 @@ const ScheduleDateScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-          accessibilityHint="Toque para voltar à tela anterior"
-        >
-          <IconBack size={24} color="#000E3D" />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>Selecionar Data</Text>
-        </View>
-      </View>
+      <MerchantTopBar
+        showBack
+        onBackPress={() => router.back()}
+        fallbackPath="/(client)/home"
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -203,31 +193,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 16,
-    backgroundColor: '#FEFEFE',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  headerTitleContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
   },
   scrollView: {
     flex: 1,

@@ -5,16 +5,13 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
-  FlatList,
   RefreshControl,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconRatingStar, IconSchedule, IconNotification, IconChevronDown } from '../../../lib/icons';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { IconChevronDown, IconSelfCare } from '../../../lib/icons';
+import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
 type Appointment = {
   id: string;
@@ -42,7 +39,6 @@ const ClientAppointmentsScreen: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [calendarExpanded, setCalendarExpanded] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-
   useEffect(() => {
     loadAppointments();
   }, []);
@@ -111,60 +107,6 @@ const ClientAppointmentsScreen: React.FC = () => {
   const onRefresh = () => {
     setRefreshing(true);
     loadAppointments();
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const months = [
-      'Jan',
-      'Fev',
-      'Mar',
-      'Abr',
-      'Mai',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Set',
-      'Out',
-      'Nov',
-      'Dez',
-    ];
-
-    const dayName = days[date.getDay()];
-    const day = date.getDate();
-    const month = months[date.getMonth()];
-
-    return `${dayName}, ${day} ${month}`;
-  };
-
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${hours}h${minutes !== '00' ? minutes : ''}`;
-  };
-
-  const getStatusLabel = (status: string) => {
-    const statusMap: Record<string, string> = {
-      pending: 'Pendente',
-      confirmed: 'Confirmado',
-      cancelled: 'Cancelado',
-      completed: 'Concluído',
-      rescheduled: 'Reagendado',
-    };
-    return statusMap[status] || status;
-  };
-
-  const getStatusColor = (status: string) => {
-    const colorMap: Record<string, string> = {
-      pending: '#FFA500',
-      confirmed: '#17723F',
-      cancelled: '#E5102E',
-      completed: '#474747',
-      rescheduled: '#000E3D',
-    };
-    return colorMap[status] || '#474747';
   };
 
   const formatSelectedDate = () => {
@@ -265,20 +207,17 @@ const ClientAppointmentsScreen: React.FC = () => {
   };
 
   const renderAppointmentCard = ({ item }: { item: Appointment }) => {
-    // Processar imagens do serviço
-    let imagesArray: string[] = [];
-    if (item.service.photos) {
-      if (typeof item.service.photos === 'string') {
-        try {
-          imagesArray = JSON.parse(item.service.photos);
-        } catch {
-          imagesArray = [item.service.photos];
-        }
-      } else if (Array.isArray(item.service.photos)) {
-        imagesArray = item.service.photos;
-      }
-    }
-    const firstImage = imagesArray.length > 0 ? imagesArray[0] : null;
+    const startDate = new Date(item.start_time);
+    const timeString = startDate.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const dateString = `Data ${startDate.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    })}`;
 
     return (
       <TouchableOpacity
@@ -288,55 +227,22 @@ const ClientAppointmentsScreen: React.FC = () => {
           router.push(`/(client)/appointments/${item.id}`);
         }}
       >
-        {/* Service Image */}
-        {firstImage ? (
-          <Image
-            source={{ uri: firstImage }}
-            style={styles.serviceImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.serviceImage, styles.placeholderImage]} />
-        )}
+        <View style={styles.appointmentHeader}>
+          <Text style={styles.appointmentTime}>{timeString}</Text>
+          <Text style={styles.appointmentDate}>{dateString}</Text>
+        </View>
 
-        <View style={styles.appointmentInfo}>
-          {/* Business Info */}
-          <View style={styles.businessInfo}>
-            {item.business.logo_url ? (
-              <Image
-                source={{ uri: item.business.logo_url }}
-                style={styles.businessLogo}
-              />
-            ) : (
-              <View style={[styles.businessLogo, styles.placeholderLogo]} />
-            )}
-            <View style={styles.businessText}>
-              <Text style={styles.businessName}>{item.business.business_name}</Text>
-              <Text style={styles.serviceName}>{item.service.name}</Text>
-            </View>
-          </View>
-
-          {/* Date and Time */}
-          <View style={styles.dateTimeContainer}>
-            <View style={styles.dateTimeItem}>
-              <IconSchedule size={16} color="#474747" />
-              <Text style={styles.dateTimeText}>
-                {formatDate(item.start_time)} às {formatTime(item.start_time)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Price and Status */}
-          <View style={styles.footer}>
-            <Text style={styles.price}>
-              R$ {item.service.price.toFixed(2).replace('.', ',')}
+        <View style={styles.appointmentContent}>
+          <IconSelfCare size={24} color="#000E3D" />
+          <View style={styles.appointmentTexts}>
+            <Text style={styles.appointmentServiceName} numberOfLines={1}>
+              {item.service?.name || 'Serviço'}
             </Text>
-            <View
-              style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}
-            >
-              <Text style={styles.statusText}>{getStatusLabel(item.status)}</Text>
-            </View>
+            <Text style={styles.appointmentBusinessName} numberOfLines={1}>
+              {item.business?.business_name || 'Estabelecimento'}
+            </Text>
           </View>
+          <Text style={styles.appointmentChevron}>›</Text>
         </View>
       </TouchableOpacity>
     );
@@ -356,46 +262,7 @@ const ClientAppointmentsScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.topBarDivider} />
-        <View style={styles.topBarContent}>
-          <View style={styles.topBarGradientContainer}>
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
-              <Defs>
-                <RadialGradient
-                  id="topBarRadialGradient"
-                  cx="50%"
-                  cy="50%"
-                  r="50%"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <Stop offset="0%" stopColor="rgba(214,224,255,0.2)" />
-                  <Stop offset="25%" stopColor="rgba(161,172,207,0.2)" />
-                  <Stop offset="37.5%" stopColor="rgba(134,145,182,0.2)" />
-                  <Stop offset="50%" stopColor="rgba(107,119,158,0.2)" />
-                  <Stop offset="62.5%" stopColor="rgba(80,93,134,0.2)" />
-                  <Stop offset="75%" stopColor="rgba(54,67,110,0.2)" />
-                  <Stop offset="87.5%" stopColor="rgba(27,40,85,0.2)" />
-                  <Stop offset="93.75%" stopColor="rgba(13,27,73,0.2)" />
-                  <Stop offset="100%" stopColor="rgba(0,14,61,0.2)" />
-                </RadialGradient>
-              </Defs>
-              <Rect x="0" y="0" width="410" height="56" fill="url(#topBarRadialGradient)" />
-            </Svg>
-            <LinearGradient
-              colors={['rgba(0,14,61,0.2)', 'rgba(214,224,255,0.2)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-          </View>
-          <View style={styles.topBarGradientOverlay} />
-          <View style={styles.topBarSpacer} />
-          <TouchableOpacity style={styles.notificationButton}>
-            <IconNotification size={24} color="#FEFEFE" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <MerchantTopBar showNotification fallbackPath="/(client)/home" />
 
       <ScrollView
         style={styles.scrollView}
@@ -517,7 +384,7 @@ const ClientAppointmentsScreen: React.FC = () => {
       </ScrollView>
 
       {/* Schedule Button */}
-      <View style={styles.footer}>
+      <View style={styles.actionFooter}>
         <TouchableOpacity
           style={styles.scheduleButton}
           activeOpacity={0.8}
@@ -543,48 +410,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  topBarDivider: {
-    height: 14,
-    backgroundColor: '#EBEFFF',
-  },
-  topBarContent: {
-    height: 56,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    backgroundColor: '#000E3D',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  topBarGradientContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  topBarGradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000E3D',
-    opacity: 0.8,
-  },
-  topBarSpacer: {
-    flex: 1,
-  },
-  notificationButton: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   scrollView: {
     flex: 1,
-    marginTop: 70,
   },
   scrollContent: {
     padding: 24,
@@ -720,90 +547,56 @@ const styles = StyleSheet.create({
     color: '#0F0F0F',
   },
   appointmentsList: {
-    gap: 16,
+    gap: 0,
   },
   appointmentCard: {
-    backgroundColor: '#FEFEFE',
-    borderRadius: 16,
-    marginBottom: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-  },
-  serviceImage: {
-    width: '100%',
-    height: 200,
-  },
-  placeholderImage: {
-    backgroundColor: '#E0E0E0',
-  },
-  appointmentInfo: {
-    padding: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#000000',
     gap: 12,
   },
-  businessInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  businessLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  placeholderLogo: {
-    backgroundColor: '#E0E0E0',
-  },
-  businessText: {
-    flex: 1,
-    gap: 4,
-  },
-  businessName: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  serviceName: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
-  },
-  dateTimeContainer: {
-    gap: 8,
-  },
-  dateTimeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dateTimeText: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
-  },
-  footer: {
+  appointmentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
   },
-  price: {
-    fontSize: 18,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#17723F',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  statusText: {
+  appointmentTime: {
     fontSize: 12,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    fontFamily: 'Montserrat_600SemiBold',
+    color: '#474747',
   },
-  footer: {
+  appointmentDate: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_600SemiBold',
+    color: '#0F0F0F',
+  },
+  appointmentContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  appointmentTexts: {
+    flex: 1,
+    gap: 4,
+  },
+  appointmentServiceName: {
+    fontSize: 16,
+    fontFamily: 'Montserrat_400Regular',
+    color: '#0F0F0F',
+  },
+  appointmentBusinessName: {
+    fontSize: 16,
+    fontFamily: 'Montserrat_700Bold',
+    color: '#0F0F0F',
+  },
+  appointmentChevron: {
+    fontSize: 24,
+    fontFamily: 'Montserrat_400Regular',
+    color: '#E5102E',
+    width: 24,
+    textAlign: 'center',
+  },
+  actionFooter: {
     position: 'absolute',
     bottom: 0,
     left: 0,

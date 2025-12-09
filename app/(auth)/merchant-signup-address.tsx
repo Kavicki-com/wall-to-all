@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,11 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { responsiveHeight } from '../../lib/responsive';
 
 const MerchantSignupAddressScreen: React.FC = () => {
   const router = useRouter();
@@ -61,9 +64,41 @@ const MerchantSignupAddressScreen: React.FC = () => {
     }
   };
 
+  const draftKey = 'merchant_address_draft';
+
+  useEffect(() => {
+    const loadDraft = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(draftKey);
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        setCep(parsed.cep || '');
+        setEndereco(parsed.endereco || '');
+        setComplemento(parsed.complemento || '');
+        setNumero(parsed.numero || '');
+        setBairro(parsed.bairro || '');
+        setCidade(parsed.cidade || '');
+        setEstado(parsed.estado || '');
+      } catch {
+        // ignore draft errors
+      }
+    };
+    loadDraft();
+  }, []);
+
+  const persistDraft = async () => {
+    const payload = { cep, endereco, complemento, numero, bairro, cidade, estado };
+    try {
+      await AsyncStorage.setItem(draftKey, JSON.stringify(payload));
+    } catch {
+      // ignore persistence errors
+    }
+  };
+
   const handleContinue = async () => {
-    if (!cep || !endereco || !numero || !bairro || !cidade || !estado) {
-      setError('Preencha todos os campos obrigatórios.');
+    const requiredFilled = cep && endereco && numero && bairro && cidade && estado;
+    if (!requiredFilled || cep.length < 9) {
+      setError('Preencha todos os campos obrigatórios com CEP válido.');
       return;
     }
 
@@ -80,13 +115,15 @@ const MerchantSignupAddressScreen: React.FC = () => {
         return;
       }
 
-      // Salvar endereço temporariamente no localStorage para usar na próxima tela
-      // (business_profiles será criado na tela de negócio com business_name obrigatório)
       const addressData = {
         address: `${endereco}, ${numero}${complemento ? ` - ${complemento}` : ''}, ${bairro}, ${cidade} - ${estado}, CEP: ${cep}`,
+        cep,
+        cidade,
+        estado,
       };
-      
-      // Passar o endereço como parâmetro para a próxima tela
+
+      await persistDraft();
+
       router.push({
         pathname: '/(auth)/merchant-signup-business',
         params: { 
@@ -94,8 +131,6 @@ const MerchantSignupAddressScreen: React.FC = () => {
           addressData: JSON.stringify(addressData),
         },
       });
-      return;
-
     } catch (err: any) {
       console.error('Erro ao salvar endereço:', err);
       setError(err.message || 'Erro ao salvar endereço.');
@@ -114,10 +149,44 @@ const MerchantSignupAddressScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header com gradiente */}
-        <View style={styles.headerContainer}>
-          <View style={styles.headerGradient} />
-          <View style={styles.header}>
+        {/* Header com gradiente do Figma */}
+        <View style={styles.header}>
+          <View style={styles.headerBackground}>
+            {/* Fundo Sólido - Base Dark Navy */}
+            <View
+              style={[
+                StyleSheet.absoluteFillObject,
+                { backgroundColor: '#000E3D' },
+              ]}
+            />
+
+            {/* Svg Radial Gradient - Efeito Difuso */}
+            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+              <Defs>
+                <SvgRadialGradient
+                  id="headerRadialGradient"
+                  cx="0.5"
+                  cy="0.3" 
+                  rx="100%" 
+                  ry="100%" 
+                  gradientUnits="objectBoundingBox"
+                >
+                  {/* CORREÇÃO AQUI: 
+                    1. rx="100%" estica a luz horizontalmente para não formar uma "bola".
+                    2. cy="0.3" sobe um pouco a luz para vir de cima.
+                    3. Cor central muito mais escura e desaturada (rgba 50, 70, 140).
+                       Antes estava muito neon (74, 108, 255), o que causava o brilho excessivo.
+                  */}
+                  <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
+                  
+                  {/* As pontas fundem perfeitamente com o background */}
+                  <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
+                </SvgRadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
+            </Svg>
+          </View>
+          <View style={styles.headerContent}>
             <Text style={styles.title}>Dados de endereço</Text>
             <Text style={styles.subtitle}>Adicione seu endereço</Text>
           </View>
@@ -257,6 +326,9 @@ const MerchantSignupAddressScreen: React.FC = () => {
 
 export default MerchantSignupAddressScreen;
 
+// Calcular altura responsiva do header ANTES do StyleSheet.create
+const headerHeight = responsiveHeight(129);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -265,24 +337,30 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
   },
-  headerContainer: {
+  header: {
+    height: headerHeight,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    alignSelf: 'stretch',
+    overflow: 'hidden',
     position: 'relative',
     marginBottom: 24,
   },
-  headerGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 124,
-    backgroundColor: '#000E3D',
-    opacity: 0.2,
+  headerBackground: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
   },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
+  headerContent: {
+    width: '90%',
+    maxWidth: 342,
+    gap: 4,
+    alignItems: 'flex-start',
+    zIndex: 1,
     paddingBottom: 24,
     backgroundColor: '#000E3D',
+    alignSelf: 'center',
   },
   title: {
     fontSize: 20,

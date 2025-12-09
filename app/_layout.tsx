@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Alert } from 'react-native';
+import { Alert, View, ActivityIndicator } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts as useMontserrat, Montserrat_400Regular, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { useFonts as useRoboto, Roboto_400Regular, Roboto_500Medium } from '@expo-google-fonts/roboto';
@@ -14,6 +14,7 @@ const MainLayout: React.FC = () => {
   const { session, userRole, isLoading, profileError } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [navigationReady, setNavigationReady] = useState(false);
 
   useEffect(() => {
     if (profileError && session) {
@@ -42,55 +43,135 @@ const MainLayout: React.FC = () => {
       return;
     }
 
-    const inAuthGroup = segments[0] === '(auth)';
-    const inClientGroup = segments[0] === '(client)';
-    const inMerchantGroup = segments[0] === '(merchant)';
+    // Aguardar um pouco para garantir que o router está pronto
+    const timeoutId = setTimeout(() => {
+      try {
+        const currentSegment = segments[0] || '';
+        const inAuthGroup = currentSegment === '(auth)';
+        const inClientGroup = currentSegment === '(client)';
+        const inMerchantGroup = currentSegment === '(merchant)';
 
-    if (!session && !inAuthGroup) {
-      router.replace('/(auth)/login');
-      return;
-    }
-
-    if (session) {
-      const signupRoutes = [
-        'client-signup-personal',
-        'client-signup-address',
-        'client-signup-loading',
-        'merchant-signup-personal',
-        'merchant-signup-address',
-        'merchant-signup-business',
-        'merchant-signup-services',
-        'merchant-signup-loading',
-      ];
-      
-      const segmentsString = segments.join('/');
-      const isInSignupFlow = signupRoutes.some(route => segmentsString.includes(route));
-      
-      if (inAuthGroup && userRole && !isInSignupFlow) {
-        if (userRole === 'merchant') {
-          router.replace('/(merchant)/dashboard');
-        } else if (userRole === 'client') {
-          router.replace('/(client)/home');
+        // Se não há segmentos ou está na rota raiz, redirecionar
+        if (segments.length === 0 || currentSegment === 'index' || !currentSegment) {
+          if (!session) {
+            router.replace('/(auth)/login');
+            setNavigationReady(true);
+            return;
+          } else if (userRole) {
+            if (userRole === 'merchant') {
+              router.replace('/(merchant)/dashboard');
+            } else if (userRole === 'client') {
+              router.replace('/(client)/home');
+            }
+            setNavigationReady(true);
+            return;
+          } else {
+            // Tem sessão mas não tem role - redirecionar para login
+            router.replace('/(auth)/login');
+            setNavigationReady(true);
+            return;
+          }
         }
-        return;
-      }
 
-      if (userRole === 'client' && (inMerchantGroup || (inAuthGroup && !isInSignupFlow))) {
-        router.replace('/(client)/home');
-        return;
-      }
+        if (!session && !inAuthGroup) {
+          router.replace('/(auth)/login');
+          setNavigationReady(true);
+          return;
+        }
 
-      if (userRole === 'merchant' && (inClientGroup || (inAuthGroup && !isInSignupFlow))) {
-        router.replace('/(merchant)/dashboard');
-        return;
-      }
+        if (session) {
+          const signupRoutes = [
+            'client-signup-personal',
+            'client-signup-address',
+            'client-signup-loading',
+            'merchant-signup-personal',
+            'merchant-signup-address',
+            'merchant-signup-business',
+            'merchant-signup-services',
+            'merchant-signup-loading',
+          ];
+          
+          const segmentsString = segments.join('/');
+          const isInSignupFlow = signupRoutes.some(route => segmentsString.includes(route));
+          
+          if (inAuthGroup && userRole && !isInSignupFlow) {
+            if (userRole === 'merchant') {
+              router.replace('/(merchant)/dashboard');
+            } else if (userRole === 'client') {
+              router.replace('/(client)/home');
+            }
+            setNavigationReady(true);
+            return;
+          }
 
-      if (inAuthGroup && !userRole) {
-        return;
+          if (userRole === 'client' && (inMerchantGroup || (inAuthGroup && !isInSignupFlow))) {
+            router.replace('/(client)/home');
+            setNavigationReady(true);
+            return;
+          }
+
+          if (userRole === 'merchant' && (inClientGroup || (inAuthGroup && !isInSignupFlow))) {
+            router.replace('/(merchant)/dashboard');
+            setNavigationReady(true);
+            return;
+          }
+
+          if (inAuthGroup && !userRole) {
+            setNavigationReady(true);
+            return;
+          }
+        }
+
+        setNavigationReady(true);
+      } catch (error) {
+        console.error('Erro na navegação:', error);
+        // Em caso de erro, redirecionar para login
+        if (!session) {
+          router.replace('/(auth)/login');
+        }
+        setNavigationReady(true);
       }
-    }
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [session, userRole, isLoading, segments, router]);
 
+  // Timeout de segurança: se isLoading ficar travado, força a renderização após 5 segundos
+  useEffect(() => {
+    if (isLoading) {
+      const timeoutId = setTimeout(() => {
+        console.warn('[MainLayout] Timeout no loading - forçando navegação');
+        setNavigationReady(true);
+        // Se ainda não há sessão após timeout, redirecionar para login
+        if (!session) {
+          router.replace('/(auth)/login').catch(() => {
+            console.error('[MainLayout] Erro ao redirecionar após timeout');
+          });
+        }
+      }, 5000);
+
+      return () => clearTimeout(timeoutId);
+    } else {
+      // Se não está mais carregando, garantir que navigationReady seja true após um pequeno delay
+      const timeoutId = setTimeout(() => {
+        if (!navigationReady) {
+          console.warn('[MainLayout] Forçando navigationReady após delay');
+          setNavigationReady(true);
+          // Garantir redirecionamento se necessário
+          if (segments.length === 0 && !session) {
+            router.replace('/(auth)/login').catch(() => {
+              console.error('[MainLayout] Erro ao redirecionar');
+            });
+          }
+        }
+      }, 1000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isLoading, navigationReady, session, segments, router]);
+
+  // Sempre renderizar o Stack, mesmo durante o loading
+  // O Stack do expo-router gerencia a renderização das telas internamente
   return (
     <Stack
       screenOptions={{
@@ -114,15 +195,25 @@ const RootLayout: React.FC = () => {
   const fontsLoaded = montserratLoaded && robotoLoaded;
 
   useEffect(() => {
+    // Timeout de segurança: esconde o splash screen após 3 segundos mesmo se as fontes não carregarem
+    const timeoutId = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {
+        // Ignora erros ao esconder o splash screen
+      });
+    }, 3000);
+
     if (fontsLoaded) {
-      SplashScreen.hideAsync();
+      clearTimeout(timeoutId);
+      SplashScreen.hideAsync().catch(() => {
+        // Ignora erros ao esconder o splash screen
+      });
     }
+
+    return () => clearTimeout(timeoutId);
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) {
-    return null;
-  }
-
+  // Não retorna null - sempre renderiza algo, mesmo que as fontes não tenham carregado
+  // As fontes serão aplicadas quando carregarem, mas o app não ficará em branco
   return (
     <SafeAreaProvider>
       <AuthProvider>

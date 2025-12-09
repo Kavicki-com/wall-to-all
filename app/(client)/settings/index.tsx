@@ -285,8 +285,10 @@ const styles = StyleSheet.create({
     color: '#0F0F0F',
   },
   optionsContainer: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     marginBottom: 32,
+    alignSelf: 'center',
   },
   optionsList: {
     gap: 12,
@@ -319,12 +321,14 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   logoutButton: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
   },
   logoutButtonText: {
     fontSize: 16,

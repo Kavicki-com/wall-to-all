@@ -13,10 +13,11 @@ import {
   Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import { RadialGradient, LinearGradient } from 'react-native-gradients';
+import * as FileSystem from 'expo-file-system/legacy';
+import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { responsiveHeight } from '../../lib/responsive';
 import {
   IconPix,
 } from '../../lib/assets';
@@ -404,47 +405,39 @@ const MerchantSignupBusinessScreen: React.FC = () => {
           {/* Header com o mesmo gradiente da seleção de tipo */}
           <View style={styles.header}>
             <View style={styles.headerBackground}>
+              {/* Fundo Sólido - Base Dark Navy */}
               <View
                 style={[
                   StyleSheet.absoluteFillObject,
                   { backgroundColor: '#000E3D' },
                 ]}
               />
-              <LinearGradient
-                style={StyleSheet.absoluteFillObject}
-                angle={0}
-                colorList={[
-                  {
-                    offset: '0%',
-                    color: 'rgba(0, 14, 61, 0.80)',
-                    opacity: '1',
-                  },
-                  {
-                    offset: '100%',
-                    color: 'rgba(0, 14, 61, 0.95)',
-                    opacity: '1',
-                  },
-                ]}
-              />
-              <RadialGradient
-                style={StyleSheet.absoluteFillObject}
-                x={0.5}
-                y={0.55}
-                rx={2.0}
-                ry={1.0}
-                colorList={[
-                  {
-                    offset: '0%',
-                    color: 'rgba(214, 224, 255, 0.18)',
-                    opacity: '1',
-                  },
-                  {
-                    offset: '100%',
-                    color: 'rgba(0, 14, 61, 0.0)',
-                    opacity: '1',
-                  },
-                ]}
-              />
+
+              {/* Svg Radial Gradient - Efeito Difuso */}
+              <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+                <Defs>
+                  <SvgRadialGradient
+                    id="headerRadialGradient"
+                    cx="0.5"
+                    cy="0.3" 
+                    rx="100%" 
+                    ry="100%" 
+                    gradientUnits="objectBoundingBox"
+                  >
+                    {/* CORREÇÃO AQUI: 
+                      1. rx="100%" estica a luz horizontalmente para não formar uma "bola".
+                      2. cy="0.3" sobe um pouco a luz para vir de cima.
+                      3. Cor central muito mais escura e desaturada (rgba 50, 70, 140).
+                         Antes estava muito neon (74, 108, 255), o que causava o brilho excessivo.
+                    */}
+                    <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
+                    
+                    {/* As pontas fundem perfeitamente com o background */}
+                    <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
+                  </SvgRadialGradient>
+                </Defs>
+                <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
+              </Svg>
             </View>
 
             <View style={styles.headerContent}>
@@ -753,6 +746,9 @@ const MerchantSignupBusinessScreen: React.FC = () => {
 
 export default MerchantSignupBusinessScreen;
 
+// Calcular altura responsiva do header ANTES do StyleSheet.create
+const headerHeight = responsiveHeight(129);
+
 const styles = StyleSheet.create({
   background: {
     flex: 1,
@@ -767,7 +763,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   header: {
-    height: 129,
+    height: headerHeight,
     paddingVertical: 40,
     paddingHorizontal: 24,
     alignItems: 'center',
@@ -782,11 +778,13 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   headerContent: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     height: 49,
     gap: 4,
     alignItems: 'flex-start',
     zIndex: 1,
+    alignSelf: 'center',
   },
   welcomeTitle: {
     fontFamily: 'Montserrat_700Bold',
@@ -803,7 +801,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
     marginTop: 24,
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
   },
   stepSegment: {
@@ -820,7 +819,8 @@ const styles = StyleSheet.create({
   },
   form: {
     marginTop: 24,
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
     gap: 16,
   },
@@ -1140,7 +1140,8 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   buttonContained: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
     backgroundColor: '#000E3D',
     borderRadius: 24,

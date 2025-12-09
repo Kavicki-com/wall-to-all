@@ -10,8 +10,10 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Rect } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { responsiveHeight } from '../../lib/responsive';
 
 const ClientSignupAddressScreen: React.FC = () => {
   const router = useRouter();
@@ -118,12 +120,30 @@ const ClientSignupAddressScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header com gradiente */}
-        <View style={styles.headerContainer}>
-          <View style={styles.headerGradient} />
-          <View style={styles.header}>
-            <Text style={styles.title}>Dados de endereço</Text>
-            <Text style={styles.subtitle}>Adicione seu endereço</Text>
+        {/* Header com gradiente do Figma */}
+        <View style={styles.header}>
+          <View style={styles.headerBackground}>
+            {/* Gradiente Linear Vertical - De azul mais claro no topo para azul navy escuro na parte inferior */}
+            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+              <Defs>
+                <SvgLinearGradient
+                  id="headerLinearGradient"
+                  x1="0%"
+                  y1="0%"
+                  x2="0%"
+                  y2="100%"
+                  gradientUnits="objectBoundingBox"
+                >
+                  <Stop offset="0%" stopColor="#0d1a3a" />
+                  <Stop offset="100%" stopColor="#000E3D" />
+                </SvgLinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="390" height="129" fill="url(#headerLinearGradient)" />
+            </Svg>
+          </View>
+          <View style={styles.headerContent}>
+            <Text style={styles.welcomeTitle}>Dados de endereço</Text>
+            <Text style={styles.welcomeSubtitle}>Adicione seu endereço</Text>
           </View>
         </View>
 
@@ -253,6 +273,9 @@ const ClientSignupAddressScreen: React.FC = () => {
 
 export default ClientSignupAddressScreen;
 
+// Calcular altura responsiva do header ANTES do StyleSheet.create
+const headerHeight = responsiveHeight(129);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -261,34 +284,39 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
   },
-  headerContainer: {
+  header: {
+    height: headerHeight,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    alignSelf: 'stretch',
+    overflow: 'hidden',
     position: 'relative',
     marginBottom: 24,
   },
-  headerGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 124,
-    backgroundColor: '#000E3D',
-    opacity: 0.2,
+  headerBackground: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
   },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 24,
-    backgroundColor: '#000E3D',
+  headerContent: {
+    width: '90%',
+    maxWidth: 342,
+    height: 49,
+    gap: 4,
+    alignItems: 'flex-start',
+    zIndex: 1,
+    alignSelf: 'center',
   },
-  title: {
-    fontSize: 20,
+  welcomeTitle: {
     fontFamily: 'Montserrat_700Bold',
+    fontSize: 20,
     color: '#FEFEFE',
-    marginBottom: 4,
   },
-  subtitle: {
+  welcomeSubtitle: {
+    marginTop: 4,
+    fontFamily: 'Montserrat_400Regular',
     fontSize: 16,
-    fontFamily: 'Montserrat_500Medium',
     color: '#FEFEFE',
   },
   progressContainer: {

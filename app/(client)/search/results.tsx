@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconBack, IconSearch, IconFilter, IconNotification, IconPix, IconCreditCard, IconCash, IconRatingStar, IconClose } from '../../../lib/icons';
+import { IconBack, IconSearch, IconFilter, IconPix, IconCreditCard, IconCash, IconRatingStar, IconClose } from '../../../lib/icons';
 import { formatWorkDays } from '../../../lib/workDaysUtils';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { useCardWidth } from '../../../lib/responsive';
+import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
 type Business = {
   id: string;
@@ -69,6 +70,18 @@ const SearchResultsScreen: React.FC = () => {
     params.category || null,
   );
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+
+  // Card de negócios (~1.5 visíveis em scroll horizontal)
+  const businessCardWidth = useCardWidth(1.5, 24, 10);
+  const businessGap = 10; // Gap entre cards de negócios (marginRight)
+
+  // Estilos dinâmicos que dependem de businessCardWidth
+  const dynamicStyles = useMemo(() => StyleSheet.create({
+    businessCardWrapper: {
+      width: businessCardWidth,
+      marginRight: businessGap,
+    },
+  }), [businessCardWidth]);
 
   // Atualizar estados quando params mudarem (ex: voltar e selecionar outra categoria)
   useEffect(() => {
@@ -504,35 +517,7 @@ const SearchResultsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Bar with Gradient */}
-      <View style={styles.topBarContainer}>
-        <LinearGradient
-          colors={['#000E3D', '#000E3D']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.headerGradient}
-        >
-          <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
-            <Defs>
-              <RadialGradient
-                id="grad"
-                cx="50%"
-                cy="50%"
-                r="50%"
-                gradientUnits="userSpaceOnUse"
-                gradientTransform="matrix(1 0 0 0.5 0 0)"
-              >
-                <Stop offset="0%" stopColor="#D6E0FF" />
-                <Stop offset="100%" stopColor="#000E3D" />
-              </RadialGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#grad)" opacity="0.2" />
-          </Svg>
-          <View style={styles.topBarContent}>
-            <IconNotification size={24} color="#FEFEFE" />
-          </View>
-        </LinearGradient>
-      </View>
+      <MerchantTopBar showNotification fallbackPath="/(client)/home" />
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -591,7 +576,7 @@ const SearchResultsScreen: React.FC = () => {
                 contentContainerStyle={styles.businessesHorizontal}
               >
                 {businesses.map((business) => (
-                  <View key={business.id} style={styles.businessCardWrapper}>
+                  <View key={business.id} style={dynamicStyles.businessCardWrapper}>
                     {renderBusinessCard({ item: business })}
                   </View>
                 ))}
@@ -657,20 +642,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FAFAFA',
   },
-  topBarContainer: {
-    height: 70,
-  },
-  headerGradient: {
-    height: '100%',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-  },
-  topBarContent: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -729,9 +700,6 @@ const styles = StyleSheet.create({
   businessesHorizontal: {
     gap: 10,
     paddingRight: 24,
-  },
-  businessCardWrapper: {
-    width: 255,
   },
   businessCard: {
     backgroundColor: '#FEFEFE',

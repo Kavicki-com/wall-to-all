@@ -18,6 +18,7 @@ import { supabase } from '../../../lib/supabase';
 import { IconBack, IconNotification, IconChevronDown, IconCheckbox, IconCheckboxOutline, IconDelete } from '../../../lib/icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { fetchCategories, type Category } from '../../../lib/categories';
+import { useResponsiveHeight } from '../../../lib/responsive';
 
 const BUSINESS_TIME_OPTIONS = ['1 ano', '2 anos', '3 anos', '4 anos', '5+ anos'];
 
@@ -66,6 +67,7 @@ const EditBusinessProfileScreen: React.FC = () => {
   const [workDays, setWorkDays] = useState<Record<string, { start: string; end: string }>>({});
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showBusinessTimePicker, setShowBusinessTimePicker] = useState(false);
+  const topBarHeight = useResponsiveHeight(56); // Altura responsiva do header SVG (viewBox="0 0 410 56")
 
   useEffect(() => {
     loadCategories();
@@ -87,7 +89,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.back();
+        router.replace('/(auth)/login');
         return;
       }
 
@@ -106,7 +108,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       if (error || !businessData) {
         console.error('Erro ao buscar perfil:', error);
         Alert.alert('Erro', 'Perfil do negócio não encontrado.');
-        router.back();
+        router.replace('/(merchant)/profile');
         return;
       }
 
@@ -341,7 +343,7 @@ const EditBusinessProfileScreen: React.FC = () => {
         <View style={styles.topBarDivider} />
         <View style={styles.topBarContent}>
           <View style={styles.topBarGradientContainer}>
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
+            <Svg style={[StyleSheet.absoluteFill, { height: topBarHeight }]} viewBox="0 0 410 56" preserveAspectRatio="none">
               <Defs>
                 <RadialGradient
                   id="topBarRadialGradient"

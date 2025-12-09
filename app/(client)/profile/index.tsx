@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { supabase } from '../../../lib/supabase';
 import { formatWorkDays } from '../../../lib/workDaysUtils';
 import { IconPix, IconCreditCard, IconCash, IconRatingStar } from '../../../lib/icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useCardWidth } from '../../../lib/responsive';
 
 type Profile = {
   id: string;
@@ -76,6 +77,26 @@ const ClientProfileScreen: React.FC = () => {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [averageRating, setAverageRating] = useState(0);
   const [avatarKey, setAvatarKey] = useState(0); // Para forçar atualização da imagem
+
+  // Card de negócios (~1.5 visíveis em scroll horizontal)
+  const businessCardWidth = useCardWidth(1.5, 24, 10);
+  const businessGap = 10; // Gap entre cards de negócios (marginRight)
+
+  // Estilos dinâmicos que dependem de businessCardWidth
+  const dynamicStyles = useMemo(() => StyleSheet.create({
+    businessCard: {
+      backgroundColor: '#FEFEFE',
+      borderRadius: 16,
+      overflow: 'hidden',
+      width: businessCardWidth,
+      marginRight: businessGap,
+      shadowColor: '#1D1D1D',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+      elevation: 4,
+    },
+  }), [businessCardWidth]);
 
   // Recarregar perfil quando a tela receber foco (ex: ao voltar da edição)
   useFocusEffect(
@@ -381,7 +402,7 @@ const ClientProfileScreen: React.FC = () => {
                 return (
                   <TouchableOpacity
                     key={business.id}
-                    style={styles.businessCard}
+                    style={dynamicStyles.businessCard}
                     onPress={() => router.push(`/(client)/store/${business.id}`)}
                     activeOpacity={0.8}
                   >
@@ -539,7 +560,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 16,
     marginBottom: 16,
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -548,6 +570,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
+    alignSelf: 'center',
   },
   ratingItem: {
     flexDirection: 'row',
@@ -574,7 +597,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 12,
     marginBottom: 16,
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -585,6 +609,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
+    alignSelf: 'center',
   },
   paymentMethodsTitle: {
     fontSize: 12,
@@ -607,9 +632,11 @@ const styles = StyleSheet.create({
     color: '#0F0F0F',
   },
   servicesSection: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     marginBottom: 16,
     gap: 16,
+    alignSelf: 'center',
   },
   sectionTitle: {
     fontSize: 16,
@@ -619,11 +646,14 @@ const styles = StyleSheet.create({
   },
   servicesList: {
     flexDirection: 'row',
-    gap: 16,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   serviceCard: {
     gap: 8,
-    width: 194,
+    flexBasis: '48%',
+    maxWidth: '48%',
   },
   serviceImageContainer: {
     width: '100%',
@@ -683,23 +713,16 @@ const styles = StyleSheet.create({
     color: '#17723F',
   },
   businessesSection: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     marginBottom: 16,
     gap: 16,
+    alignSelf: 'center',
   },
   businessesList: {
     gap: 10,
-  },
-  businessCard: {
-    backgroundColor: '#FEFEFE',
-    borderRadius: 16,
-    overflow: 'hidden',
-    width: 255,
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 4, // espaço para sombras não serem cortadas
   },
   businessHeroContainer: {
     width: '100%',

@@ -14,9 +14,9 @@ A aplicação foi desenvolvida seguindo fielmente o design do Figma, utilizando 
 ## 🛠️ Stack Tecnológico
 
 ### Core
-- **Framework**: React Native 0.76.9
-- **Expo**: ~52.0.0
-- **Roteamento**: Expo Router ~4.0.21 (file-based routing)
+- **Framework**: React Native 0.81.5
+- **Expo**: ~54.0.0
+- **Roteamento**: Expo Router ~6.0.17 (file-based routing)
 - **Linguagem**: TypeScript 5.9.2
 
 ### Backend & Autenticação
@@ -29,17 +29,17 @@ A aplicação foi desenvolvida seguindo fielmente o design do Figma, utilizando 
 ### UI & Estilo
 - **Ícones**: 
   - @expo/vector-icons (MaterialIcons)
-  - SVGs customizados do Figma (react-native-svg 15.8.0)
+  - SVGs customizados do Figma (react-native-svg 15.12.x)
 - **Fontes**: 
   - Montserrat (Regular 400, Bold 700)
   - Roboto (Regular 400, Medium 500)
-- **Gradientes**: expo-linear-gradient ~14.0.2
+- **Gradientes**: expo-linear-gradient ~15.0.x
 - **Estilos**: 100% StyleSheet.create() (pixel-perfect do Figma)
 
 ### Utilitários
-- **Storage**: @react-native-async-storage/async-storage 1.23.1
+- **Storage**: @react-native-async-storage/async-storage 2.2.x
 - **Datas**: date-fns ^4.1.0
-- **Imagens**: expo-image-picker ~16.0.0
+- **Imagens**: expo-image-picker ~17.0.x
 - **SVG Transformer**: react-native-svg-transformer ^1.5.2
 
 ## 📦 Pré-requisitos
@@ -69,20 +69,18 @@ yarn install
 
 ### 3. Configure as variáveis de ambiente
 
-Crie um arquivo `.env.local` na raiz do projeto:
-
-```env
-EXPO_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-aqui
-```
+1. Copie `env.example` para `.env.local` e preencha:
+   ```env
+   EXPO_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-aqui
+   ```
+2. `app.config.js` injeta essas variáveis em `expo.extra` para o cliente Supabase.
 
 **Onde encontrar as credenciais:**
 1. Acesse [Supabase Dashboard](https://app.supabase.com)
 2. Selecione seu projeto
 3. Vá em **Settings** → **API**
-4. Copie a **URL** e a **anon/public key**
-
-**Nota**: O projeto possui valores padrão configurados em `lib/supabase.ts`, mas é recomendado usar variáveis de ambiente para produção.
+4. Copie a **Project URL** e a **anon public key**
 
 ### 4. Execute o projeto
 

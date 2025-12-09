@@ -7,12 +7,14 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { RadialGradient, LinearGradient } from 'react-native-gradients';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import {
   IconHandshake,
   IconHandyman,
 } from '../../lib/assets';
+import { responsiveHeight } from '../../lib/responsive';
 
 type UserType = 'merchant' | 'client';
 
@@ -44,57 +46,46 @@ const UserTypeSelectionScreen: React.FC = () => {
         style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Header com gradiente radial + linear seguindo o MCP do Figma */}
+        {/* Header com gradiente SVG (mais controle e precisão) */}
+       
+       
         <View style={styles.header}>
-          {/* Camada de fundo (base + linear + radial) */}
           <View style={styles.headerBackground}>
-            {/* 1) var(--surface-primary, #000E3D) */}
+            {/* Fundo Sólido - Base Dark Navy */}
             <View
               style={[
                 StyleSheet.absoluteFillObject,
                 { backgroundColor: '#000E3D' },
               ]}
             />
-            {/* 2) linear-gradient ajustado para manter a faixa global bem escura */}
-            <LinearGradient
-              style={StyleSheet.absoluteFillObject}
-              angle={0}
-              colorList={[
-                {
-                  offset: '0%',
-                  color: 'rgba(0, 14, 61, 0.80)', // base bem escura
-                  opacity: '1',
-                },
-                {
-                  offset: '100%',
-                  color: 'rgba(0, 14, 61, 0.95)', // topo ainda mais escuro
-                  opacity: '1',
-                },
-              ]}
-            />
-            {/* 3) radial-gradient: brilho bem suave ocupando a faixa inteira, mais forte perto do texto */}
-            <RadialGradient
-              style={StyleSheet.absoluteFillObject}
-              x={0.5}
-              y={0.55}
-              rx={2.0}
-              ry={1.0}
-              colorList={[
-                {
-                  offset: '0%',
-                  color: 'rgba(214, 224, 255, 0.18)', // brilho bem suave
-                  opacity: '1',
-                },
-                {
-                  offset: '100%',
-                  color: 'rgba(0, 14, 61, 0.00)', // some para o fundo escuro
-                  opacity: '1',
-                },
-              ]}
-            />
+
+            {/* Svg Radial Gradient - Efeito Difuso */}
+            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+              <Defs>
+                <SvgRadialGradient
+                  id="headerRadialGradient"
+                  cx="0.5"
+                  cy="0.3" 
+                  rx="100%" 
+                  ry="100%" 
+                  gradientUnits="objectBoundingBox"
+                >
+                  {/* CORREÇÃO AQUI: 
+                    1. rx="100%" estica a luz horizontalmente para não formar uma "bola".
+                    2. cy="0.3" sobe um pouco a luz para vir de cima.
+                    3. Cor central muito mais escura e desaturada (rgba 50, 70, 140).
+                       Antes estava muito neon (74, 108, 255), o que causava o brilho excessivo.
+                  */}
+                  <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
+                  
+                  {/* As pontas fundem perfeitamente com o background */}
+                  <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
+                </SvgRadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
+            </Svg>
           </View>
 
-          {/* Conteúdo por cima do gradiente */}
           <View style={styles.headerContent}>
             <Text style={styles.welcomeTitle}>
               Selecione o seu tipo de perfil
@@ -208,6 +199,9 @@ const UserTypeSelectionScreen: React.FC = () => {
 
 export default UserTypeSelectionScreen;
 
+// Calcular altura responsiva do header ANTES do StyleSheet.create
+const headerHeight = responsiveHeight(129);
+
 const styles = StyleSheet.create({
   background: {
     flex: 1,
@@ -221,7 +215,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   header: {
-    height: 129,
+    height: headerHeight,
     paddingVertical: 40,
     paddingHorizontal: 24,
     alignItems: 'center',
@@ -235,11 +229,13 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   headerContent: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     height: 49,
     gap: 4,
     alignItems: 'flex-start',
     zIndex: 1,
+    alignSelf: 'center',
   },
   welcomeTextWrapper: {
     gap: 4,
@@ -260,8 +256,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   descriptionBlock: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     marginBottom: 52,
+    alignSelf: 'center',
   },
   sectionTitle: {
     fontFamily: 'Montserrat_700Bold',
@@ -275,8 +273,10 @@ const styles = StyleSheet.create({
     color: '#0F0F0F',
   },
   selectorWrapper: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     gap: 24,
+    alignSelf: 'center',
   },
   card: {
     width: '100%',
@@ -326,7 +326,8 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 'auto',
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
     paddingBottom: 32,
   },

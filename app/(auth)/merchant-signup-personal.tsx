@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -9,9 +9,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { RadialGradient, LinearGradient } from 'react-native-gradients';
+import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { responsiveHeight } from '../../lib/responsive';
 
 const MerchantSignupPersonalScreen: React.FC = () => {
   const router = useRouter();
@@ -24,19 +25,62 @@ const MerchantSignupPersonalScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
+
+  const isStrongPassword = (value: string) => {
+    if (!value || value.length < 8) return false;
+    const hasNumber = /\d/.test(value);
+    const hasLetter = /[A-Za-z]/.test(value);
+    const hasSpecial = /[^A-Za-z0-9]/.test(value);
+    return hasNumber && hasLetter && hasSpecial;
+  };
+
+  const ensureProfileExists = async (userId: string, name: string) => {
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      await supabase.from('profiles').upsert({
+        id: userId,
+        full_name: name,
+        user_type: 'merchant',
+        avatar_url: null,
+      });
+    }
+  };
+
   const handleContinue = async () => {
-    if (!fullName || !email || !password) {
+    const trimmedName = fullName.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedConfirmEmail = confirmEmail.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+
+    if (!trimmedName || !trimmedEmail || !trimmedPassword) {
       setError('Preencha nome, e-mail e senha.');
       return;
     }
 
-    if (email !== confirmEmail) {
+    if (!emailRegex.test(trimmedEmail)) {
+      setError('Informe um e-mail válido.');
+      return;
+    }
+
+    if (trimmedEmail !== trimmedConfirmEmail) {
       setError('Os e-mails não coincidem.');
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (trimmedPassword !== trimmedConfirmPassword) {
       setError('As senhas não coincidem.');
+      return;
+    }
+
+    if (!isStrongPassword(trimmedPassword)) {
+      setError('Use senha com 8+ caracteres, letras, números e símbolo.');
       return;
     }
 
@@ -44,14 +88,13 @@ const MerchantSignupPersonalScreen: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // 1) Cria usuário no Supabase Auth com metadados para a trigger de profiles
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: trimmedEmail,
+        password: trimmedPassword,
         options: {
           emailRedirectTo: 'walltoall://auth/login',
           data: {
-            full_name: fullName,
+            full_name: trimmedName,
             user_type: 'merchant',
             avatar_url: null,
           },
@@ -61,141 +104,40 @@ const MerchantSignupPersonalScreen: React.FC = () => {
       if (signUpError) {
         if (signUpError.message.includes('User already registered')) {
           setError('Já existe uma conta com este e-mail.');
-          setLoading(false);
-          return;
-        } else if (signUpError.message.includes('Database error')) {
-          // Erro no trigger, mas vamos tentar continuar se o usuário foi criado
-          // Não mostrar o erro no console para não aparecer na tela
-          
-          // Verificar se o usuário foi criado mesmo assim
-          if (data?.user) {
-            // Usuário foi criado, vamos criar o perfil manualmente
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .insert({
-                id: data?.user?.id,
-                full_name: fullName,
-                user_type: 'merchant',
-                avatar_url: null,
-              });
-
-            if (profileError) {
-              setError('Conta criada, mas houve erro ao criar perfil. Tente fazer login.');
-              setLoading(false);
-              return;
-            }
-
-            // Perfil criado com sucesso, continuar o fluxo normalmente
-            // (não retornar, deixar continuar para o resto do código)
-          } else {
-            // Tentar fazer login para verificar se o usuário foi criado
-            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-              email,
-              password,
-            });
-
-            if (signInError || !signInData?.user) {
-              setError('Erro ao criar conta. O trigger de perfil pode estar com problema. Tente novamente.');
-              setLoading(false);
-              return;
-            }
-
-            // Usuário existe, criar perfil manualmente
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .insert({
-                id: signInData?.user?.id,
-                full_name: fullName,
-                user_type: 'merchant',
-                avatar_url: null,
-              });
-
-            if (profileError) {
-              setError('Conta criada, mas houve erro ao criar perfil. Tente fazer login.');
-              setLoading(false);
-              return;
-            }
-
-            // Usar o usuário do login
-            const user = signInData?.user;
-            const session = signInData?.session || null;
-            
-            // Continuar o fluxo com o usuário logado
-            router.push({
-              pathname: '/(auth)/merchant-signup-address',
-              params: { userId: user.id },
-            });
-            setLoading(false);
-            return;
-          }
         } else {
           setError(signUpError.message);
-          setLoading(false);
-          return;
         }
+        return;
       }
 
       const user = data?.user;
       if (!user) {
         setError('Não foi possível criar o usuário.');
-        setLoading(false);
         return;
       }
 
-      // Verificar se há sessão do signUp ou fazer login automático
       let session = data?.session || null;
-
-      // Se não houver sessão do signUp, tentar fazer login automático
-      if (!session || !session.user) {
+      if (!session) {
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+          email: trimmedEmail,
+          password: trimmedPassword,
         });
-
         if (signInError) {
-          console.error('Erro ao fazer login automático:', signInError);
-          setError('Erro ao fazer login. Tente fazer login manualmente.');
-          setLoading(false);
+          setError('Erro ao fazer login. Confirme o e-mail e tente novamente.');
           return;
         }
-
-        if (signInData?.session) {
-          session = signInData?.session;
-        }
-        
-        // Aguardar um pouco para garantir que a sessão foi estabelecida
-        await new Promise(resolve => setTimeout(resolve, 500));
+        session = signInData?.session || null;
+        await new Promise(resolve => setTimeout(resolve, 400));
       }
 
-      // Verificar se o perfil foi criado pelo trigger, se não, criar manualmente
-      const { data: existingProfile, error: profileCheckError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .single();
+      await ensureProfileExists(user.id, trimmedName);
 
-      if (profileCheckError || !existingProfile) {
-        // Perfil não existe, criar manualmente
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            full_name: fullName,
-            user_type: 'merchant',
-            avatar_url: null,
-          });
-
-        if (profileError) {
-          console.error('Erro ao criar perfil:', profileError);
-          // Não bloquear o fluxo, apenas logar o erro
-          // O trigger pode ter criado o perfil mas com dados diferentes
-        }
+      const { data: sessionCheck } = await supabase.auth.getSession();
+      if (!sessionCheck?.session) {
+        setError('Conta criada. Confirme o e-mail e faça login para continuar.');
+        return;
       }
 
-      // business_profiles será criado na tela de negócio
-      // (não criar aqui porque business_name é obrigatório)
-
-      // 2) Avança para o passo de endereço levando o userId
       router.push({
         pathname: '/(auth)/merchant-signup-address',
         params: { userId: user.id },
@@ -216,42 +158,39 @@ const MerchantSignupPersonalScreen: React.FC = () => {
         {/* Header com o mesmo gradiente da tela de seleção de tipo */}
         <View style={styles.header}>
           <View style={styles.headerBackground}>
-            {/* base: surface/primary (#000E3D) */}
+            {/* Fundo Sólido - Base Dark Navy */}
             <View
               style={[
                 StyleSheet.absoluteFillObject,
                 { backgroundColor: '#000E3D' },
               ]}
             />
-            {/* linear escuro */}
-            <LinearGradient
-              style={StyleSheet.absoluteFillObject}
-              angle={0}
-              colorList={[
-                { offset: '0%', color: 'rgba(0, 14, 61, 0.80)', opacity: '1' },
-                { offset: '100%', color: 'rgba(0, 14, 61, 0.95)', opacity: '1' },
-              ]}
-            />
-            {/* radial suave ocupando a faixa inteira */}
-            <RadialGradient
-              style={StyleSheet.absoluteFillObject}
-              x={0.5}
-              y={0.55}
-              rx={2.0}
-              ry={1.0}
-              colorList={[
-                {
-                  offset: '0%',
-                  color: 'rgba(214, 224, 255, 0.18)',
-                  opacity: '1',
-                },
-                {
-                  offset: '100%',
-                  color: 'rgba(0, 14, 61, 0.0)',
-                  opacity: '1',
-                },
-              ]}
-            />
+
+            {/* Svg Radial Gradient - Efeito Difuso */}
+            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+              <Defs>
+                <SvgRadialGradient
+                  id="headerRadialGradient"
+                  cx="0.5"
+                  cy="0.3" 
+                  rx="100%" 
+                  ry="100%" 
+                  gradientUnits="objectBoundingBox"
+                >
+                  {/* CORREÇÃO AQUI: 
+                    1. rx="100%" estica a luz horizontalmente para não formar uma "bola".
+                    2. cy="0.3" sobe um pouco a luz para vir de cima.
+                    3. Cor central muito mais escura e desaturada (rgba 50, 70, 140).
+                       Antes estava muito neon (74, 108, 255), o que causava o brilho excessivo.
+                  */}
+                  <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
+                  
+                  {/* As pontas fundem perfeitamente com o background */}
+                  <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
+                </SvgRadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
+            </Svg>
           </View>
 
           <View style={styles.headerContent}>
@@ -351,10 +290,11 @@ const MerchantSignupPersonalScreen: React.FC = () => {
         {/* Botão Continuar */}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={styles.buttonContained}
+            style={[styles.buttonContained, loading && { opacity: 0.6 }]}
             activeOpacity={0.8}
             onPress={handleContinue}
             disabled={loading}
+            accessibilityState={{ disabled: loading, busy: loading }}
           >
             {loading ? (
               <ActivityIndicator color="#FEFEFE" />
@@ -369,6 +309,9 @@ const MerchantSignupPersonalScreen: React.FC = () => {
 };
 
 export default MerchantSignupPersonalScreen;
+
+// Calcular altura responsiva do header ANTES do StyleSheet.create
+const headerHeight = responsiveHeight(129);
 
 const styles = StyleSheet.create({
   background: {
@@ -385,7 +328,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   header: {
-    height: 129,
+    height: headerHeight,
     paddingVertical: 40,
     paddingHorizontal: 24,
     alignItems: 'center',
@@ -400,11 +343,13 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   headerContent: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     height: 49,
     gap: 4,
     alignItems: 'flex-start',
     zIndex: 1,
+    alignSelf: 'center',
   },
   welcomeTitle: {
     fontFamily: 'Montserrat_700Bold',
@@ -421,7 +366,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
     marginTop: 24,
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
   },
   stepSegment: {
@@ -436,7 +382,8 @@ const styles = StyleSheet.create({
   stepLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
     marginTop: 4,
   },
@@ -456,7 +403,8 @@ const styles = StyleSheet.create({
   },
   form: {
     marginTop: 24,
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
     gap: 16,
   },
@@ -494,7 +442,8 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 'auto',
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
   },
   buttonContained: {

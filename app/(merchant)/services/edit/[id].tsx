@@ -1,260 +1,367 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import Svg, { Defs, RadialGradient as SvgRadialGradient, Rect, Stop } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../../../lib/supabase';
-import { IconBack } from '../../../../lib/icons';
-import { fetchCategories, type Category } from '../../../../lib/categories';
+import { responsiveHeight } from '../../../../lib/responsive';
+import { IconAddPhoto } from '../../../../lib/icons';
+import SelectDropdown from '../../../../components/ui/SelectDropdown';
 
-type Service = {
+type AvailabilityOption = {
+  value: 'available' | 'unavailable';
+  label: string;
+};
+
+type ServiceRecord = {
   id: string;
   name: string;
   description: string | null;
   price: number;
-  category_id: number | null;
   duration_minutes: number | null;
+  location_type: 'home' | 'shop' | null;
+  is_active: boolean | null;
+  price_type: 'fixed' | 'hourly' | null;
   photos: string[] | string | null;
 };
+
+const AVAILABILITY_OPTIONS: AvailabilityOption[] = [
+  { value: 'available', label: 'Disponível' },
+  { value: 'unavailable', label: 'Indisponível' },
+];
 
 const EditServiceScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [imagesUploading, setImagesUploading] = useState(false);
   const [businessId, setBusinessId] = useState<string | null>(null);
-  const [service, setService] = useState<Service | null>(null);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [service, setService] = useState<ServiceRecord | null>(null);
+
+  // Form state
+  const [serviceName, setServiceName] = useState('');
+  const [chargeType, setChargeType] = useState<'fixed' | 'hourly'>('fixed');
   const [price, setPrice] = useState('');
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-  const [durationMinutes, setDurationMinutes] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  const [duration, setDuration] = useState('');
+  const [category, setCategory] = useState<'local' | 'home'>('local');
+  const [availability, setAvailability] = useState<AvailabilityOption | null>(null);
+  const [description, setDescription] = useState('');
+  const [serviceImages, setServiceImages] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadCategories();
+    requestImagePermissions();
     loadService();
-    requestImagePermission();
   }, [params.id]);
 
-  const loadCategories = async () => {
-    const categoriesData = await fetchCategories();
-    setCategories(categoriesData);
+  const requestImagePermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos!');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const formatCurrency = (value: string): string => {
+    const numbers = value.replace(/\D/g, '');
+    if (!numbers) return '';
+    const amount = parseInt(numbers, 10) / 100;
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const handlePriceChange = (text: string) => {
+    const formatted = formatCurrency(text);
+    setPrice(formatted);
+  };
+
+  const parseDurationToMinutes = (durationText: string): number => {
+    if (!durationText) return 60;
+    const cleaned = durationText.trim().toLowerCase();
+    const hourMatch = cleaned.match(/(\d+)\s*h/);
+    const minuteMatch = cleaned.match(/(\d+)\s*m/);
+
+    let hours = 0;
+    let minutes = 0;
+
+    if (hourMatch) hours = parseInt(hourMatch[1], 10);
+    if (minuteMatch) minutes = parseInt(minuteMatch[1], 10);
+
+    if (!hourMatch && !minuteMatch) {
+      const numberMatch = cleaned.match(/(\d+)/);
+      if (numberMatch) hours = parseInt(numberMatch[1], 10);
+    }
+
+    return hours * 60 + minutes || 60;
+  };
+
+  const formatPriceFromNumber = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return '';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+    }).format(value);
   };
 
   const loadService = async () => {
     try {
       setLoading(true);
+      setError(null);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const currentUser = authData?.user;
 
-      if (!user) {
-        router.back();
+      if (authError || !currentUser) {
+        router.replace('/(auth)/login');
         return;
       }
 
-      // Buscar business_profile do lojista
-      const { data: businessData } = await supabase
+      const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
         .select('id')
-        .eq('owner_id', user.id)
+        .eq('owner_id', currentUser.id)
         .single();
 
-      if (!businessData) {
+      if (businessError || !businessData) {
+        Alert.alert('Erro', 'Negócio não encontrado.');
         router.back();
         return;
       }
 
       setBusinessId(businessData.id);
 
-      // Buscar serviço
-      const { data: serviceData, error } = await supabase
+      const { data: serviceData, error: serviceError } = await supabase
         .from('services')
         .select('*')
         .eq('id', params.id)
         .eq('business_id', businessData.id)
         .single();
 
-      if (error || !serviceData) {
-        console.error('Erro ao buscar serviço:', error);
+      if (serviceError || !serviceData) {
         Alert.alert('Erro', 'Serviço não encontrado.');
         router.back();
         return;
       }
 
-      setService(serviceData as Service);
-      setName(serviceData.name);
-      setDescription(serviceData.description || '');
-      setPrice(serviceData.price.toString().replace('.', ','));
-      setSelectedCategoryId(serviceData.category_id || null);
-      setDurationMinutes(serviceData.duration_minutes?.toString() || '');
+      const normalizedPhotos = normalizePhotos(serviceData.photos);
 
-      // Processar imagens
-      let imagesArray: string[] = [];
-      if (serviceData.photos) {
-        if (typeof serviceData.photos === 'string') {
-          try {
-            imagesArray = JSON.parse(serviceData.photos);
-          } catch {
-            imagesArray = [serviceData.photos];
-          }
-        } else if (Array.isArray(serviceData.photos)) {
-          imagesArray = serviceData.photos;
-        }
-      }
-      setImages(imagesArray);
-    } catch (error) {
-      console.error('Erro ao carregar serviço:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao carregar o serviço.');
+      setService(serviceData as ServiceRecord);
+      setServiceName(serviceData.name || '');
+      setDescription(serviceData.description || '');
+      setPrice(formatPriceFromNumber(serviceData.price));
+      setDuration(serviceData.duration_minutes ? String(serviceData.duration_minutes) : '');
+      setCategory(serviceData.location_type === 'home' ? 'home' : 'local');
+      setAvailability(
+        serviceData.is_active
+          ? AVAILABILITY_OPTIONS[0]
+          : serviceData.is_active === false
+          ? AVAILABILITY_OPTIONS[1]
+          : null,
+      );
+      setChargeType(serviceData.price_type === 'hourly' ? 'hourly' : 'fixed');
+      setServiceImages(normalizedPhotos);
+    } catch (err: any) {
+      console.error('Erro ao carregar serviço:', err);
+      setError('Ocorreu um erro ao carregar o serviço.');
     } finally {
       setLoading(false);
     }
   };
 
-  const requestImagePermission = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+  const normalizePhotos = (photos: ServiceRecord['photos']): string[] => {
+    if (!photos) return [];
+    if (Array.isArray(photos)) return photos;
+    try {
+      const parsed = JSON.parse(photos);
+      if (Array.isArray(parsed)) return parsed;
+      return [photos];
+    } catch {
+      return [photos];
     }
   };
 
-  const pickImage = async () => {
+  const handlePickImage = async () => {
+    if (serviceImages.length >= 4) {
+      Alert.alert('Limite atingido', 'Você pode adicionar no máximo 4 fotos.');
+      return;
+    }
+
+    const hasPermission = await requestImagePermissions();
+    if (hasPermission === false) return;
+
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
+        allowsEditing: true,
+        aspect: [4, 3],
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets) {
-        const newImages = result.assets.map((asset) => asset.uri);
-        setImages([...images, ...newImages]);
+      if (!result.canceled && result.assets[0]) {
+        const newImage = result.assets[0].uri;
+        setServiceImages((prev) => [...prev, newImage]);
       }
-    } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
+    } catch (err) {
+      console.error('Erro ao selecionar imagem:', err);
       Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
     }
   };
 
-  const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
+  const handleRemoveImage = (index: number) => {
+    setServiceImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const uploadNewImages = async (): Promise<string[]> => {
-    // Separar imagens novas (URIs locais) das existentes (URLs)
-    const newImages = images.filter((img) => img.startsWith('file://') || img.startsWith('content://'));
-    const existingImages = images.filter((img) => img.startsWith('http://') || img.startsWith('https://'));
+  const uploadImagesToSupabase = async (): Promise<string[]> => {
+    if (serviceImages.length === 0) return [];
+
+    const newImages = serviceImages.filter(
+      (img) => img.startsWith('file://') || img.startsWith('content://'),
+    );
+    const existingImages = serviceImages.filter(
+      (img) => img.startsWith('http://') || img.startsWith('https://'),
+    );
 
     if (newImages.length === 0) return existingImages;
 
-    const uploadedUrls: string[] = [...existingImages];
+    try {
+      setImagesUploading(true);
 
-    for (const imageUri of newImages) {
-      try {
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
-        const filePath = `services/${businessId}/${fileName}`;
+      const { data, error: authError } = await supabase.auth.getUser();
+      const currentUser = data?.user;
 
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
+      if (authError || !currentUser) {
+        throw new Error('Usuário não autenticado. Faça login novamente.');
+      }
 
-        const { data, error } = await supabase.storage
-          .from('service-images')
-          .upload(filePath, blob, {
-            contentType: 'image/jpeg',
+      const authenticatedUserId = currentUser.id;
+      const uploadPromises = newImages.map(async (imageUri, index) => {
+        const fileExt = imageUri.split('.').pop() || 'jpg';
+        const fileName = `${authenticatedUserId}-${Date.now()}-${index}.${fileExt}`;
+        const filePath = `service-images/${fileName}`;
+
+        const base64 = await FileSystem.readAsStringAsync(imageUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+
+        const { error: uploadError } = await supabase.storage
+          .from('services-assets')
+          .upload(filePath, byteArray, {
+            contentType: `image/${fileExt}`,
+            upsert: false,
           });
 
-        if (error) {
-          console.error('Erro ao fazer upload:', error);
-          continue;
+        if (uploadError) {
+          console.error(`Erro no upload da imagem ${index}:`, uploadError);
+          throw uploadError;
         }
 
         const {
           data: { publicUrl },
-        } = supabase.storage.from('service-images').getPublicUrl(filePath);
+        } = supabase.storage.from('services-assets').getPublicUrl(filePath);
 
-        uploadedUrls.push(publicUrl);
-      } catch (error) {
-        console.error('Erro ao processar imagem:', error);
-      }
+        return publicUrl;
+      });
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+      return [...existingImages, ...uploadedUrls];
+    } catch (err: any) {
+      console.error('Erro ao fazer upload das imagens:', err);
+      throw new Error(`Erro ao fazer upload das imagens: ${err.message}`);
+    } finally {
+      setImagesUploading(false);
     }
-
-    return uploadedUrls;
   };
 
-  const handleSubmit = async () => {
-    if (!name.trim()) {
-      Alert.alert('Erro', 'O nome do serviço é obrigatório.');
-      return;
-    }
-
-    if (!price.trim()) {
-      Alert.alert('Erro', 'O preço é obrigatório.');
-      return;
-    }
-
-    const priceValue = parseFloat(price.replace(',', '.'));
-    if (isNaN(priceValue) || priceValue <= 0) {
-      Alert.alert('Erro', 'Preço inválido.');
+  const handleSave = async () => {
+    if (!serviceName.trim() || !price.trim()) {
+      setError('Informe pelo menos nome e preço do serviço.');
       return;
     }
 
     if (!service || !businessId) {
-      Alert.alert('Erro', 'Dados incompletos.');
+      setError('Dados do serviço não encontrados.');
       return;
     }
 
     try {
       setSaving(true);
+      setError(null);
 
-      // Upload de novas imagens
-      const imageUrls = await uploadNewImages();
+      const numericPrice = Number(
+        price.replace('R$', '').replace('.', '').replace(',', '.').trim(),
+      );
 
-      // Atualizar serviço
-      const serviceData: any = {
-        name: name.trim(),
-        description: description.trim() || null,
-        price: priceValue,
-        category_id: selectedCategoryId || null,
-        duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
-        photos: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
-      };
+      if (isNaN(numericPrice) || numericPrice <= 0) {
+        setError('Preço inválido. Informe um valor válido.');
+        return;
+      }
 
-      const { error } = await supabase
+      const durationMinutes = parseDurationToMinutes(duration);
+      const photos = await uploadImagesToSupabase();
+
+      const { error: updateError } = await supabase
         .from('services')
-        .update(serviceData)
+        .update({
+          name: serviceName,
+          description: description || null,
+          price: numericPrice,
+          duration_minutes: durationMinutes,
+          location_type: category === 'home' ? 'home' : 'shop',
+          is_active: availability?.value === 'available',
+          price_type: chargeType === 'hourly' ? 'hourly' : 'fixed',
+          photos: photos.length > 0 ? photos : null,
+        })
         .eq('id', service.id)
         .eq('business_id', businessId);
 
-      if (error) {
-        console.error('Erro ao atualizar serviço:', error);
-        Alert.alert('Erro', 'Não foi possível atualizar o serviço.');
+      if (updateError) {
+        console.error('Erro ao atualizar serviço:', updateError);
+        setError(updateError.message);
         return;
       }
 
       Alert.alert('Sucesso', 'Serviço atualizado com sucesso!', [
         { text: 'OK', onPress: () => router.back() },
       ]);
-    } catch (error) {
-      console.error('Erro ao atualizar serviço:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao atualizar o serviço.');
+    } catch (err: any) {
+      console.error('Erro ao salvar serviço:', err);
+      setError(err?.message ?? 'Erro ao salvar serviço.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = () => {
+    if (!service || !businessId) return;
     Alert.alert(
       'Excluir Serviço',
       'Tem certeza que deseja excluir este serviço? Esta ação não pode ser desfeita.',
@@ -266,14 +373,14 @@ const EditServiceScreen: React.FC = () => {
           onPress: async () => {
             try {
               setSaving(true);
-              const { error } = await supabase
+              const { error: deleteError } = await supabase
                 .from('services')
                 .delete()
-                .eq('id', service!.id)
-                .eq('business_id', businessId!);
+                .eq('id', service.id)
+                .eq('business_id', businessId);
 
-              if (error) {
-                console.error('Erro ao excluir serviço:', error);
+              if (deleteError) {
+                console.error('Erro ao excluir serviço:', deleteError);
                 Alert.alert('Erro', 'Não foi possível excluir o serviço.');
                 return;
               }
@@ -281,8 +388,8 @@ const EditServiceScreen: React.FC = () => {
               Alert.alert('Sucesso', 'Serviço excluído com sucesso!', [
                 { text: 'OK', onPress: () => router.back() },
               ]);
-            } catch (error) {
-              console.error('Erro ao excluir serviço:', error);
+            } catch (err) {
+              console.error('Erro ao excluir serviço:', err);
               Alert.alert('Erro', 'Ocorreu um erro ao excluir o serviço.');
             } finally {
               setSaving(false);
@@ -303,171 +410,293 @@ const EditServiceScreen: React.FC = () => {
 
   if (!service) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <IconBack size={24} color="#000E3D" />
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Editar Serviço</Text>
-          </View>
-        </View>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Serviço não encontrado.</Text>
-        </View>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.emptyText}>Serviço não encontrado.</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <IconBack size={24} color="#000E3D" />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>Editar Serviço</Text>
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+    <View style={styles.background}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Name */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Nome do Serviço *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ex: Corte de cabelo"
-            placeholderTextColor="#9E9E9E"
-            value={name}
-            onChangeText={setName}
-          />
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <View style={styles.headerBackground}>
+              <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000E3D' }]} />
+              <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+                <Defs>
+                  <SvgRadialGradient
+                    id="headerRadialGradient"
+                    cx="0.5"
+                    cy="0.3"
+                    rx="100%"
+                    ry="100%"
+                    gradientUnits="objectBoundingBox"
+                  >
+                    <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
+                    <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
+                  </SvgRadialGradient>
+                </Defs>
+                <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
+              </Svg>
+            </View>
 
-        {/* Description */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Descrição</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Descreva o serviço..."
-            placeholderTextColor="#9E9E9E"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
+            <View style={styles.headerContent}>
+              <Text style={styles.welcomeTitle}>Editar serviços</Text>
+              <Text style={styles.welcomeSubtitle}>
+                Atualize os detalhes do seu serviço
+              </Text>
+            </View>
+          </View>
 
-        {/* Price */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Preço (R$) *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="0,00"
-            placeholderTextColor="#9E9E9E"
-            value={price}
-            onChangeText={setPrice}
-            keyboardType="decimal-pad"
-          />
-        </View>
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Nome do Serviço</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Nome do Serviço"
+                placeholderTextColor="#0f0f0f"
+                value={serviceName}
+                onChangeText={setServiceName}
+              />
+            </View>
 
-        {/* Category */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Categoria</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categories}>
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.categoryChip, selectedCategoryId === cat.id && styles.categoryChipSelected]}
-                onPress={() => setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id)}
-              >
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    selectedCategoryId === cat.id && styles.categoryChipTextSelected,
-                  ]}
-                >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Duration */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Duração (minutos)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="60"
-            placeholderTextColor="#9E9E9E"
-            value={durationMinutes}
-            onChangeText={setDurationMinutes}
-            keyboardType="number-pad"
-          />
-        </View>
-
-        {/* Images */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Fotos</Text>
-          <View style={styles.imagesContainer}>
-            {images.map((uri, index) => (
-              <View key={index} style={styles.imageWrapper}>
-                <Image source={{ uri }} style={styles.image} resizeMode="cover" />
+            <View style={styles.radioGroup}>
+              <Text style={styles.label}>Forma de cobrança</Text>
+              <View style={styles.radioRow}>
                 <TouchableOpacity
-                  style={styles.removeImageButton}
-                  onPress={() => removeImage(index)}
+                  style={styles.radioOption}
+                  onPress={() => setChargeType('fixed')}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.removeImageText}>×</Text>
+                  <View style={styles.radioIconOuter}>
+                    {chargeType === 'fixed' && <View style={styles.radioIconInner} />}
+                  </View>
+                  <Text style={styles.radioText}>Valor Fixo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.radioOption}
+                  onPress={() => setChargeType('hourly')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.radioIconOuter}>
+                    {chargeType === 'hourly' && <View style={styles.radioIconInner} />}
+                  </View>
+                  <Text style={styles.radioText}>Valor por hora</Text>
                 </TouchableOpacity>
               </View>
-            ))}
-            {images.length < 5 && (
-              <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
-                <Text style={styles.addImageText}>+</Text>
-                <Text style={styles.addImageLabel}>Adicionar</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </ScrollView>
+            </View>
 
-      {/* Action Buttons */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.deleteButton, saving && styles.deleteButtonDisabled]}
-          onPress={handleDelete}
-          disabled={saving}
-        >
-          <Text style={styles.deleteButtonText}>Excluir Serviço</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.submitButton, saving && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FEFEFE" />
-          ) : (
-            <Text style={styles.submitButtonText}>Salvar Alterações</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Preço</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="R$ 100,00"
+                placeholderTextColor="#0f0f0f"
+                keyboardType="numeric"
+                value={price}
+                onChangeText={handlePriceChange}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Duração</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="1h"
+                placeholderTextColor="#0f0f0f"
+                value={duration}
+                onChangeText={setDuration}
+              />
+            </View>
+
+            <View style={styles.radioGroup}>
+              <Text style={styles.label}>Categoria do Serviço</Text>
+              <View style={styles.chipRow}>
+                <View style={styles.chipContainer}>
+                  <TouchableOpacity
+                    style={[
+                      category === 'local' ? styles.chip : styles.chipOutline,
+                      category === 'local' && styles.chipActive,
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => setCategory('local')}
+                  >
+                    <Text
+                      style={[
+                        category === 'local' ? styles.chipText : styles.chipTextOutline,
+                        category === 'local' && styles.chipTextActive,
+                      ]}
+                    >
+                      No meu local
+                    </Text>
+                    {category === 'local' && (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setCategory('home');
+                        }}
+                        style={styles.chipCloseButton}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.chipCloseIcon}>×</Text>
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.chipContainer}>
+                  <TouchableOpacity
+                    style={[
+                      category === 'home' ? styles.chip : styles.chipOutline,
+                      category === 'home' && styles.chipActive,
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => setCategory('home')}
+                  >
+                    <Text
+                      style={[
+                        category === 'home' ? styles.chipText : styles.chipTextOutline,
+                        category === 'home' && styles.chipTextActive,
+                      ]}
+                    >
+                      À domicílio
+                    </Text>
+                    {category === 'home' && (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setCategory('local');
+                        }}
+                        style={styles.chipCloseButton}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.chipCloseIcon}>×</Text>
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.textareaGroup}>
+              <Text style={styles.label}>Descrição do Serviço</Text>
+              <TextInput
+                style={styles.textarea}
+                placeholder="Conte mais sobre o serviço."
+                placeholderTextColor="#0f0f0f"
+                multiline
+                numberOfLines={4}
+                value={description}
+                onChangeText={setDescription}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Disponibilidade</Text>
+              <SelectDropdown<AvailabilityOption>
+                data={AVAILABILITY_OPTIONS}
+                labelKey="label"
+                valueKey="value"
+                onSelect={(option) => setAvailability(option)}
+                selectedValue={availability}
+                placeholder="Selecione aqui"
+              />
+            </View>
+
+            <View style={styles.photoGroup}>
+              <Text style={styles.label}>Adicione fotos do seu serviço</Text>
+              <View style={styles.photoRow}>
+                {Array.from({ length: 4 }).map((_, index) => {
+                  const imageUri = serviceImages[index];
+                  return imageUri ? (
+                    <View key={index} style={styles.photoBoxContainer}>
+                      <Image
+                        source={{ uri: imageUri }}
+                        style={styles.photoPreview}
+                        resizeMode="cover"
+                      />
+                      <TouchableOpacity
+                        style={styles.removePhotoButton}
+                        onPress={() => handleRemoveImage(index)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.removePhotoBadge}>
+                          <Text style={styles.removePhotoText}>×</Text>
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.photoBox}
+                      onPress={handlePickImage}
+                      activeOpacity={0.7}
+                      disabled={imagesUploading || serviceImages.length >= 4}
+                    >
+                      {imagesUploading ? (
+                        <ActivityIndicator color="#474747" />
+                      ) : (
+                        <IconAddPhoto width={34} height={34} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
+        </ScrollView>
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.buttonOutlined}
+            activeOpacity={0.8}
+            onPress={handleDelete}
+            disabled={saving || imagesUploading}
+          >
+            {saving ? (
+              <ActivityIndicator color="#E5102E" />
+            ) : (
+              <Text style={styles.buttonOutlinedText}>Excluir Serviço</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.buttonContained}
+            activeOpacity={0.8}
+            onPress={handleSave}
+            disabled={saving || imagesUploading}
+          >
+            {saving || imagesUploading ? (
+              <ActivityIndicator color="#FEFEFE" />
+            ) : (
+              <Text style={styles.buttonContainedText}>Salvar Alterações</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </View>
   );
 };
 
 export default EditServiceScreen;
 
+const headerHeight = responsiveHeight(129);
+
 const styles = StyleSheet.create({
-  container: {
+  background: {
     flex: 1,
     backgroundColor: '#FAFAFA',
+  },
+  container: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -475,190 +704,303 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 16,
-    backgroundColor: '#FEFEFE',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    padding: 24,
-    paddingBottom: 100,
+    paddingHorizontal: 24,
+    paddingTop: 0,
+    paddingBottom: 32,
   },
-  field: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#FEFEFE',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    padding: 16,
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
-  },
-  textArea: {
-    minHeight: 100,
-  },
-  categories: {
-    marginTop: 8,
-  },
-  categoryChip: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-  },
-  categoryChipSelected: {
-    backgroundColor: '#D6E0FF',
-    borderColor: '#000E3D',
-  },
-  categoryChipText: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#474747',
-  },
-  categoryChipTextSelected: {
-    color: '#000E3D',
-    fontFamily: 'Montserrat_700Bold',
-  },
-  imagesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 8,
-  },
-  imageWrapper: {
-    width: 100,
-    height: 100,
-    borderRadius: 12,
+  header: {
+    height: headerHeight,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    alignSelf: 'stretch',
     overflow: 'hidden',
     position: 'relative',
+    marginHorizontal: -24,
   },
-  image: {
+  headerBackground: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  headerContent: {
+    width: '90%',
+    maxWidth: 342,
+    height: 49,
+    gap: 4,
+    alignItems: 'flex-start',
+    zIndex: 1,
+    alignSelf: 'center',
+  },
+  welcomeTitle: {
+    fontFamily: 'Montserrat_700Bold',
+    fontSize: 20,
+    color: '#FEFEFE',
+  },
+  welcomeSubtitle: {
+    marginTop: 4,
+    fontFamily: 'Montserrat_400Regular',
+    fontSize: 16,
+    color: '#FEFEFE',
+  },
+  stepBar: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 24,
+    marginBottom: 24,
+    width: '90%',
+    maxWidth: 342,
+    alignSelf: 'center',
+  },
+  stepSegment: {
+    flex: 1,
+    height: 8,
+    borderRadius: 24,
+    backgroundColor: '#DBDBDB',
+  },
+  stepSegmentComplete: {
+    backgroundColor: '#E5102E',
+  },
+  stepSegmentActive: {
+    backgroundColor: '#DBDBDB',
+  },
+  form: {
+    marginTop: 24,
+    width: '90%',
+    maxWidth: 342,
+    alignSelf: 'center',
+    gap: 16,
+  },
+  inputGroup: {
     width: '100%',
-    height: '100%',
   },
-  removeImageButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
+  label: {
+    fontFamily: 'Montserrat_700Bold',
+    fontSize: 12,
+    color: '#000E3D',
+    marginBottom: 4,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#474747',
+    borderRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    fontFamily: 'Montserrat_400Regular',
+    fontSize: 16,
+    color: '#0F0F0F',
+  },
+  radioGroup: {
+    width: '100%',
+  },
+  radioRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  radioIconOuter: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#E5102E',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  removeImageText: {
-    color: '#FEFEFE',
-    fontSize: 18,
-    fontFamily: 'Montserrat_700Bold',
-    lineHeight: 20,
-  },
-  addImageButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E5E5E5',
-    borderStyle: 'dashed',
+    borderColor: '#000E3D',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  radioIconInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#000E3D',
+  },
+  radioText: {
+    fontFamily: 'Montserrat_400Regular',
+    fontSize: 16,
+    color: '#0F0F0F',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    flexWrap: 'wrap',
+  },
+  chipContainer: {
+    flexDirection: 'row',
+  },
+  chip: {
+    backgroundColor: '#000E3D',
+    borderRadius: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  addImageText: {
-    fontSize: 32,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
-  },
-  addImageLabel: {
+  chipText: {
+    fontFamily: 'Montserrat_500Medium',
     fontSize: 12,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: '#FEFEFE',
   },
-  footer: {
+  chipOutline: {
+    borderWidth: 1,
+    borderColor: '#000E3D',
+    borderRadius: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  chipTextOutline: {
+    fontFamily: 'Montserrat_500Medium',
+    fontSize: 12,
+    color: '#000E3D',
+  },
+  chipActive: {
+    backgroundColor: '#000E3D',
+  },
+  chipTextActive: {
+    color: '#FEFEFE',
+  },
+  chipCloseButton: {
+    marginLeft: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chipCloseIcon: {
+    color: '#FEFEFE',
+    fontSize: 20,
+    fontFamily: 'Montserrat_700Bold',
+    lineHeight: 22,
+  },
+  textareaGroup: {
+    marginTop: 16,
+  },
+  textarea: {
+    borderWidth: 1,
+    borderColor: '#474747',
+    borderRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    fontFamily: 'Montserrat_400Regular',
+    fontSize: 16,
+    color: '#0F0F0F',
+  },
+  photoGroup: {
+    marginTop: 16,
+  },
+  photoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  photoBox: {
+    width: '48%',
+    aspectRatio: 1,
+    borderWidth: 1,
+    borderColor: '#000000',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#D9D9D9',
+    marginBottom: 12,
+  },
+  photoBoxContainer: {
+    width: '48%',
+    aspectRatio: 1,
+    position: 'relative',
+    marginBottom: 12,
+  },
+  photoPreview: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+  },
+  removePhotoButton: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FEFEFE',
+    top: -10,
+    right: -10,
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removePhotoBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#E5102E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removePhotoText: {
+    color: '#FEFEFE',
+    fontSize: 16,
+    fontFamily: 'Montserrat_700Bold',
+    lineHeight: 20,
+  },
+  errorText: {
+    marginTop: 16,
+    alignSelf: 'center',
+    color: '#E5102E',
+    fontFamily: 'Montserrat_500Medium',
+    fontSize: 14,
+  },
+  actions: {
     paddingHorizontal: 24,
-    paddingTop: 16,
     paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
     gap: 12,
   },
-  deleteButton: {
+  buttonContained: {
+    width: '90%',
+    maxWidth: 342,
+    alignSelf: 'center',
+    backgroundColor: '#000E3D',
+    borderRadius: 24,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#1D1D1D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.24,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  buttonContainedText: {
+    fontFamily: 'Montserrat_700Bold',
+    fontSize: 16,
+    color: '#FEFEFE',
+  },
+  buttonOutlined: {
+    width: '90%',
+    maxWidth: 342,
+    alignSelf: 'center',
     backgroundColor: '#FEFEFE',
     borderRadius: 24,
-    paddingVertical: 16,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E5102E',
+    borderColor: '#000E3D',
   },
-  deleteButtonDisabled: {
-    opacity: 0.6,
-  },
-  deleteButtonText: {
-    fontSize: 16,
+  buttonOutlinedText: {
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-  },
-  submitButton: {
-    backgroundColor: '#E5102E',
-    borderRadius: 24,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
     fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
+    color: '#000E3D',
   },
   emptyText: {
     fontSize: 16,

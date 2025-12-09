@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { IconBack, IconNotification, IconVisibilityOff, IconCheckCircle } from '../../../lib/icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { responsiveWidth } from '../../../lib/responsive';
 
 const ChangePasswordScreen: React.FC = () => {
   const router = useRouter();
@@ -214,6 +215,10 @@ const ChangePasswordScreen: React.FC = () => {
 
 export default ChangePasswordScreen;
 
+// Calcular largura responsiva para footer absoluto
+const footerWidth = responsiveWidth(342);
+const footerTransformX = -footerWidth / 2;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -263,7 +268,8 @@ const styles = StyleSheet.create({
     color: '#0F0F0F',
   },
   form: {
-    width: 342,
+    width: '90%',
+    maxWidth: 342,
     alignSelf: 'center',
     gap: 16,
   },
@@ -304,8 +310,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 32,
     left: '50%',
-    transform: [{ translateX: -171 }],
-    width: 342,
+    transform: [{ translateX: footerTransformX }],
+    width: footerWidth,
   },
   changePasswordButton: {
     backgroundColor: '#000E3D',

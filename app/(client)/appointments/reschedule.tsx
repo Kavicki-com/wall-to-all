@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
+  useWindowDimensions,
   Modal,
   TextInput,
   Image,
@@ -14,11 +14,13 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Svg, Defs, RadialGradient, Stop, Rect, LinearGradient } from 'react-native-svg';
 import { supabase } from '../../../lib/supabase';
-import { IconBack, IconNotification, IconDateRange, IconTimer, IconSchedule, IconPix, IconCheckCircle } from '../../../lib/icons';
+import { IconDateRange, IconTimer, IconSchedule, IconPix, IconCheckCircle } from '../../../lib/icons';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useResponsiveHeight } from '../../../lib/responsive';
+import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
 type Appointment = {
   id: string;
@@ -52,6 +54,7 @@ type TimeSlot = {
 const RescheduleAppointmentScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ appointmentId: string; reason?: string }>();
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const [loading, setLoading] = useState(true);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -64,9 +67,12 @@ const RescheduleAppointmentScreen: React.FC = () => {
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [justification, setJustification] = useState(params.reason || '');
 
+  // Recarregar dados sempre que o agendamento ou a justificativa nos params mudar.
+  // Isso evita manter dados do agendamento anterior quando o usuário abre a tela
+  // novamente a partir de outro agendamento.
   useEffect(() => {
     loadAppointmentData();
-  }, []);
+  }, [params.appointmentId, params.reason]);
 
   useEffect(() => {
     if (selectedDate && appointment) {
@@ -78,13 +84,46 @@ const RescheduleAppointmentScreen: React.FC = () => {
     }
   }, [selectedDate, appointment]);
 
+  // Resetar campos quando a tela é focada (exceto se vier com reason nos params)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Se não há reason nos params, significa que é uma nova entrada ou volta após processo
+      // Resetar campos para limpar histórico de processos anteriores
+      if (!params.reason) {
+        setJustification('');
+        setSelectedDate(null);
+        setSelectedTime(null);
+        setShowRescheduleModal(false);
+        setShowConfirmationModal(false);
+      } else {
+        // Se tem reason, é porque veio da tela anterior com justificativa
+        // Manter o reason mas resetar seleções
+        setSelectedDate(null);
+        setSelectedTime(null);
+        setShowRescheduleModal(false);
+        setShowConfirmationModal(false);
+      }
+    }, [params.reason])
+  );
+
   const loadAppointmentData = async () => {
     try {
       setLoading(true);
+      setAppointment(null);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.error('Usuário não autenticado');
+        router.replace('/(client)/appointments');
+        return;
+      }
 
       if (!params.appointmentId) {
         console.error('ID do agendamento não fornecido');
-        router.back();
+        router.replace('/(client)/appointments');
         return;
       }
 
@@ -97,27 +136,30 @@ const RescheduleAppointmentScreen: React.FC = () => {
           service:services(id, name, duration_minutes, price)
         `,
         )
-        .eq('id', params.appointmentId)
+        .eq('id', Number(params.appointmentId))
+        .eq('client_id', user.id)
         .single();
 
       if (error || !appointmentData) {
         console.error('Erro ao buscar agendamento:', error);
-        router.back();
+        router.replace('/(client)/appointments');
         return;
       }
 
       setAppointment(appointmentData as Appointment);
       generateAvailableDates(appointmentData as Appointment);
       
-      // Carregar justificativa anterior se existir
-      if (appointmentData.reschedule_justification) {
-        setJustification(appointmentData.reschedule_justification);
-      } else if (params.reason) {
+      // Carregar justificativa apenas se vier nos params (da tela anterior)
+      // Não carregar justificativa de processos anteriores para evitar histórico
+      if (params.reason) {
         setJustification(params.reason);
+      } else {
+        // Se não há reason nos params, garantir que está vazio
+        setJustification('');
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      router.back();
+      router.replace('/(client)/appointments');
     } finally {
       setLoading(false);
     }
@@ -363,6 +405,10 @@ const RescheduleAppointmentScreen: React.FC = () => {
         return;
       }
 
+      // Resetar campos após sucesso antes de mostrar o modal
+      setJustification('');
+      setSelectedDate(null);
+      setSelectedTime(null);
       setShowRescheduleModal(false);
       setShowConfirmationModal(true);
     } catch (error) {
@@ -397,6 +443,483 @@ const RescheduleAppointmentScreen: React.FC = () => {
     return `${startHours}h às ${endHours}h`;
   };
 
+  // Calcular largura dos cards de data e horário para grid 2x3 (2 colunas, 3 linhas - 3 de cada lado)
+  // ⚠️ IMPORTANTE: Recalcular TODAS as constantes derivadas dentro do useMemo
+  // para garantir que dependam apenas de SCREEN_WIDTH e SCREEN_HEIGHT
+  const styles = useMemo(() => {
+    const CONTENT_PADDING = 24 * 2; // Padding horizontal total (24 de cada lado)
+    const DATE_GRID_GAP = 27; // Gap entre os botões de data
+    const DATE_BUTTON_WIDTH = (SCREEN_WIDTH - CONTENT_PADDING - DATE_GRID_GAP) / 2;
+    const TIME_BUTTON_WIDTH = DATE_BUTTON_WIDTH; // Mesma largura dos cards de data
+
+    return StyleSheet.create({
+      container: {
+        flex: 1,
+        backgroundColor: '#FAFAFA',
+      },
+      loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#FAFAFA',
+      },
+      topBar: {
+        position: 'relative',
+        zIndex: 10,
+      },
+      topBarDivider: {
+        height: 14,
+        backgroundColor: '#EBEFFF',
+      },
+      topBarContent: {
+        height: 56,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 24,
+        paddingVertical: 16,
+        position: 'relative',
+      },
+      topBarGradientContainer: {
+        ...StyleSheet.absoluteFillObject,
+      },
+      topBarGradientOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 14, 61, 0.2)',
+      },
+      backButton: {
+        width: 24,
+        height: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      topBarSpacer: {
+        flex: 1,
+      },
+      topBarTitle: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#FEFEFE',
+        flex: 1,
+        textAlign: 'center',
+      },
+      notificationButton: {
+        width: 24,
+        height: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      scrollView: {
+        flex: 1,
+      },
+      scrollContent: {
+        paddingBottom: 100,
+      },
+      content: {
+        padding: 24,
+        gap: 24,
+      },
+      mainTitle: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#000000',
+        marginBottom: 0,
+      },
+      section: {
+        gap: 16,
+      },
+      sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 22,
+      },
+      sectionTitle: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#E5102E',
+      },
+      dateGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 27,
+        width: '100%',
+      },
+      dateButton: {
+        width: DATE_BUTTON_WIDTH,
+        paddingVertical: 4,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      dateButtonSelected: {
+        backgroundColor: '#000E3D',
+      },
+      dateButtonUnselected: {
+        backgroundColor: '#EBEFFF',
+      },
+      dateButtonText: {
+        fontSize: 24,
+        fontFamily: 'Montserrat_700Bold',
+        textAlign: 'center',
+      },
+      dateButtonTextSelected: {
+        color: '#FEFEFE',
+      },
+      dateButtonTextUnselected: {
+        color: '#000E3D',
+      },
+      timeGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 27,
+        width: '100%',
+      },
+      timeButton: {
+        width: TIME_BUTTON_WIDTH,
+        paddingVertical: 4,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      timeButtonSelected: {
+        backgroundColor: '#000E3D',
+      },
+      timeButtonUnselected: {
+        backgroundColor: '#EBEFFF',
+      },
+      timeButtonText: {
+        fontSize: 24,
+        fontFamily: 'Montserrat_700Bold',
+        textAlign: 'center',
+      },
+      timeButtonTextSelected: {
+        color: '#FEFEFE',
+      },
+      timeButtonTextUnselected: {
+        color: '#000E3D',
+      },
+      seeMoreButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 24,
+        alignSelf: 'center',
+        marginTop: 0,
+      },
+      seeMoreText: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#A8BDFF',
+      },
+      suggestButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#000E3D',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 24,
+        shadowColor: '#1D1D1D',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.24,
+        shadowRadius: 8,
+        elevation: 4,
+      },
+      suggestButtonDisabled: {
+        opacity: 0.5,
+      },
+      suggestButtonText: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#FEFEFE',
+      },
+      loader: {
+        marginVertical: 16,
+      },
+      emptyMessage: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_400Regular',
+        color: '#474747',
+        textAlign: 'center',
+        paddingVertical: 16,
+      },
+      // Modal Styles
+      modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+        zIndex: 1000,
+      },
+      modalContent: {
+        backgroundColor: '#FEFEFE',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingTop: 24,
+        paddingHorizontal: 24,
+        paddingBottom: 40,
+        maxHeight: SCREEN_HEIGHT * 0.9,
+        width: '100%',
+        ...Platform.select({
+          ios: {
+            shadowColor: '#1D1D1D',
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.16,
+            shadowRadius: 16,
+          },
+          android: {
+            elevation: 16,
+          },
+        }),
+      },
+      modalScrollView: {
+        maxHeight: SCREEN_HEIGHT * 0.8,
+      },
+      modalScrollContent: {
+        gap: 24,
+        paddingBottom: 24,
+      },
+      modalHeading: {
+        gap: 8,
+      },
+      modalHeadingContent: {
+        gap: 8,
+      },
+      modalRescheduleLabel: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#E5102E',
+      },
+      modalServiceName: {
+        fontSize: 20,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#0F0F0F',
+      },
+      currentAppointmentCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+        backgroundColor: '#EBEFFF',
+        borderWidth: 2,
+        borderColor: '#000E3D',
+        borderRadius: 24,
+        padding: 16,
+      },
+      currentAppointmentContent: {
+        flex: 1,
+        gap: 8,
+      },
+      currentAppointmentDate: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#000E3D',
+      },
+      currentAppointmentTime: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#000E3D',
+      },
+      modalSection: {
+        gap: 8,
+      },
+      modalSectionLabel: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#E5102E',
+      },
+      professionalInfo: {
+        gap: 8,
+      },
+      professionalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+      },
+      businessLogo: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+      },
+      placeholderLogo: {
+        backgroundColor: '#E5E5E5',
+      },
+      businessName: {
+        flex: 1,
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#000000',
+      },
+      addressCard: {
+        backgroundColor: '#FEFEFE',
+        borderRadius: 4,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#E5E5E5',
+        ...Platform.select({
+          ios: {
+            shadowColor: '#1D1D1D',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+          },
+          android: {
+            elevation: 4,
+          },
+        }),
+      },
+      addressText: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_400Regular',
+        color: '#000000',
+      },
+      paymentCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+        backgroundColor: '#FEFEFE',
+        borderRadius: 24,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#E5E5E5',
+        ...Platform.select({
+          ios: {
+            shadowColor: '#1D1D1D',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+          },
+          android: {
+            elevation: 2,
+          },
+        }),
+      },
+      paymentContent: {
+        flex: 1,
+        gap: 8,
+      },
+      paymentMethod: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#000000',
+      },
+      paymentAmount: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#17723F',
+      },
+      justificationAndButtonContainer: {
+        gap: 16,
+        width: '100%',
+      },
+      justificationLabel: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#000000',
+      },
+      justificationContainer: {
+        backgroundColor: '#FEFEFE',
+        borderRadius: 8,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#E5E5E5',
+      },
+      justificationText: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_400Regular',
+        color: '#000000',
+        lineHeight: 24,
+      },
+      modalSubmitButton: {
+        backgroundColor: '#000E3D',
+        borderRadius: 24,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        ...Platform.select({
+          ios: {
+            shadowColor: '#1D1D1D',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.24,
+            shadowRadius: 8,
+          },
+          android: {
+            elevation: 4,
+          },
+        }),
+      },
+      modalSubmitButtonText: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#FEFEFE',
+      },
+      // Confirmation Modal Styles
+      confirmationOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+      },
+      confirmationModalContainer: {
+        backgroundColor: '#FEFEFE',
+        borderRadius: 24,
+        padding: 16,
+        width: '100%',
+        maxWidth: 400,
+        alignItems: 'center',
+        gap: 16,
+        ...Platform.select({
+          ios: {
+            shadowColor: '#1D1D1D',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.24,
+            shadowRadius: 16,
+          },
+          android: {
+            elevation: 8,
+          },
+        }),
+      },
+      confirmationIconContainer: {
+        width: 67,
+        height: 67,
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      confirmationTitle: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#17723F',
+        textAlign: 'center',
+      },
+      confirmationMessage: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_400Regular',
+        color: '#000000',
+        textAlign: 'center',
+        width: 256,
+      },
+      confirmationCloseButton: {
+        width: 256,
+        backgroundColor: 'transparent',
+        borderRadius: 24,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      confirmationCloseButtonText: {
+        fontSize: 16,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#000E3D',
+      },
+    });
+  }, [SCREEN_WIDTH, SCREEN_HEIGHT]);
+
   // Sempre exibir 6 datas inicialmente (grid 3x2)
   const displayedDates = showMoreDates ? availableDates : availableDates.slice(0, 6);
   const availableTimeSlots = timeSlots.filter((slot) => slot.available && slot.type === 'available');
@@ -418,54 +941,12 @@ const RescheduleAppointmentScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.topBarDivider} />
-        <View style={styles.topBarContent}>
-          <View style={styles.topBarGradientContainer}>
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
-              <Defs>
-                <RadialGradient
-                  id="topBarRadialGradient"
-                  cx="50%"
-                  cy="50%"
-                  r="50%"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <Stop offset="0%" stopColor="rgba(214,224,255,0.2)" />
-                  <Stop offset="25%" stopColor="rgba(161,172,207,0.2)" />
-                  <Stop offset="37.5%" stopColor="rgba(134,145,182,0.2)" />
-                  <Stop offset="50%" stopColor="rgba(107,119,158,0.2)" />
-                  <Stop offset="62.5%" stopColor="rgba(80,93,134,0.2)" />
-                  <Stop offset="75%" stopColor="rgba(54,67,110,0.2)" />
-                  <Stop offset="87.5%" stopColor="rgba(27,40,85,0.2)" />
-                  <Stop offset="93.75%" stopColor="rgba(13,27,73,0.2)" />
-                  <Stop offset="100%" stopColor="rgba(0,14,61,0.2)" />
-                </RadialGradient>
-              </Defs>
-              <Rect x="0" y="0" width="410" height="56" fill="url(#topBarRadialGradient)" />
-            </Svg>
-            <LinearGradient
-              colors={['rgba(0,14,61,0.2)', 'rgba(214,224,255,0.2)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-          </View>
-          <View style={styles.topBarGradientOverlay} />
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <IconBack size={24} color="#FEFEFE" />
-          </TouchableOpacity>
-          <View style={styles.topBarSpacer} />
-          <Text style={styles.topBarTitle} numberOfLines={1}>
-            Reagendamento
-          </Text>
-          <View style={styles.topBarSpacer} />
-          <TouchableOpacity style={styles.notificationButton}>
-            <IconNotification size={24} color="#FEFEFE" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <MerchantTopBar
+        title="Reagendamento"
+        showBack
+        onBackPress={() => router.back()}
+        fallbackPath="/(client)/home"
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -722,12 +1203,20 @@ const RescheduleAppointmentScreen: React.FC = () => {
         animationType="fade"
         onRequestClose={() => {
           setShowConfirmationModal(false);
+          // Resetar campos antes de navegar
+          setJustification('');
+          setSelectedDate(null);
+          setSelectedTime(null);
           router.replace(`/(client)/appointments/${params.appointmentId}`);
         }}
       >
         <TouchableWithoutFeedback
           onPress={() => {
             setShowConfirmationModal(false);
+            // Resetar campos antes de navegar
+            setJustification('');
+            setSelectedDate(null);
+            setSelectedTime(null);
             router.replace(`/(client)/appointments/${params.appointmentId}`);
           }}
         >
@@ -753,6 +1242,10 @@ const RescheduleAppointmentScreen: React.FC = () => {
                   activeOpacity={0.8}
                   onPress={() => {
                     setShowConfirmationModal(false);
+                    // Resetar campos antes de navegar
+                    setJustification('');
+                    setSelectedDate(null);
+                    setSelectedTime(null);
                     router.replace(`/(client)/appointments/${params.appointmentId}`);
                   }}
                 >
@@ -768,478 +1261,4 @@ const RescheduleAppointmentScreen: React.FC = () => {
 };
 
 export default RescheduleAppointmentScreen;
-
-// Calcular largura dos cards de data e horário para grid 2x3 (2 colunas, 3 linhas - 3 de cada lado)
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CONTENT_PADDING = 24 * 2; // padding horizontal do content
-const DATE_GRID_GAP = 27;
-const DATE_BUTTON_WIDTH = (SCREEN_WIDTH - CONTENT_PADDING - DATE_GRID_GAP) / 2;
-const TIME_BUTTON_WIDTH = DATE_BUTTON_WIDTH; // Mesma largura dos cards de data
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FAFAFA',
-  },
-  topBar: {
-    position: 'relative',
-    zIndex: 10,
-  },
-  topBarDivider: {
-    height: 14,
-    backgroundColor: '#EBEFFF',
-  },
-  topBarContent: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    position: 'relative',
-  },
-  topBarGradientContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  topBarGradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 14, 61, 0.2)',
-  },
-  backButton: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topBarSpacer: {
-    flex: 1,
-  },
-  topBarTitle: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
-    flex: 1,
-    textAlign: 'center',
-  },
-  notificationButton: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  content: {
-    padding: 24,
-    gap: 24,
-  },
-  mainTitle: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000000',
-    marginBottom: 0,
-  },
-  section: {
-    gap: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 22,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-  },
-  dateGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 27,
-    width: '100%',
-  },
-  dateButton: {
-    width: DATE_BUTTON_WIDTH,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateButtonSelected: {
-    backgroundColor: '#000E3D',
-  },
-  dateButtonUnselected: {
-    backgroundColor: '#EBEFFF',
-  },
-  dateButtonText: {
-    fontSize: 24,
-    fontFamily: 'Montserrat_700Bold',
-    textAlign: 'center',
-  },
-  dateButtonTextSelected: {
-    color: '#FEFEFE',
-  },
-  dateButtonTextUnselected: {
-    color: '#000E3D',
-  },
-  timeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 27,
-    width: '100%',
-  },
-  timeButton: {
-    width: TIME_BUTTON_WIDTH,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timeButtonSelected: {
-    backgroundColor: '#000E3D',
-  },
-  timeButtonUnselected: {
-    backgroundColor: '#EBEFFF',
-  },
-  timeButtonText: {
-    fontSize: 24,
-    fontFamily: 'Montserrat_700Bold',
-    textAlign: 'center',
-  },
-  timeButtonTextSelected: {
-    color: '#FEFEFE',
-  },
-  timeButtonTextUnselected: {
-    color: '#000E3D',
-  },
-  seeMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    alignSelf: 'center',
-    marginTop: 0,
-  },
-  seeMoreText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#A8BDFF',
-  },
-  suggestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#000E3D',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  suggestButtonDisabled: {
-    opacity: 0.5,
-  },
-  suggestButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
-  },
-  loader: {
-    marginVertical: 16,
-  },
-  emptyMessage: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
-    textAlign: 'center',
-    paddingVertical: 16,
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-    zIndex: 1000,
-  },
-  modalContent: {
-    backgroundColor: '#FEFEFE',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    maxHeight: Dimensions.get('window').height * 0.9,
-    width: '100%',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#1D1D1D',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.16,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 16,
-      },
-    }),
-  },
-  modalScrollView: {
-    maxHeight: Dimensions.get('window').height * 0.8,
-  },
-  modalScrollContent: {
-    gap: 24,
-    paddingBottom: 24,
-  },
-  modalHeading: {
-    gap: 8,
-  },
-  modalHeadingContent: {
-    gap: 8,
-  },
-  modalRescheduleLabel: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-  },
-  modalServiceName: {
-    fontSize: 20,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
-  },
-  currentAppointmentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    backgroundColor: '#EBEFFF',
-    borderWidth: 2,
-    borderColor: '#000E3D',
-    borderRadius: 24,
-    padding: 16,
-  },
-  currentAppointmentContent: {
-    flex: 1,
-    gap: 8,
-  },
-  currentAppointmentDate: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  currentAppointmentTime: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  modalSection: {
-    gap: 8,
-  },
-  modalSectionLabel: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-  },
-  professionalInfo: {
-    gap: 8,
-  },
-  professionalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  businessLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  placeholderLogo: {
-    backgroundColor: '#E5E5E5',
-  },
-  businessName: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000000',
-  },
-  addressCard: {
-    backgroundColor: '#FEFEFE',
-    borderRadius: 4,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#1D1D1D',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  addressText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#000000',
-  },
-  paymentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    backgroundColor: '#FEFEFE',
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#1D1D1D',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  paymentContent: {
-    flex: 1,
-    gap: 8,
-  },
-  paymentMethod: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000000',
-  },
-  paymentAmount: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#17723F',
-  },
-  justificationAndButtonContainer: {
-    gap: 16,
-    width: '100%',
-  },
-  justificationLabel: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000000',
-  },
-  justificationContainer: {
-    backgroundColor: '#FEFEFE',
-    borderRadius: 8,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-  },
-  justificationText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#000000',
-    lineHeight: 24,
-  },
-  modalSubmitButton: {
-    backgroundColor: '#000E3D',
-    borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#1D1D1D',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.24,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  modalSubmitButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
-  },
-  // Confirmation Modal Styles
-  confirmationOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  confirmationModalContainer: {
-    backgroundColor: '#FEFEFE',
-    borderRadius: 24,
-    padding: 16,
-    width: '100%',
-    maxWidth: 400,
-    alignItems: 'center',
-    gap: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#1D1D1D',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.24,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  confirmationIconContainer: {
-    width: 67,
-    height: 67,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  confirmationTitle: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#17723F',
-    textAlign: 'center',
-  },
-  confirmationMessage: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#000000',
-    textAlign: 'center',
-    width: 256,
-  },
-  confirmationCloseButton: {
-    width: 256,
-    backgroundColor: 'transparent',
-    borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmationCloseButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-});
 

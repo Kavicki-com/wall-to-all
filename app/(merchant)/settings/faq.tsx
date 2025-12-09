@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { IconBack, IconNotification } from '../../../lib/icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { useResponsiveHeight } from '../../../lib/responsive';
 
 type FAQItem = {
   id: string;
@@ -71,6 +72,7 @@ const FAQ_DATA: FAQItem[] = [
 const FAQScreen: React.FC = () => {
   const router = useRouter();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const topBarHeight = useResponsiveHeight(56); // Altura responsiva do header SVG (viewBox="0 0 410 56")
 
   const toggleItem = (id: string) => {
     const newExpanded = new Set(expandedItems);
@@ -89,7 +91,7 @@ const FAQScreen: React.FC = () => {
         <View style={styles.topBarDivider} />
         <View style={styles.topBarContent}>
           <View style={styles.topBarGradientContainer}>
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 410 56" preserveAspectRatio="none">
+            <Svg style={[StyleSheet.absoluteFill, { height: topBarHeight }]} viewBox="0 0 410 56" preserveAspectRatio="none">
               <Defs>
                 <RadialGradient
                   id="topBarRadialGradient"
