@@ -8,18 +8,15 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   Modal,
-  TextInput,
   Image,
   TouchableWithoutFeedback,
   Platform,
   Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { Svg, Defs, RadialGradient, Stop, Rect, LinearGradient } from 'react-native-svg';
 import { supabase } from '../../../lib/supabase';
 import { IconDateRange, IconTimer, IconSchedule, IconPix, IconCheckCircle } from '../../../lib/icons';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useResponsiveHeight } from '../../../lib/responsive';
 import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
 type Appointment = {
@@ -33,7 +30,7 @@ type Appointment = {
   business: {
     id: string;
     business_name: string;
-    work_days: any;
+    work_days: Record<string, { start: string; end: string; active?: boolean }>;
     logo_url?: string | null;
     address?: string | null;
   };
@@ -349,7 +346,6 @@ const RescheduleAppointmentScreen: React.FC = () => {
         return;
       }
 
-      const dateString = selectedDate.toISOString().split('T')[0];
       const [hours, minutes] = selectedTime.split(':').map(Number);
       const newStartTime = new Date(selectedDate);
       newStartTime.setHours(hours, minutes, 0, 0);
@@ -433,14 +429,6 @@ const RescheduleAppointmentScreen: React.FC = () => {
       'Dezembro',
     ];
     return `${date.getDate()} de ${months[date.getMonth()]}`;
-  };
-
-  const formatTimeRange = (startTime: string, endTime: string) => {
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    const startHours = String(start.getHours()).padStart(2, '0');
-    const endHours = String(end.getHours()).padStart(2, '0');
-    return `${startHours}h às ${endHours}h`;
   };
 
   // Calcular largura dos cards de data e horário para grid 2x3 (2 colunas, 3 linhas - 3 de cada lado)

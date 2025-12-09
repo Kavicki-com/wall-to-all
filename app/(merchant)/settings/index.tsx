@@ -1,27 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
   IconAccountCircle,
   IconLock,
-  IconDelete,
   IconSupport,
   IconDocs,
   IconHelp,
 } from '../../../lib/icons';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 
 type BusinessProfile = {
   id: string;
@@ -74,7 +62,14 @@ const SettingsScreen: React.FC = () => {
       if (error) {
         console.error('Erro ao buscar perfil:', error);
       } else if (businessData) {
-        setBusinessProfile(businessData as BusinessProfile);
+        // A query retorna category_id como objeto único, não array
+        const profile = {
+          ...businessData,
+          categories: Array.isArray(businessData.categories) 
+            ? businessData.categories[0] || null
+            : businessData.categories || null,
+        } as BusinessProfile;
+        setBusinessProfile(profile);
       }
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);

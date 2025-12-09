@@ -122,7 +122,12 @@ const MerchantSignupAddressScreen: React.FC = () => {
         estado,
       };
 
-      await persistDraft();
+      // Limpar draft após submit bem-sucedido
+      try {
+        await AsyncStorage.removeItem(draftKey);
+      } catch {
+        // ignore cleanup errors
+      }
 
       router.push({
         pathname: '/(auth)/merchant-signup-business',
@@ -131,9 +136,10 @@ const MerchantSignupAddressScreen: React.FC = () => {
           addressData: JSON.stringify(addressData),
         },
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Erro ao salvar endereço:', err);
-      setError(err.message || 'Erro ao salvar endereço.');
+      const message = err instanceof Error ? err.message : 'Erro ao salvar endereço.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -161,7 +167,7 @@ const MerchantSignupAddressScreen: React.FC = () => {
             />
 
             {/* Svg Radial Gradient - Efeito Difuso */}
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+            <Svg style={StyleSheet.absoluteFillObject} viewBox="0 0 390 129" preserveAspectRatio="none">
               <Defs>
                 <SvgRadialGradient
                   id="headerRadialGradient"

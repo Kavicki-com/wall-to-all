@@ -180,10 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       initializeAuth();
 
-      const {
-        data: { subscription: authSubscription },
-        error: subscriptionError,
-      } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      const authSubscription = supabase.auth.onAuthStateChange(async (event, newSession) => {
         try {
           // Se o evento for relacionado a erro de token, limpar
           if (event === 'TOKEN_REFRESHED' && !newSession) {
@@ -222,11 +219,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       });
 
-      if (subscriptionError) {
-        console.error('[AuthContext] Erro ao criar subscription:', subscriptionError);
-      } else {
-        subscription = authSubscription;
-      }
+      subscription = authSubscription as unknown as { unsubscribe: () => void };
     } catch (error) {
       console.error('[AuthContext] Erro crítico na inicialização:', error);
       setIsLoading(false);

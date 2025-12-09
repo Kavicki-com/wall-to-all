@@ -9,6 +9,8 @@ interface SelectDropdownProps<T> {
   placeholder?: string;
   selectedValue?: T | null;
   onSelect: (item: T) => void;
+  maxHeight?: number;
+  strong?: boolean;
 }
 
 export default function SelectDropdown<T>({
@@ -18,6 +20,8 @@ export default function SelectDropdown<T>({
   placeholder = 'Selecione',
   selectedValue,
   onSelect,
+  maxHeight,
+  strong,
 }: SelectDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -36,7 +40,7 @@ export default function SelectDropdown<T>({
         accessibilityLabel={placeholder}
         accessibilityState={{ expanded: isOpen }}
       >
-        <Text style={[styles.buttonText, !selectedValue && styles.placeholderText]}>
+        <Text style={[styles.buttonText, strong && styles.buttonTextStrong, !selectedValue && styles.placeholderText]}>
           {selectedValue ? String(selectedValue[labelKey]) : placeholder}
         </Text>
         <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={20} color="#000E3D" />
@@ -45,7 +49,7 @@ export default function SelectDropdown<T>({
       {isOpen && (
         <>
           <Pressable style={styles.backdrop} onPress={() => setIsOpen(false)} />
-          <View style={styles.dropdownList}>
+          <View style={[styles.dropdownList, maxHeight ? { maxHeight } : null]}>
             <FlatList
               data={data}
               keyExtractor={(item) => String(item[valueKey] ?? item[labelKey] ?? Math.random())}
@@ -81,5 +85,6 @@ const styles = StyleSheet.create({
   item: { padding: 12, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#F0F0F0' },
   itemText: { fontSize: 14, fontFamily: 'Montserrat_400Regular', color: '#0F0F0F' },
   buttonText: { fontSize: 16, fontFamily: 'Montserrat_400Regular', color: '#0F0F0F' },
+  buttonTextStrong: { fontFamily: 'Montserrat_700Bold' },
   placeholderText: { color: '#474747' }
 });

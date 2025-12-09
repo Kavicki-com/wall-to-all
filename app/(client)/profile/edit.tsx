@@ -33,7 +33,7 @@ const EditProfileScreen: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
-  const [password, setPassword] = useState('*************');
+  const [password] = useState('*************');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -143,7 +143,7 @@ const EditProfileScreen: React.FC = () => {
       const byteArray = new Uint8Array(byteNumbers);
 
       // Fazer upload para Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, byteArray, {
           contentType: `image/${fileExt}`,
@@ -173,16 +173,16 @@ const EditProfileScreen: React.FC = () => {
       } = supabase.storage.from('avatars').getPublicUrl(filePath);
 
       return publicUrl;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao processar imagem:', error);
-      
+      const message = error instanceof Error ? error.message : '';
       // Tratamento de erros mais específico
-      if (error.message?.includes('Network') || error.message?.includes('network')) {
+      if (message.includes('Network') || message.includes('network')) {
         Alert.alert(
           'Erro de conexão',
           'Não foi possível fazer upload da imagem. Verifique sua conexão com a internet e tente novamente.'
         );
-      } else if (error.message?.includes('permission') || error.message?.includes('Permission')) {
+      } else if (message.includes('permission') || message.includes('Permission')) {
         Alert.alert(
           'Permissão negada',
           'Não foi possível acessar a imagem. Verifique as permissões do aplicativo.'
@@ -190,7 +190,7 @@ const EditProfileScreen: React.FC = () => {
       } else {
         Alert.alert(
           'Erro ao processar imagem',
-          error.message || 'Ocorreu um erro inesperado ao processar a imagem.'
+          message || 'Ocorreu um erro inesperado ao processar a imagem.'
         );
       }
       

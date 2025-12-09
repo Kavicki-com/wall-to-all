@@ -176,14 +176,6 @@ const ClientHomeScreen: React.FC = () => {
   };
 
 
-  const getPriceRange = (price: number | null) => {
-    if (!price) return '$$$$$';
-    if (price < 30) return '$$$$$';
-    if (price < 50) return '$$$$$';
-    if (price < 100) return '$$$$$';
-    return '$$$$$';
-  };
-
   // ✅ Componente memoizado para evitar re-renders desnecessários
   const BusinessCard = React.memo<{ item: BusinessProfile }>(({ item }) => {
     const paymentMethods = item.accepted_payment_methods || {};

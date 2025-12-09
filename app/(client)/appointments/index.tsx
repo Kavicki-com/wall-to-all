@@ -305,7 +305,6 @@ const ClientAppointmentsScreen: React.FC = () => {
                       targetDate.getDate() === selectedDate.getDate() &&
                       targetDate.getMonth() === selectedDate.getMonth() &&
                       targetDate.getFullYear() === selectedDate.getFullYear();
-                    const isTodayDate = isToday(targetDate);
                     const hasAppointment = hasAppointmentOnDate(targetDate);
                     const isOtherMonth = !dayObj.isCurrentMonth;
                     

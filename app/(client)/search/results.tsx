@@ -1,20 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  FlatList,
-  Image,
-  ActivityIndicator,
-  RefreshControl,
-  TextInput,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconBack, IconSearch, IconFilter, IconPix, IconCreditCard, IconCash, IconRatingStar, IconClose } from '../../../lib/icons';
+import { IconFilter, IconPix, IconCreditCard, IconCash, IconRatingStar, IconClose } from '../../../lib/icons';
 import { formatWorkDays } from '../../../lib/workDaysUtils';
 import { useCardWidth } from '../../../lib/responsive';
 import { MerchantTopBar } from '../../../components/MerchantTopBar';

@@ -184,7 +184,7 @@ const MerchantHomeScreen: React.FC = () => {
 
     return (
       <TouchableOpacity
-        style={[styles.serviceCard, dynamicStyles.serviceCard]}
+        style={dynamicStyles.serviceCard}
         activeOpacity={0.8}
         onPress={() => router.push(`/(merchant)/services/edit/${item.id}`)}
         accessibilityRole="button"

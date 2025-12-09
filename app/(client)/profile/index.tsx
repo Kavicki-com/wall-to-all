@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -162,7 +162,7 @@ const ClientProfileScreen: React.FC = () => {
         `)
         .in(
           'id',
-          appointmentsData?.map((a: any) => a.service_id).filter(Boolean) || []
+          appointmentsData?.map((a: { service_id: string | null }) => a.service_id).filter(Boolean) || []
         )
         .limit(10);
 
@@ -194,7 +194,7 @@ const ClientProfileScreen: React.FC = () => {
       // Buscar profissionais mais contratados
       const businessIds = [
         ...new Set(
-          appointmentsData?.map((a: any) => a.business_id).filter(Boolean) || []
+          appointmentsData?.map((a: { business_id: string | null }) => a.business_id).filter(Boolean) || []
         ),
       ];
 

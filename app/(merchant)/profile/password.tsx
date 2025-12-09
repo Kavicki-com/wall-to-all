@@ -107,13 +107,13 @@ const ChangePasswordScreen: React.FC = () => {
               colors={['rgba(0, 14, 61, 0.2)', 'rgba(214, 224, 255, 0.2)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFill}
+              style={StyleSheet.absoluteFillObject}
             />
             <LinearGradient
               colors={['rgba(0, 14, 61, 1)', 'rgba(0, 14, 61, 1)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
+              style={StyleSheet.absoluteFillObject}
             />
             <View style={styles.topBarInner}>
               <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>

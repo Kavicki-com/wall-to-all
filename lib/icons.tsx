@@ -1,5 +1,6 @@
 import React from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
+import { StyleProp, ViewStyle } from 'react-native';
 import {
   IconBack as BackIconSvg,
   IconChevronDown as ChevronDownIconSvg,
@@ -47,19 +48,28 @@ interface IconProps {
   height?: number;
   color?: string;
   size?: number;
+  style?: StyleProp<ViewStyle>;
 }
 
-const createSvgIcon = (SvgComponent: React.FC<any>) => {
-  return ({ width, height, color = '#000E3D', size }: IconProps) => {
+type SvgComponentProps = {
+  width?: number;
+  height?: number;
+  fill?: string;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+};
+
+const createSvgIcon = (SvgComponent: React.FC<SvgComponentProps>) => {
+  return ({ width, height, color = '#000E3D', size, style }: IconProps) => {
     const iconSize = size || width || height || 24;
-    return <SvgComponent width={iconSize} height={iconSize} fill={color} color={color} />;
+    return <SvgComponent width={iconSize} height={iconSize} fill={color} color={color} style={style} />;
   };
 };
 
 const createMaterialIcon = (name: keyof typeof MaterialIcons.glyphMap) => {
-  return ({ width, height, color = '#000E3D', size }: IconProps) => {
+  return ({ width, height, color = '#000E3D', size, style }: IconProps) => {
     const iconSize = size || width || height || 24;
-    return <MaterialIcons name={name} size={iconSize} color={color} />;
+    return <MaterialIcons name={name} size={iconSize} color={color} style={style} />;
   };
 };
 

@@ -18,7 +18,7 @@ import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'reac
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { IconCheckboxPayment } from '../../lib/assets';
-import { IconChevronDown, IconAddPhoto, IconClose } from '../../lib/icons';
+import { IconAddPhoto } from '../../lib/icons';
 import { responsiveHeight } from '../../lib/responsive';
 import SelectDropdown from '../../components/ui/SelectDropdown';
 
@@ -190,7 +190,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
         const byteArray = new Uint8Array(byteNumbers);
 
         // Fazer upload para Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
           .from('services-assets')
           .upload(filePath, byteArray, {
             contentType: `image/${fileExt}`,
@@ -212,9 +212,10 @@ const MerchantSignupServicesScreen: React.FC = () => {
 
       const imageUrls = await Promise.all(uploadPromises);
       return imageUrls;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao fazer upload das imagens:', error);
-      throw new Error(`Erro ao fazer upload das imagens: ${error.message}`);
+      const message = error instanceof Error ? error.message : 'Erro ao fazer upload das imagens';
+      throw new Error(`Erro ao fazer upload das imagens: ${message}`);
     } finally {
       setImagesUploading(false);
     }
@@ -279,10 +280,12 @@ const MerchantSignupServicesScreen: React.FC = () => {
       if (serviceImages.length > 0) {
         try {
           imageUrls = await uploadImagesToSupabase();
-        } catch (uploadError: any) {
+        } catch (uploadError) {
           Alert.alert(
             'Erro no upload',
-            `Não foi possível fazer upload de todas as imagens: ${uploadError.message}. Deseja continuar sem as imagens?`,
+            `Não foi possível fazer upload de todas as imagens: ${
+              uploadError instanceof Error ? uploadError.message : ''
+            }. Deseja continuar sem as imagens?`,
             [
               { text: 'Cancelar', style: 'cancel' },
               {
@@ -299,8 +302,9 @@ const MerchantSignupServicesScreen: React.FC = () => {
       }
 
       await performInsert(businessIdToUse!, numericPrice, durationMinutes, imageUrls);
-    } catch (e: any) {
-      setError(e?.message ?? 'Erro ao salvar serviço.');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Erro ao salvar serviço.';
+      setError(message);
     } finally {
       setLoading(false);
     }

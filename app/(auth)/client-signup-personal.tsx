@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Svg, { Defs, RadialGradient as SvgRadialGradient, LinearGradient as SvgLinearGradient, Stop, Rect } from 'react-native-svg';
+import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { responsiveHeight } from '../../lib/responsive';
@@ -105,8 +105,9 @@ const ClientSignupPersonalScreen: React.FC = () => {
       }
 
       router.push('/(auth)/client-signup-address');
-    } catch (e: any) {
-      setError(e?.message ?? 'Erro inesperado ao criar conta.');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Erro inesperado ao criar conta.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -129,7 +130,7 @@ const ClientSignupPersonalScreen: React.FC = () => {
             />
 
             {/* Svg Radial Gradient - Efeito Difuso */}
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+            <Svg style={StyleSheet.absoluteFillObject} viewBox="0 0 390 129" preserveAspectRatio="none">
               <Defs>
                 <SvgRadialGradient
                   id="headerRadialGradient"

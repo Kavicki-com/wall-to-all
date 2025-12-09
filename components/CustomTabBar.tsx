@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSegments } from 'expo-router';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { TabBarIconSearch, TabBarIconSchedule, TabBarIconAccount, TabBarIconSettings } from '../lib/tabbar-icons';
 
@@ -26,7 +25,6 @@ const tabs: TabItem[] = [
 export const CustomTabBar: React.FC<TabBarProps> = (props) => {
   const { state, descriptors, navigation } = props;
   const insets = useSafeAreaInsets();
-  const segments = useSegments();
   
   // Filtrar apenas as rotas que devem aparecer na tabbar
   const visibleRoutes = state.routes.filter((route) => {

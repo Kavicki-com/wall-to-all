@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StatusBar, SafeAreaView, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
 import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
 import { IconBack, IconNotification } from '../lib/icons';
 import { safeGoBack } from '../lib/router-utils';
@@ -20,8 +19,6 @@ export const MerchantTopBar: React.FC<MerchantTopBarProps> = ({
   showNotification = true,
   fallbackPath = '/(merchant)/dashboard',
 }) => {
-  const router = useRouter();
-
   const handleBack = () => {
     if (onBackPress) {
       onBackPress();

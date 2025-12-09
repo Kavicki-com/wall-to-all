@@ -162,7 +162,7 @@ const FAQScreen: React.FC = () => {
                   >
                     <Text style={styles.optionText}>{item.question}</Text>
                     <MaterialIcons
-                      name={isExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_right'}
+                      name={isExpanded ? 'keyboard-arrow-down' : 'keyboard-arrow-right'}
                       size={24}
                       color="#000E3D"
                     />

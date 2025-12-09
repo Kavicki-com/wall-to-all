@@ -1,21 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  Alert,
-  Modal,
-  TextInput,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../../../lib/supabase';
-import { IconBack, IconCheckCircle, IconPix, IconCreditCard, IconCash } from '../../../../lib/icons';
+import { IconCheckCircle, IconPix, IconCreditCard, IconCash } from '../../../../lib/icons';
 import { MerchantTopBar } from '../../../../components/MerchantTopBar';
-import { format, parseISO, isToday, addDays } from 'date-fns';
+import { format, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { calculateAppointmentPrice } from '../../../../lib/utils';
 
@@ -209,48 +198,6 @@ const AppointmentDetailScreen: React.FC = () => {
     });
   };
 
-  const handleRescheduleSubmit = async () => {
-    if (!appointment || !selectedRescheduleDate || !selectedRescheduleTime || !rescheduleJustification.trim()) {
-      Alert.alert('Atenção', 'Por favor, preencha todos os campos.');
-      return;
-    }
-
-    try {
-      setUpdating(true);
-
-      const newDate = format(selectedRescheduleDate, 'yyyy-MM-dd');
-      const [hours, minutes] = selectedRescheduleTime.split(':');
-      const newTime = `${hours}:${minutes}:00`;
-
-      const { error } = await supabase
-        .from('appointments')
-        .update({
-          appointment_date: newDate,
-          appointment_time: newTime,
-          status: 'rescheduled',
-          // Adicionar justificativa nas observações ou criar campo separado
-        })
-        .eq('id', appointment.id);
-
-      if (error) {
-        console.error('Erro ao reagendar:', error);
-        if (error.code === '23505') {
-          Alert.alert('Conflito', 'Já existe um agendamento neste horário. Por favor, escolha outro horário.');
-        } else {
-          Alert.alert('Erro', 'Não foi possível reagendar o agendamento. Verifique sua conexão e tente novamente.');
-        }
-      } else {
-        setShowRescheduleModal(false);
-        setShowConfirmationModal(true);
-        loadAppointment();
-      }
-    } catch (error) {
-      console.error('Erro ao reagendar:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao reagendar.');
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   const handleAcceptReschedule = async (rescheduleId: number) => {
     if (!appointment) return;

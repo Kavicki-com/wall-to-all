@@ -182,7 +182,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       let logoUrl: string | null = null;
       if (logoImage) {
         // Passar userIdToUse para a função de upload
-        logoUrl = await uploadLogoToSupabase(userIdToUse);
+        logoUrl = await uploadLogoToSupabase();
         if (logoImage && !logoUrl) {
           // Se o upload falhar mas houver imagem, perguntar se quer continuar
           const shouldContinue = await new Promise<boolean>((resolve) => {
@@ -232,8 +232,9 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         pathname: '/(auth)/merchant-signup-services',
         params: { userId: userIdToUse, companyId },
       });
-    } catch (e: any) {
-      setError(e?.message ?? 'Erro ao salvar dados do negócio.');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Erro ao salvar dados do negócio.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -277,7 +278,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
     }
   };
 
-  const uploadLogoToSupabase = async (userIdParam?: string): Promise<string | null> => {
+  const uploadLogoToSupabase = async (): Promise<string | null> => {
     if (!logoImage) return null;
 
     try {
@@ -331,7 +332,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       } = supabase.storage.from('business-assets').getPublicUrl(filePath);
 
       return publicUrl;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao fazer upload do logo:', error);
       Alert.alert('Erro', 'Não foi possível fazer upload do logotipo.');
       return null;
@@ -384,12 +385,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       return `${numbers.slice(0, 2)}:${numbers.slice(2)}`;
     }
     return `${numbers.slice(0, 2)}:${numbers.slice(2, 4)}`;
-  };
-
-  // Validar formato de horário
-  const isValidTime = (time: string): boolean => {
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    return timeRegex.test(time);
   };
 
   return (
@@ -536,7 +531,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Horário de almoço</Text>
                   <SelectDropdown<{ start: string; end: string; label: string }>
-                    data={LUNCH_TIME_OPTIONS}
+                    data={[...LUNCH_TIME_OPTIONS]}
                     labelKey="label"
                     valueKey="label"
                     onSelect={(interval) => setLunchTime(interval)}

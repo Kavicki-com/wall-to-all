@@ -15,11 +15,9 @@ import { MaterialIcons } from '@expo/vector-icons';
 import {
   IconAccount,
   IconLock,
-  IconDelete,
   IconSupport,
   IconDocs,
   IconHelp,
-  IconSettings,
 } from '../../../lib/icons';
 
 type Profile = {

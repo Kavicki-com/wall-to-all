@@ -10,10 +10,10 @@ export const safeGoBack = (fallbackRoute: string = '/(client)/home') => {
   try {
     // Tenta navegar para trás
     router.back();
-  } catch (error) {
+  } catch {
     // Se houver erro (não há histórico), redireciona para a rota de fallback
     console.warn('Não há histórico de navegação, redirecionando para:', fallbackRoute);
-    router.replace(fallbackRoute as any);
+    router.replace(fallbackRoute as never);
   }
 };
 

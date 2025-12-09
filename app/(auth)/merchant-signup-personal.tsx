@@ -142,8 +142,9 @@ const MerchantSignupPersonalScreen: React.FC = () => {
         pathname: '/(auth)/merchant-signup-address',
         params: { userId: user.id },
       });
-    } catch (e: any) {
-      setError(e?.message ?? 'Erro inesperado ao criar conta.');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Erro inesperado ao criar conta.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -167,7 +168,7 @@ const MerchantSignupPersonalScreen: React.FC = () => {
             />
 
             {/* Svg Radial Gradient - Efeito Difuso */}
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
+            <Svg style={StyleSheet.absoluteFillObject} viewBox="0 0 390 129" preserveAspectRatio="none">
               <Defs>
                 <SvgRadialGradient
                   id="headerRadialGradient"

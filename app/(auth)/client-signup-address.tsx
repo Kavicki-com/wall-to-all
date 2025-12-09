@@ -96,19 +96,14 @@ const ClientSignupAddressScreen: React.FC = () => {
 
       // Navegar para loading screen
       router.replace('/(auth)/client-signup-loading');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Erro ao salvar endereço:', err);
-      setError(err.message || 'Erro ao salvar endereço.');
+      const message = err instanceof Error ? err.message : 'Erro ao salvar endereço.';
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
-
-  const estados = [
-    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
-    'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
-    'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
-  ];
 
   return (
     <KeyboardAvoidingView

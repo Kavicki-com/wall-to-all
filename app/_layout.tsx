@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Alert, View, ActivityIndicator } from 'react-native';
+import { Alert } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts as useMontserrat, Montserrat_400Regular, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { useFonts as useRoboto, Roboto_400Regular, Roboto_500Medium } from '@expo-google-fonts/roboto';
@@ -52,7 +52,7 @@ const MainLayout: React.FC = () => {
         const inMerchantGroup = currentSegment === '(merchant)';
 
         // Se não há segmentos ou está na rota raiz, redirecionar
-        if (segments.length === 0 || currentSegment === 'index' || !currentSegment) {
+        if (!currentSegment || currentSegment === 'index') {
           if (!session) {
             router.replace('/(auth)/login');
             setNavigationReady(true);
@@ -144,9 +144,11 @@ const MainLayout: React.FC = () => {
         setNavigationReady(true);
         // Se ainda não há sessão após timeout, redirecionar para login
         if (!session) {
-          router.replace('/(auth)/login').catch(() => {
-            console.error('[MainLayout] Erro ao redirecionar após timeout');
-          });
+          try {
+            router.replace('/(auth)/login');
+          } catch (err) {
+            console.error('[MainLayout] Erro ao redirecionar após timeout', err);
+          }
         }
       }, 5000);
 
@@ -158,10 +160,12 @@ const MainLayout: React.FC = () => {
           console.warn('[MainLayout] Forçando navigationReady após delay');
           setNavigationReady(true);
           // Garantir redirecionamento se necessário
-          if (segments.length === 0 && !session) {
-            router.replace('/(auth)/login').catch(() => {
-              console.error('[MainLayout] Erro ao redirecionar');
-            });
+          if (!segments[0] && !session) {
+            try {
+              router.replace('/(auth)/login');
+            } catch (err) {
+              console.error('[MainLayout] Erro ao redirecionar', err);
+            }
           }
         }
       }, 1000);

@@ -22,7 +22,7 @@ type Appointment = {
   business: {
     id: string;
     business_name: string;
-    work_days: any;
+    work_days: Record<string, { start: string; end: string; active?: boolean }>;
   };
   service: {
     id: string;

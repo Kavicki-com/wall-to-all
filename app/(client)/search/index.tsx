@@ -1,17 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  FlatList,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconBack, IconSearch } from '../../../lib/icons';
+import { IconSearch } from '../../../lib/icons';
 import { sortCategories } from '../../../lib/categoryUtils';
 import { MerchantTopBar } from '../../../components/MerchantTopBar';
 
@@ -36,7 +27,6 @@ type Category = {
 const SearchScreen: React.FC = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<Service[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -79,8 +69,6 @@ const SearchScreen: React.FC = () => {
 
   const performSearch = async () => {
     try {
-      setLoading(true);
-
       const query = searchQuery.toLowerCase().trim();
 
       // Buscar serviços para sugestões
@@ -95,8 +83,6 @@ const SearchScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Erro ao buscar:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
