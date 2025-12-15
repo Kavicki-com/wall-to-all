@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeGoBack } from '../../lib/router-utils';
 import { supabase } from '../../lib/supabase';
 import { CustomInput } from '../../components/ui/CustomInput';
 import { useToast } from '../../components/ui/ToastProvider';
@@ -19,6 +20,7 @@ import { CustomButton } from '../../components/CustomButton';
 const MerchantSignupAddressScreen: React.FC = () => {
   const { showError } = useToast();
   const router = useRouter();
+  const safeGoBack = useSafeGoBack('/(auth)/merchant-signup-personal');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -169,7 +171,7 @@ const MerchantSignupAddressScreen: React.FC = () => {
           steps={['Cadastro', 'Endereço', 'Negócio', 'Serviços']}
           currentStepIndex={1}
           showBackButton={true}
-          onPressBack={router.back}
+          onPressBack={safeGoBack}
         />
       }
     >

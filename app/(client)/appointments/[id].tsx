@@ -448,7 +448,7 @@ const AppointmentDetailScreen: React.FC = () => {
       header={
         <AppHeader
           showBackButton={true}
-          onPressBack={() => router.back()}
+          onPressBack={() => safeGoBack('/(client)/appointments')}
         />
       }
     >

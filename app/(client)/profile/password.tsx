@@ -154,7 +154,7 @@ const ChangePasswordScreen: React.FC = () => {
               title="Fechar"
               onPress={() => {
                 setShowSuccessModal(false);
-                router.back();
+                safeGoBack('/(client)/profile');
               }}
               variant="primary"
               style={{ marginVertical: 0, borderRadius: 25 }}

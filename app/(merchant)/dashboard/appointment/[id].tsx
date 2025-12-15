@@ -59,6 +59,7 @@ type Appointment = {
   };
   pending_reschedules?: AppointmentReschedule[];
   merchant_pending_reschedules?: AppointmentReschedule[];
+  accepted_reschedules?: AppointmentReschedule[];
 };
 
 const AppointmentDetailScreen: React.FC = () => {
@@ -132,7 +133,8 @@ const AppointmentDetailScreen: React.FC = () => {
         
         const [
           { data: clientPendingReschedules },
-          { data: merchantPendingReschedules }
+          { data: merchantPendingReschedules },
+          { data: acceptedReschedules }
         ] = await Promise.all([
           supabase
             .from('appointment_reschedules')
@@ -148,13 +150,25 @@ const AppointmentDetailScreen: React.FC = () => {
             .eq('status', 'pending')
             .eq('requested_by_type', 'merchant')
             .order('created_at', { ascending: false })
+            .limit(1),
+          supabase
+            .from('appointment_reschedules')
+            .select('*')
+            .eq('appointment_id', appointmentData.id)
+            .eq('status', 'accepted')
+            .eq('requested_by_type', 'merchant')
+            .order('accepted_at', { ascending: false })
             .limit(1)
         ]);
         const updatedAppointment = {
           ...appointmentWithAcceptedReschedule,
           pending_reschedules: clientPendingReschedules || [],
           merchant_pending_reschedules: merchantPendingReschedules || [],
-        } as Appointment & { merchant_pending_reschedules?: AppointmentReschedule[] };
+          accepted_reschedules: acceptedReschedules || [],
+        } as Appointment & { 
+          merchant_pending_reschedules?: AppointmentReschedule[];
+          accepted_reschedules?: AppointmentReschedule[];
+        };
         
         setAppointment(updatedAppointment);
       }
@@ -542,7 +556,7 @@ const AppointmentDetailScreen: React.FC = () => {
       header={
         <AppHeader 
           showBackButton={true}
-          onPressBack={() => router.back()}
+          onPressBack={() => safeGoBack('/(merchant)/dashboard')}
         />
       }
     >
@@ -748,7 +762,8 @@ const AppointmentDetailScreen: React.FC = () => {
           {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
             <View style={styles.actionButtonsContainer}>
               {appointment.status === 'pending' && 
-               (!appointment.merchant_pending_reschedules || appointment.merchant_pending_reschedules.length === 0) && (
+               (!appointment.merchant_pending_reschedules || appointment.merchant_pending_reschedules.length === 0) &&
+               (!appointment.accepted_reschedules || appointment.accepted_reschedules.length === 0) && (
                 <CustomButton
                   compact
                   title="Confirmar agendamento"

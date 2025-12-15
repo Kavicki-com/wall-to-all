@@ -87,7 +87,7 @@ const TermsScreen: React.FC = () => {
       visible={true}
       transparent
       animationType="fade"
-      onRequestClose={() => router.back()}
+      onRequestClose={() => safeGoBack('/(client)/settings')}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
@@ -98,7 +98,7 @@ const TermsScreen: React.FC = () => {
           <CustomButton
             title="Fechar"
             variant="outline"
-            onPress={() => router.back()}
+            onPress={() => safeGoBack('/(client)/settings')}
             style={{ borderRadius: 24, width: '90%', maxWidth: 256, alignSelf: 'center' }}
           />
         </View>

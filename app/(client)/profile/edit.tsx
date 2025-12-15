@@ -200,7 +200,7 @@ const EditProfileScreen: React.FC = () => {
       // Atualizar o contexto do perfil antes de voltar
       await refreshProfile();
       setTimeout(() => {
-        router.back();
+        safeGoBack('/(client)/profile');
       }, 1000);
     } catch (error) {
       const processed = handleError(error, 'profile');

@@ -347,7 +347,7 @@ const EditServiceScreen: React.FC = () => {
       }
 
       Alert.alert('Sucesso', 'Serviço atualizado com sucesso!', [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => safeGoBack('/(merchant)/services') },
       ]);
     } catch (err: unknown) {
       const processed = handleError(err, 'service');
@@ -384,7 +384,7 @@ const EditServiceScreen: React.FC = () => {
               }
 
               Alert.alert('Sucesso', 'Serviço excluído com sucesso!', [
-                { text: 'OK', onPress: () => router.back() },
+                { text: 'OK', onPress: () => safeGoBack('/(merchant)/services') },
               ]);
             } catch (err) {
               console.error('Erro ao excluir serviço:', err);

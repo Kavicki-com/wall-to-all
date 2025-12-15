@@ -6,6 +6,7 @@ export type PillItem = {
   key: string;
   label: string;
   disabled?: boolean;
+  showLunchIcon?: boolean;
 };
 
 type Props = {
@@ -24,6 +25,7 @@ export const PillGrid: React.FC<Props> = ({ items, selectedKey, onSelect, style 
             label={item.label}
             selected={selectedKey === item.key}
             disabled={item.disabled}
+            showLunchIcon={item.showLunchIcon}
             onPress={() => onSelect(item.key)}
           />
         </View>

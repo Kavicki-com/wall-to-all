@@ -68,7 +68,7 @@ const ScheduleTimeScreen: React.FC = () => {
       const [businessResult, serviceResult] = await Promise.all([
         supabase
           .from('business_profiles')
-          .select('work_days')
+          .select('work_days, lunch_break_start, lunch_break_end')
           .eq('id', params.businessId)
           .single(),
         supabase
@@ -146,6 +146,10 @@ const ScheduleTimeScreen: React.FC = () => {
         ? await applyAcceptedReschedules(existingAppointments)
         : [];
 
+      // Obter horários de almoço
+      const lunchBreakStart = businessResult.data?.lunch_break_start;
+      const lunchBreakEnd = businessResult.data?.lunch_break_end;
+
       // Gerar slots de horário baseado no horário de funcionamento
       // Usar appointments com reagendamentos aplicados
       const slots = generateTimeSlots(
@@ -154,6 +158,8 @@ const ScheduleTimeScreen: React.FC = () => {
         appointmentsWithReschedules || [],
         serviceDuration,
         dateString,
+        lunchBreakStart,
+        lunchBreakEnd,
       );
       setTimeSlots(slots);
     } catch (error) {
@@ -170,6 +176,8 @@ const ScheduleTimeScreen: React.FC = () => {
     existingAppointments: Array<{ start_time: string; end_time: string }>,
     serviceDuration: number,
     dateString: string,
+    lunchBreakStart?: string | null,
+    lunchBreakEnd?: string | null,
   ): TimeSlot[] => {
     const slots: TimeSlot[] = [];
     const [startHour] = startTime.split(':').map(Number);
@@ -186,6 +194,20 @@ const ScheduleTimeScreen: React.FC = () => {
       let type: 'available' | 'occupied' | 'lunch' = 'available';
       const slotStart = new Date(`${dateString}T${timeString}:00`);
       const slotEnd = new Date(`${dateString}T${slotEndTime}:00`);
+
+      // Verificar se está no horário de almoço
+      if (lunchBreakStart && lunchBreakEnd) {
+        const [lunchStartHour] = lunchBreakStart.split(':').map(Number);
+        const [lunchEndHour] = lunchBreakEnd.split(':').map(Number);
+        
+        // Verificar se o slot está dentro do horário de almoço
+        if (currentHour >= lunchStartHour && currentHour < lunchEndHour) {
+          type = 'lunch';
+          slots.push({ time: timeString, available: false, type });
+          currentHour += 1;
+          continue;
+        }
+      }
 
       // Verificar overlap com appointments existentes
       const isOccupied = existingAppointments.some((apt) => {

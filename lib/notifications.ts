@@ -53,6 +53,80 @@ export const sendNotification = async (
       relatedRescheduleId,
     });
 
+    // Tentar usar a função RPC primeiro (opção híbrida)
+    console.log('sendNotification: Chamando função RPC insert_notification...');
+    const { data: rpcData, error: rpcError } = await supabase.rpc('insert_notification', {
+      p_user_id: userId,
+      p_type: type,
+      p_title: title,
+      p_message: message,
+      p_related_appointment_id: relatedAppointmentId ?? null,
+      p_related_reschedule_id: relatedRescheduleId ?? null,
+    });
+
+    // Log detalhado do resultado da RPC
+    console.log('sendNotification: Resultado da chamada RPC:', {
+      hasError: !!rpcError,
+      errorCode: rpcError?.code,
+      errorMessage: rpcError?.message,
+      errorDetails: rpcError?.details,
+      errorHint: rpcError?.hint,
+      rpcData: rpcData,
+      rpcDataType: typeof rpcData,
+    });
+
+    // Se a função RPC funcionou, retornar sucesso
+    if (!rpcError && rpcData) {
+      // A função RPC retorna um JSON com { success: true/false, id?: number, error?: string }
+      if (typeof rpcData === 'object' && 'success' in rpcData) {
+        if (rpcData.success === true) {
+          console.log('sendNotification: ✅ Notificação criada com sucesso via RPC:', rpcData);
+          return { success: true };
+        } else {
+          // A função RPC retornou success: false (provavelmente erro interno)
+          console.error('sendNotification: ❌ Função RPC retornou success=false:', rpcData.error || 'Erro desconhecido');
+          return { success: false, error: null };
+        }
+      }
+      // Se rpcData não tem formato esperado, mas não há erro, considerar sucesso
+      if (rpcData && typeof rpcData === 'object') {
+        console.log('sendNotification: ✅ Notificação criada via RPC (formato não padrão, mas sem erro):', rpcData);
+        return { success: true };
+      }
+    }
+
+    // Se a função RPC falhou ou não existe
+    if (rpcError) {
+      // Código 42883 = função não existe, P0001 = erro genérico de função, 42809 = função não encontrada
+      if (rpcError.code === '42883' || 
+          rpcError.code === 'P0001' || 
+          rpcError.code === '42809' ||
+          rpcError.message?.toLowerCase().includes('function') || 
+          rpcError.message?.toLowerCase().includes('does not exist') ||
+          rpcError.message?.toLowerCase().includes('could not find')) {
+        console.error('sendNotification: ❌ Função RPC insert_notification não encontrada. Execute o SQL no banco de dados.');
+        console.error('sendNotification: Erro completo:', JSON.stringify(rpcError, null, 2));
+        // Não tentar fallback se a função não existe - apenas retornar erro silencioso
+        return { success: false, error: null };
+      }
+      
+      // Se for erro de RLS na RPC, não tentar fallback
+      if (rpcError.code === '42501') {
+        console.error('sendNotification: ❌ RLS bloqueou a função RPC. Verifique as permissões GRANT da função.');
+        return { success: false, error: null };
+      }
+      
+      console.warn('sendNotification: ⚠️ Erro na função RPC, tentando inserção direta como fallback:', {
+        code: rpcError.code,
+        message: rpcError.message,
+        details: rpcError.details,
+        hint: rpcError.hint,
+      });
+    } else if (!rpcData) {
+      console.warn('sendNotification: ⚠️ Função RPC não retornou dados, tentando inserção direta como fallback');
+    }
+
+    // Fallback: inserção direta (para compatibilidade ou se RPC não estiver disponível)
     const notificationData: any = {
       user_id: userId,
       type,
@@ -71,15 +145,37 @@ export const sendNotification = async (
       notificationData.related_reschedule_id = relatedRescheduleId;
     }
 
-    console.log('sendNotification: Dados da notificação:', notificationData);
+    console.log('sendNotification: Tentando inserção direta (fallback):', notificationData);
 
     const { data, error } = await supabase
       .from('notifications')
       .insert(notificationData)
       .select();
 
+    console.log('sendNotification: Resultado da inserção direta:', {
+      hasError: !!error,
+      errorCode: error?.code,
+      errorMessage: error?.message,
+      errorDetails: error?.details,
+      data: data,
+    });
+
     if (error) {
-      console.error('sendNotification: Erro ao inserir notificação:', error);
+      // Erro de RLS (Row Level Security) - política de segurança do Supabase
+      // Isso geralmente acontece quando o usuário atual não tem permissão para inserir
+      // notificações para outros usuários. Não é um erro crítico, apenas silencia.
+      if (error.code === '42501') {
+        console.error('sendNotification: ❌ Política RLS bloqueou a inserção direta. Verifique as políticas RLS no Supabase.');
+        console.error('sendNotification: Erro completo:', JSON.stringify(error, null, 2));
+        return { success: false, error: null };
+      }
+
+      // Tabela não encontrada
+      if (error.code === '42P01') {
+        console.warn('Tabela de notificações não encontrada. Notificações desabilitadas.');
+        return { success: false, error: null };
+      }
+
       // Se as colunas não existirem, tentar fallback com related_id
       if (error.code === 'PGRST204' || error.message?.includes('column')) {
         // Fallback: usar related_id se as novas colunas não existirem
@@ -103,22 +199,23 @@ export const sendNotification = async (
           .insert(fallbackData);
 
         if (fallbackError) {
+          // Se o fallback também falhar com RLS, silenciar
+          if (fallbackError.code === '42501') {
+            console.warn('Erro ao enviar notificação (RLS bloqueou fallback). Notificação não enviada (não crítico).');
+            return { success: false, error: null };
+          }
           console.warn('Erro ao enviar notificação (fallback também falhou):', fallbackError);
           return { success: false, error: null };
         }
         return { success: true };
       }
       
-      if (error.code === '42P01') {
-        console.warn('Tabela de notificações não encontrada. Notificações desabilitadas.');
-        return { success: false, error: null };
-      }
-      
-      console.error('Erro ao enviar notificação:', error);
-      return { success: false, error };
+      // Outros erros - logar mas não bloquear o fluxo
+      console.warn('Erro ao enviar notificação (não crítico):', error.message || error);
+      return { success: false, error: null };
     }
 
-    console.log('sendNotification: Notificação criada com sucesso:', data);
+    console.log('sendNotification: ✅ Notificação criada com sucesso (inserção direta):', data);
     return { success: true };
   } catch (err) {
     console.warn('Erro ao enviar notificação (ignorado):', err);
@@ -288,7 +385,8 @@ export const notifyAppointmentRequested = async (
 
     console.log('notifyAppointmentRequested: Resultado:', result);
   } catch (error) {
-    console.error('Erro ao enviar notificação de agendamento solicitado:', error);
+    // Não é um erro crítico - notificações são opcionais
+    console.warn('Erro ao enviar notificação de agendamento solicitado (não crítico):', error);
   }
 };
 

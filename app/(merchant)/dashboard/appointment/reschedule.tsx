@@ -600,6 +600,7 @@ const MerchantRescheduleScreen: React.FC = () => {
     key: slot.time,
     label: slot.time,
     disabled: !slot.available,
+    showLunchIcon: slot.type === 'lunch',
   }));
   
   // Mostrar todos os horários (sem limitação)

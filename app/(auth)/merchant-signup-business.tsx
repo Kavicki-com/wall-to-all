@@ -13,6 +13,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useSafeGoBack } from '../../lib/router-utils';
 import { supabase } from '../../lib/supabase';
 import {
   IconCheckbox,
@@ -78,6 +79,7 @@ type WorkDaysState = {
 
 const MerchantSignupBusinessScreen: React.FC = () => {
   const router = useRouter();
+  const safeGoBack = useSafeGoBack('/(auth)/merchant-signup-address');
   const params = useLocalSearchParams<{ userId?: string; addressData?: string }>();
   const userId = params.userId as string | undefined;
   const addressData = params.addressData ? JSON.parse(params.addressData as string) : null;
@@ -533,7 +535,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
           steps={['Cadastro', 'Endereço', 'Negócio', 'Serviços']}
           currentStepIndex={2}
           showBackButton={true}
-          onPressBack={router.back}
+          onPressBack={safeGoBack}
         />
       }
     >

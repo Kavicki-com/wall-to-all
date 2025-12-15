@@ -59,6 +59,9 @@ const ScheduleConfirmScreen: React.FC = () => {
   // Não resetar o modal de sucesso aqui, pois ele deve ser controlado apenas pela confirmação e pelo onClose
   useFocusEffect(
     React.useCallback(() => {
+      // Resetar campos do formulário
+      setPaymentMethod('pix');
+      setObservations('');
       // Forçar recriação do ScheduleConfirmCard para resetar estados internos
       setCardKey((prev) => prev + 1);
     }, [])
@@ -273,7 +276,8 @@ const ScheduleConfirmScreen: React.FC = () => {
           }
         } catch (notifError) {
           // Não bloquear o fluxo se a notificação falhar
-          console.error('Erro ao enviar notificação de agendamento:', notifError);
+          // Erros de RLS ou outros problemas de notificação não são críticos
+          console.warn('Erro ao enviar notificação de agendamento (não crítico):', notifError);
         }
       }
 

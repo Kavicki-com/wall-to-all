@@ -289,7 +289,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       // Atualizar o contexto do perfil antes de voltar
       await refreshBusinessProfile();
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => safeGoBack('/(merchant)/profile') },
       ]);
     } catch (error) {
       const processed = handleError(error, 'profile');

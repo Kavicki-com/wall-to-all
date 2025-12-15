@@ -13,10 +13,12 @@ import ScreenContainer from '../../components/layout/ScreenContainer';
 import SignupHeaderClient from '../../components/auth/SignupHeaderClient';
 import { CustomButton } from '../../components/CustomButton';
 import { validateEmail } from '../../lib/validations';
+import { useSafeGoBack } from '../../lib/router-utils';
 
 const ClientSignupPersonalScreen: React.FC = () => {
   const router = useRouter();
   const { showError } = useToast();
+  const safeGoBack = useSafeGoBack('/(auth)/login');
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -139,7 +141,7 @@ const ClientSignupPersonalScreen: React.FC = () => {
           steps={['Cadastro', 'Endereço']}
           currentStepIndex={0}
           showBackButton={true}
-          onPressBack={router.back}
+          onPressBack={safeGoBack}
         />
       }
     >

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useSafeGoBack } from '../../lib/router-utils';
 import { supabase } from '../../lib/supabase';
 import { IconCheckboxPayment } from '../../lib/assets';
 import { useToast } from '../../components/ui/ToastProvider';
@@ -34,6 +35,7 @@ const AVAILABILITY_OPTIONS: AvailabilityOption[] = [
 
 const MerchantSignupServicesScreen: React.FC = () => {
   const router = useRouter();
+  const safeGoBack = useSafeGoBack('/(auth)/merchant-signup-business');
   const { showError } = useToast();
   const params = useLocalSearchParams<{ userId?: string; companyId?: string }>();
   const companyId = params.companyId as string | undefined;
@@ -324,7 +326,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
           steps={['Cadastro', 'Endereço', 'Negócio', 'Serviços']}
           currentStepIndex={3}
           showBackButton={true}
-          onPressBack={router.back}
+          onPressBack={safeGoBack}
         />
       }
     >

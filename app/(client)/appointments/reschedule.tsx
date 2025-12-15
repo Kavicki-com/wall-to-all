@@ -216,11 +216,13 @@ const RescheduleAppointmentScreen: React.FC = () => {
       const dateString = selectedDate.toISOString().split('T')[0];
 
       let workDays = appointment.business.work_days;
+      let lunchBreakStart: string | null = null;
+      let lunchBreakEnd: string | null = null;
       
       if (!workDays) {
         const { data: businessProfile, error: businessError } = await supabase
           .from('business_profiles')
-          .select('work_days')
+          .select('work_days, lunch_break_start, lunch_break_end')
           .eq('id', appointment.business_id)
           .single();
 
@@ -232,6 +234,9 @@ const RescheduleAppointmentScreen: React.FC = () => {
         }
         
         workDays = businessProfile.work_days;
+        lunchBreakStart = businessProfile.lunch_break_start;
+        lunchBreakEnd = businessProfile.lunch_break_end;
+        
         if (typeof workDays === 'string') {
           try {
             workDays = JSON.parse(workDays);
@@ -241,6 +246,18 @@ const RescheduleAppointmentScreen: React.FC = () => {
             setLoadingTimes(false);
             return;
           }
+        }
+      } else {
+        // Se workDays já está disponível, ainda precisamos buscar os horários de almoço
+        const { data: businessProfile } = await supabase
+          .from('business_profiles')
+          .select('lunch_break_start, lunch_break_end')
+          .eq('id', appointment.business_id)
+          .single();
+        
+        if (businessProfile) {
+          lunchBreakStart = businessProfile.lunch_break_start;
+          lunchBreakEnd = businessProfile.lunch_break_end;
         }
       }
       
@@ -293,6 +310,8 @@ const RescheduleAppointmentScreen: React.FC = () => {
         existingAppointments || [],
         serviceDuration,
         dateString,
+        lunchBreakStart,
+        lunchBreakEnd,
       );
       
       setTimeSlots(slots);
@@ -310,6 +329,8 @@ const RescheduleAppointmentScreen: React.FC = () => {
     existingAppointments: Array<{ start_time: string; end_time: string }>,
     serviceDuration: number,
     dateString: string,
+    lunchBreakStart?: string | null,
+    lunchBreakEnd?: string | null,
   ): TimeSlot[] => {
     const slots: TimeSlot[] = [];
     const [startHour] = startTime.split(':').map(Number);
@@ -329,6 +350,20 @@ const RescheduleAppointmentScreen: React.FC = () => {
       let type: 'available' | 'occupied' | 'lunch' = 'available';
       const slotStart = new Date(`${dateString}T${timeString}:00`);
       const slotEnd = new Date(`${dateString}T${slotEndTime}:00`);
+
+      // Verificar se está no horário de almoço
+      if (lunchBreakStart && lunchBreakEnd) {
+        const [lunchStartHour] = lunchBreakStart.split(':').map(Number);
+        const [lunchEndHour] = lunchBreakEnd.split(':').map(Number);
+        
+        // Verificar se o slot está dentro do horário de almoço
+        if (currentHour >= lunchStartHour && currentHour < lunchEndHour) {
+          type = 'lunch';
+          slots.push({ time: timeString, available: false, type });
+          currentHour += 1;
+          continue;
+        }
+      }
 
       if (currentHour + Math.ceil(serviceDuration / 60) > endHour) {
         type = 'occupied';
@@ -533,8 +568,6 @@ const RescheduleAppointmentScreen: React.FC = () => {
   };
 
 
-  const availableTimeSlots = timeSlots.filter((slot) => slot.available && slot.type === 'available');
-  
   // Converter datas disponíveis em PillItem[]
   const datePillItems: PillItem[] = availableDates.map((date) => ({
     key: format(date, 'yyyy-MM-dd'),
@@ -555,11 +588,13 @@ const RescheduleAppointmentScreen: React.FC = () => {
     setDatesToShow((prev) => Math.max(prev - RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW, RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW));
   };
   
-  // Converter horários disponíveis em PillItem[]
-  const timePillItems: PillItem[] = availableTimeSlots.map((slot) => ({
+  // Converter todos os horários (disponíveis e não disponíveis) em PillItem[]
+  // Mostrar todos os horários do expediente em grid, incluindo ocupados e horário de almoço
+  const timePillItems: PillItem[] = timeSlots.map((slot) => ({
     key: slot.time,
     label: slot.time,
     disabled: !slot.available,
+    showLunchIcon: slot.type === 'lunch',
   }));
   
   const displayedTimes = timePillItems.slice(0, timesToShow);
@@ -831,7 +866,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
               <Text style={styles.emptyMessage}>Selecione uma data primeiro</Text>
             ) : loadingTimes ? (
               <ActivityIndicator size="small" color="#000E3D" style={styles.loader} />
-            ) : availableTimeSlots.length === 0 ? (
+            ) : timeSlots.length === 0 ? (
               <Text style={styles.emptyMessage}>Nenhum horário disponível para esta data</Text>
             ) : (
               <>
@@ -841,7 +876,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
                   onSelect={(key) => handleTimeSelect(key)}
                 />
 
-                {availableTimeSlots.length > RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW && (
+                {timePillItems.length > RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW && (
                   <>
                     {hasMoreTimes && (
                       <InlineLink

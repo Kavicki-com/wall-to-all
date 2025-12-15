@@ -7,6 +7,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeGoBack } from '../../lib/router-utils';
 import { supabase } from '../../lib/supabase';
 import { CustomInput } from '../../components/ui/CustomInput';
 import { useToast } from '../../components/ui/ToastProvider';
@@ -17,6 +18,7 @@ import { CustomButton } from '../../components/CustomButton';
 
 const ClientSignupAddressScreen: React.FC = () => {
   const router = useRouter();
+  const safeGoBack = useSafeGoBack('/(auth)/client-signup-personal');
   const { showError } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +142,7 @@ const ClientSignupAddressScreen: React.FC = () => {
           steps={['Cadastro', 'Endereço']}
           currentStepIndex={1}
           showBackButton={true}
-          onPressBack={router.back}
+          onPressBack={safeGoBack}
         />
       }
     >
