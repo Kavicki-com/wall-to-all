@@ -3,16 +3,16 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
   ActivityIndicator,
   FlatList,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconRatingStar } from '../../../lib/icons';
-import { MerchantTopBar } from '../../../components/MerchantTopBar';
+import AppHeader from '../../../components/layout/AppHeader';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import { CustomButton } from '../../../components/CustomButton';
+import ServiceCard from '../../../components/ServiceCard';
+import { safeGoBack } from '../../../lib/router-utils';
 
 type Service = {
   id: string;
@@ -31,7 +31,6 @@ const ScheduleServiceScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [businessName, setBusinessName] = useState<string>('');
 
   // Resetar seleção quando a tela é focada
   useFocusEffect(
@@ -64,9 +63,7 @@ const ScheduleServiceScreen: React.FC = () => {
         .eq('id', params.businessId)
         .single();
 
-      if (businessData) {
-        setBusinessName(businessData.business_name);
-      }
+      // Business name is not used in this component
 
       // Buscar serviços da loja
       const { data: servicesData, error } = await supabase
@@ -107,120 +104,90 @@ const ScheduleServiceScreen: React.FC = () => {
     const isSelected = selectedService === item.id;
     const hasSelection = selectedService !== null;
     const shouldReduceOpacity = hasSelection && !isSelected;
-    
-    // Processar imagens
-    let imagesArray: string[] = [];
-    if (item.photos) {
-      if (typeof item.photos === 'string') {
-        try {
-          imagesArray = JSON.parse(item.photos);
-        } catch {
-          imagesArray = [item.photos];
-        }
-      } else if (Array.isArray(item.photos)) {
-        imagesArray = item.photos;
-      }
+
+    // Estilos condicionais para seleção
+    const containerStyle: any = {
+      marginBottom: 16,
+    };
+
+    if (isSelected) {
+      containerStyle.borderColor = '#E5102E';
+      containerStyle.borderWidth = 2;
+    } else {
+      containerStyle.borderColor = '#474747';
+      containerStyle.borderWidth = 1;
     }
-    const firstImage = imagesArray.length > 0 ? imagesArray[0] : null;
+
+    if (shouldReduceOpacity) {
+      containerStyle.opacity = 0.5;
+    }
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.serviceCard,
-          !isSelected && styles.serviceCardNotSelected,
-          isSelected && styles.serviceCardSelected,
-          shouldReduceOpacity && styles.serviceCardUnselected,
-        ]}
-        activeOpacity={0.8}
+      <ServiceCard
+        name={item.name}
+        price={item.price}
+        photos={item.photos}
+        rating={item.rating}
+        reviewCount={item.review_count}
+        categoryName={null}
+        containerStyle={containerStyle}
         onPress={() => handleServiceSelect(item.id)}
-        accessibilityRole="button"
-        accessibilityLabel={`Serviço ${item.name}, preço R$ ${item.price.toFixed(2).replace('.', ',')}`}
-        accessibilityHint={isSelected ? "Serviço selecionado. Toque novamente para desmarcar" : "Toque para selecionar este serviço"}
-        accessibilityState={{ selected: isSelected }}
-      >
-        {firstImage ? (
-          <Image
-            source={{ uri: firstImage }}
-            style={styles.serviceImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.serviceImage, styles.placeholderImage]} />
-        )}
-        <View style={styles.serviceInfo}>
-          <Text style={styles.serviceName} numberOfLines={1}>{item.name}</Text>
-          <View style={styles.serviceRatingRow}>
-            <Text style={styles.serviceRatingText}>
-              {item.rating ? item.rating.toFixed(1) : '4.8'}
-            </Text>
-            <IconRatingStar size={16} color="#FFD700" />
-            <Text style={styles.serviceReviewCount}>
-              ({item.review_count || '25'})
-            </Text>
-          </View>
-          <Text style={styles.servicePrice}>
-            R$ {item.price.toFixed(2).replace('.', ',')}
-          </Text>
-        </View>
-      </TouchableOpacity>
+      />
     );
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
+      <ScreenContainer style={{ backgroundColor: '#FAFAFA' }}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <MerchantTopBar
-        showBack
-        onBackPress={() => router.back()}
-        fallbackPath="/(client)/home"
-      />
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.sectionTitle}>Serviços disponíveis</Text>
-        {services.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              Nenhum serviço disponível no momento.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={services}
-            renderItem={renderServiceCard}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.servicesList}
-          />
-        )}
-      </ScrollView>
-
-      {/* Continue Button */}
-      {selectedService && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.continueButton}
-            activeOpacity={0.8}
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={true}
+      hasTabBar={false}
+      backgroundColor="#FAFAFA"
+      header={
+        <AppHeader
+          showBackButton={true}
+          onPressBack={() => safeGoBack('/(client)/home')}
+        />
+      }
+      footer={selectedService ? (
+        <View style={styles.footerContainer}>
+          <CustomButton
+            compact
+            title="Continuar"
             onPress={handleContinue}
-            accessibilityRole="button"
+            variant="primary"
             accessibilityLabel="Continuar para seleção de data"
             accessibilityHint="Toque para continuar e selecionar a data do agendamento"
-          >
-            <Text style={styles.continueButtonText}>Continuar</Text>
-          </TouchableOpacity>
+          />
         </View>
+      ) : undefined}
+    >
+      <Text style={styles.sectionTitle}>Serviços disponíveis</Text>
+      {services.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            Nenhum serviço disponível no momento.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={services}
+          renderItem={renderServiceCard}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          contentContainerStyle={styles.servicesList}
+        />
       )}
-    </View>
+    </ScreenContainer>
   );
 };
 
@@ -229,20 +196,11 @@ export default ScheduleServiceScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 100,
   },
   sectionTitle: {
     fontSize: 16,
@@ -252,66 +210,6 @@ const styles = StyleSheet.create({
   },
   servicesList: {
     paddingBottom: 16,
-  },
-  serviceCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FEFEFE',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#474747',
-    overflow: 'hidden',
-    height: 104,
-    marginBottom: 16,
-  },
-  serviceCardNotSelected: {
-    borderColor: '#474747',
-  },
-  serviceCardSelected: {
-    borderColor: '#E5102E',
-    borderWidth: 2,
-  },
-  serviceCardUnselected: {
-    opacity: 0.5,
-  },
-  serviceImage: {
-    width: 85,
-    height: '100%',
-    backgroundColor: '#E0E0E0',
-    resizeMode: 'cover',
-  },
-  placeholderImage: {
-    backgroundColor: '#E0E0E0',
-  },
-  serviceInfo: {
-    flex: 1,
-    padding: 16,
-    justifyContent: 'space-between',
-    gap: 4,
-  },
-  serviceName: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
-  },
-  serviceRatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  serviceRatingText: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_600SemiBold',
-    color: '#0F0F0F',
-  },
-  serviceReviewCount: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
-  },
-  servicePrice: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#17723F',
   },
   emptyContainer: {
     flex: 1,
@@ -325,29 +223,11 @@ const styles = StyleSheet.create({
     color: '#474747',
     textAlign: 'center',
   },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  footerContainer: {
     backgroundColor: '#FEFEFE',
-    paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
-  },
-  continueButton: {
-    backgroundColor: '#000E3D',
-    borderRadius: 24,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
   },
 });
 

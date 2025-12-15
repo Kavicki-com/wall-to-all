@@ -1,0 +1,472 @@
+/**
+ * Sistema de notificações
+ */
+
+import { supabase } from './supabase';
+
+export type NotificationType = 
+  | 'reschedule_accepted'
+  | 'reschedule_rejected'
+  | 'reschedule_requested'
+  | 'appointment_confirmed'
+  | 'appointment_cancelled'
+  | 'appointment_requested';
+
+export interface Notification {
+  id?: number;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  related_id?: number | null; // Mantido para compatibilidade
+  related_appointment_id?: number | null; // Nova coluna
+  related_reschedule_id?: number | null; // Nova coluna
+  read: boolean;
+  created_at?: string;
+}
+
+/**
+ * Envia uma notificação para um usuário
+ * @param userId - ID do usuário que receberá a notificação
+ * @param type - Tipo da notificação
+ * @param title - Título da notificação
+ * @param message - Mensagem da notificação
+ * @param relatedAppointmentId - ID do agendamento relacionado (opcional)
+ * @param relatedRescheduleId - ID do reagendamento relacionado (opcional)
+ * @returns Promise com o resultado da inserção
+ */
+export const sendNotification = async (
+  userId: string,
+  type: NotificationType,
+  title: string,
+  message: string,
+  relatedAppointmentId?: number | null,
+  relatedRescheduleId?: number | null
+): Promise<{ success: boolean; error?: any }> => {
+  try {
+    console.log('sendNotification: Criando notificação', {
+      userId,
+      type,
+      title,
+      message,
+      relatedAppointmentId,
+      relatedRescheduleId,
+    });
+
+    const notificationData: any = {
+      user_id: userId,
+      type,
+      title,
+      message,
+      read: false,
+    };
+
+    // Adicionar related_appointment_id se fornecido
+    if (relatedAppointmentId !== undefined && relatedAppointmentId !== null) {
+      notificationData.related_appointment_id = relatedAppointmentId;
+    }
+
+    // Adicionar related_reschedule_id se fornecido
+    if (relatedRescheduleId !== undefined && relatedRescheduleId !== null) {
+      notificationData.related_reschedule_id = relatedRescheduleId;
+    }
+
+    console.log('sendNotification: Dados da notificação:', notificationData);
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert(notificationData)
+      .select();
+
+    if (error) {
+      console.error('sendNotification: Erro ao inserir notificação:', error);
+      // Se as colunas não existirem, tentar fallback com related_id
+      if (error.code === 'PGRST204' || error.message?.includes('column')) {
+        // Fallback: usar related_id se as novas colunas não existirem
+        const fallbackData: any = {
+          user_id: userId,
+          type,
+          title,
+          message,
+          read: false,
+        };
+        
+        // Usar appointmentId como related_id se disponível (prioridade)
+        if (relatedAppointmentId !== undefined && relatedAppointmentId !== null) {
+          fallbackData.related_id = relatedAppointmentId;
+        } else if (relatedRescheduleId !== undefined && relatedRescheduleId !== null) {
+          fallbackData.related_id = relatedRescheduleId;
+        }
+
+        const { error: fallbackError } = await supabase
+          .from('notifications')
+          .insert(fallbackData);
+
+        if (fallbackError) {
+          console.warn('Erro ao enviar notificação (fallback também falhou):', fallbackError);
+          return { success: false, error: null };
+        }
+        return { success: true };
+      }
+      
+      if (error.code === '42P01') {
+        console.warn('Tabela de notificações não encontrada. Notificações desabilitadas.');
+        return { success: false, error: null };
+      }
+      
+      console.error('Erro ao enviar notificação:', error);
+      return { success: false, error };
+    }
+
+    console.log('sendNotification: Notificação criada com sucesso:', data);
+    return { success: true };
+  } catch (err) {
+    console.warn('Erro ao enviar notificação (ignorado):', err);
+    return { success: false, error: null };
+  }
+};
+
+/**
+ * Envia notificação quando um reagendamento é aceito
+ * @param clientId - ID do cliente
+ * @param appointmentId - ID do agendamento
+ * @param rescheduleId - ID do reagendamento
+ * @param newStartTime - Novo horário de início
+ * @param businessName - Nome do negócio
+ */
+export const notifyRescheduleAccepted = async (
+  clientId: string,
+  appointmentId: number,
+  rescheduleId: number,
+  newStartTime: string,
+  businessName: string
+): Promise<void> => {
+  try {
+    const date = new Date(newStartTime);
+    const formattedDate = date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    const formattedTime = date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    // Passar ambos os IDs: appointment_id e reschedule_id
+    await sendNotification(
+      clientId,
+      'reschedule_accepted',
+      'Reagendamento Aceito',
+      `Seu reagendamento foi aceito! O novo horário é ${formattedDate} às ${formattedTime} em ${businessName}.`,
+      appointmentId,
+      rescheduleId
+    );
+  } catch {
+    console.warn('Erro ao enviar notificação de reagendamento aceito (ignorado)');
+  }
+};
+
+/**
+ * Envia notificação quando um reagendamento é rejeitado
+ * @param clientId - ID do cliente
+ * @param appointmentId - ID do agendamento
+ * @param rescheduleId - ID do reagendamento
+ * @param businessName - Nome do negócio
+ * @param reason - Motivo da rejeição (opcional)
+ */
+export const notifyRescheduleRejected = async (
+  clientId: string,
+  appointmentId: number,
+  rescheduleId: number,
+  businessName: string,
+  reason?: string | null
+): Promise<void> => {
+  try {
+    const message = reason
+      ? `Seu reagendamento foi rejeitado por ${businessName}. Motivo: ${reason}`
+      : `Seu reagendamento foi rejeitado por ${businessName}.`;
+
+    // Passar ambos os IDs: appointment_id e reschedule_id
+    await sendNotification(
+      clientId,
+      'reschedule_rejected',
+      'Reagendamento Rejeitado',
+      message,
+      appointmentId,
+      rescheduleId
+    );
+  } catch {
+    console.warn('Erro ao enviar notificação de reagendamento rejeitado (ignorado)');
+  }
+};
+
+/**
+ * Envia notificação quando um reagendamento é solicitado
+ * @param merchantId - ID do merchant
+ * @param appointmentId - ID do agendamento
+ * @param rescheduleId - ID do reagendamento
+ * @param clientName - Nome do cliente
+ * @param newStartTime - Novo horário solicitado
+ */
+export const notifyRescheduleRequested = async (
+  merchantId: string,
+  appointmentId: number,
+  rescheduleId: number,
+  clientName: string,
+  newStartTime: string
+): Promise<void> => {
+  try {
+    const date = new Date(newStartTime);
+    const formattedDate = date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    const formattedTime = date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    // Passar ambos os IDs: appointment_id e reschedule_id
+    await sendNotification(
+      merchantId,
+      'reschedule_requested',
+      'Nova Solicitação de Reagendamento',
+      `${clientName} solicitou reagendamento para ${formattedDate} às ${formattedTime}.`,
+      appointmentId,
+      rescheduleId
+    );
+  } catch {
+    console.warn('Erro ao enviar notificação de reagendamento solicitado (ignorado)');
+  }
+};
+
+/**
+ * Envia notificação quando um agendamento é solicitado
+ * @param merchantId - ID do merchant (owner do negócio)
+ * @param appointmentId - ID do agendamento
+ * @param clientName - Nome do cliente
+ * @param serviceName - Nome do serviço
+ * @param startTime - Horário de início do agendamento
+ */
+export const notifyAppointmentRequested = async (
+  merchantId: string,
+  appointmentId: number,
+  clientName: string,
+  serviceName: string,
+  startTime: string
+): Promise<void> => {
+  try {
+    console.log('notifyAppointmentRequested: Iniciando', {
+      merchantId,
+      appointmentId,
+      clientName,
+      serviceName,
+      startTime,
+    });
+
+    const date = new Date(startTime);
+    const formattedDate = date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    const formattedTime = date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const result = await sendNotification(
+      merchantId,
+      'appointment_requested',
+      'Nova Solicitação de Agendamento',
+      `${clientName} solicitou agendamento de ${serviceName} para ${formattedDate} às ${formattedTime}.`,
+      appointmentId,
+      null
+    );
+
+    console.log('notifyAppointmentRequested: Resultado:', result);
+  } catch (error) {
+    console.error('Erro ao enviar notificação de agendamento solicitado:', error);
+  }
+};
+
+/**
+ * Busca notificações do usuário
+ * @param userId - ID do usuário
+ * @param filters - Filtros opcionais (tipos de notificação, lidas/não lidas)
+ * @returns Promise com a lista de notificações
+ */
+export const fetchNotifications = async (
+  userId: string,
+  filters?: {
+    types?: NotificationType[];
+    read?: boolean;
+  }
+): Promise<Notification[]> => {
+  try {
+    if (!userId) {
+      console.warn('fetchNotifications: userId não fornecido');
+      return [];
+    }
+
+    console.log('fetchNotifications: Buscando notificações para userId:', userId);
+    console.log('fetchNotifications: Filtros:', filters);
+
+    // Construir query base
+    let query = supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId);
+
+    // Aplicar filtros
+    if (filters?.types && filters.types.length > 0) {
+      console.log('fetchNotifications: Aplicando filtro de tipos:', filters.types);
+      query = query.in('type', filters.types);
+    }
+
+    if (filters?.read !== undefined) {
+      console.log('fetchNotifications: Aplicando filtro de read:', filters.read);
+      query = query.eq('read', filters.read);
+    }
+
+    // Ordenar por data de criação (mais recentes primeiro)
+    query = query.order('created_at', { ascending: false });
+
+    console.log('fetchNotifications: Executando query...');
+    const { data, error } = await query;
+
+    if (error) {
+      if (error.code === '42P01') {
+        console.warn('Tabela de notificações não encontrada. Notificações desabilitadas.');
+        return [];
+      }
+      console.error('Erro ao buscar notificações:', error);
+      console.error('Detalhes do erro:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      return [];
+    }
+
+    if (!data) {
+      console.warn('fetchNotifications: Nenhum dado retornado (data é null/undefined)');
+      return [];
+    }
+
+    console.log(`fetchNotifications: ${data.length} notificações encontradas para o usuário ${userId}`);
+    if (data.length > 0) {
+      console.log('fetchNotifications: Primeira notificação:', JSON.stringify(data[0], null, 2));
+    }
+    return data as Notification[];
+  } catch (err) {
+    console.error('Erro ao buscar notificações (catch):', err);
+    return [];
+  }
+};
+
+/**
+ * Marca uma notificação como lida
+ * @param notificationId - ID da notificação
+ * @returns Promise com o resultado da atualização
+ */
+export const markNotificationAsRead = async (
+  notificationId: number
+): Promise<{ success: boolean; error?: any }> => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', notificationId);
+
+    if (error) {
+      if (error.code === '42P01') {
+        console.warn('Tabela de notificações não encontrada. Notificações desabilitadas.');
+        return { success: false, error: null };
+      }
+      console.error('Erro ao marcar notificação como lida:', error);
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.warn('Erro ao marcar notificação como lida (ignorado):', err);
+    return { success: false, error: null };
+  }
+};
+
+/**
+ * Obtém a contagem de notificações não lidas
+ * @param userId - ID do usuário
+ * @returns Promise com a contagem de notificações não lidas
+ */
+export const getUnreadCount = async (userId: string): Promise<number> => {
+  try {
+    if (!userId) {
+      console.warn('getUnreadCount: userId não fornecido');
+      return 0;
+    }
+
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    if (error) {
+      if (error.code === '42P01') {
+        console.warn('Tabela de notificações não encontrada. Notificações desabilitadas.');
+        return 0;
+      }
+      console.error('Erro ao contar notificações não lidas:', error);
+      console.error('Detalhes do erro:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      return 0;
+    }
+
+    const unreadCount = count || 0;
+    console.log(`getUnreadCount: ${unreadCount} notificações não lidas para o usuário ${userId}`);
+    return unreadCount;
+  } catch (err) {
+    console.error('Erro ao contar notificações não lidas:', err);
+    return 0;
+  }
+};
+
+/**
+ * Marca todas as notificações do usuário como lidas
+ * @param userId - ID do usuário
+ * @returns Promise com o resultado da atualização
+ */
+export const clearAllNotifications = async (
+  userId: string
+): Promise<{ success: boolean; error?: any }> => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    if (error) {
+      if (error.code === '42P01') {
+        console.warn('Tabela de notificações não encontrada. Notificações desabilitadas.');
+        return { success: false, error: null };
+      }
+      console.error('Erro ao limpar notificações:', error);
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.warn('Erro ao limpar notificações (ignorado):', err);
+    return { success: false, error: null };
+  }
+};

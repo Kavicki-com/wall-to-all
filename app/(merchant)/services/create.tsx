@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
-  ScrollView,
-  Image,
   Alert,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconAddPhoto, IconClose } from '../../../lib/icons';
-import { MerchantTopBar } from '../../../components/MerchantTopBar';
+import { useToast } from '../../../components/ui/ToastProvider';
+import { handleError } from '../../../lib/errorHandler';
+import AppHeader from '../../../components/layout/AppHeader';
+import { safeGoBack } from '../../../lib/router-utils';
 import SelectDropdown from '../../../components/ui/SelectDropdown';
+import ServiceImagePicker from '../../../components/ui/ServiceImagePicker';
+import { CustomInput } from '../../../components/ui/CustomInput';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import { CustomButton } from '../../../components/CustomButton';
+import { RadioGroup } from '../../../components/ui/RadioGroup';
+import { Chip } from '../../../components/ui/Chip';
 
 type AvailabilityOption = {
   value: string;
@@ -32,6 +32,7 @@ const AVAILABILITY_OPTIONS: AvailabilityOption[] = [
 
 const MerchantSignupServicesScreen: React.FC = () => {
   const router = useRouter();
+  const { showError, showSuccess } = useToast();
   const params = useLocalSearchParams<{ userId?: string; companyId?: string }>();
   const companyId = params.companyId as string | undefined;
 
@@ -60,6 +61,13 @@ const MerchantSignupServicesScreen: React.FC = () => {
     setServiceImages([]);
     setError(null);
   };
+
+  // Resetar campos quando a tela é focada (quando volta de outras telas)
+  useFocusEffect(
+    React.useCallback(() => {
+      resetForm();
+    }, [])
+  );
 
   // Função para formatar preço como moeda BRL
   const formatCurrency = (value: string): string => {
@@ -103,66 +111,29 @@ const MerchantSignupServicesScreen: React.FC = () => {
       minutes = parseInt(minuteMatch[1], 10);
     }
     
-    // Se não encontrou horas nem minutos, tenta interpretar como número puro (assumindo horas)
+    // Se não encontrou horas nem minutos, tenta interpretar como número puro
+    // Para evitar ambiguidade, assumimos que números pequenos (<= 8) são horas
+    // e números maiores são minutos (mais comum para serviços)
     if (!hourMatch && !minuteMatch) {
       const numberMatch = cleaned.match(/(\d+)/);
       if (numberMatch) {
-        hours = parseInt(numberMatch[1], 10);
+        const number = parseInt(numberMatch[1], 10);
+        // Se o número for <= 8, assume horas (ex: "1" = 1h, "2" = 2h)
+        // Se for > 8, assume minutos (ex: "30" = 30min, "60" = 60min)
+        // Isso evita que "10" seja interpretado como 10 horas (600 min)
+        if (number <= 8) {
+          hours = number;
+        } else {
+          minutes = number;
+        }
       }
     }
     
-    return hours * 60 + minutes || 60; // Default 60 minutos se não conseguir converter
+    const totalMinutes = hours * 60 + minutes;
+    return totalMinutes > 0 ? totalMinutes : 60; // Default 60 minutos se não conseguir converter
   };
 
 
-  // Função para solicitar permissões de imagem
-  const requestImagePermissions = async () => {
-    if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permissão necessária',
-          'Precisamos da permissão para acessar suas fotos!'
-        );
-        return false;
-      }
-    }
-    return true;
-  };
-
-  // Função para selecionar imagem
-  const handlePickImage = async () => {
-    if (serviceImages.length >= 4) {
-      Alert.alert('Limite atingido', 'Você pode adicionar no máximo 4 fotos.');
-      return;
-    }
-
-    const hasPermission = await requestImagePermissions();
-    if (!hasPermission) return;
-
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const newImage = result.assets[0].uri;
-        setServiceImages([...serviceImages, newImage]);
-      }
-    } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
-    }
-  };
-
-  // Função para remover imagem
-  const handleRemoveImage = (index: number) => {
-    const newImages = serviceImages.filter((_, i) => i !== index);
-    setServiceImages(newImages);
-  };
 
   // Função para fazer upload de múltiplas imagens para Supabase Storage
   const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -185,29 +156,48 @@ const MerchantSignupServicesScreen: React.FC = () => {
 
       const authenticatedUserId = currentUser.id;
       const uploadPromises = serviceImages.map(async (imageUri, index) => {
-        const info = await FileSystem.getInfoAsync(imageUri);
-        if (!info.exists || (info.size || 0) > MAX_IMAGE_SIZE) {
-          throw new Error('Use imagens menores que 5MB.');
+        const fileInfo = await FileSystem.getInfoAsync(imageUri);
+        
+        if (!fileInfo.exists) {
+          throw new Error(`Arquivo de imagem ${index + 1} não encontrado. Por favor, selecione a imagem novamente.`);
         }
 
-        const fileExt = imageUri.split('.').pop() || 'jpg';
+        if (fileInfo.size && fileInfo.size > MAX_IMAGE_SIZE) {
+          throw new Error(`A imagem ${index + 1} excede o tamanho máximo de 5MB.`);
+        }
+
+        const fileExt = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
         const contentType = fileExt === 'png' ? 'image/png' : fileExt === 'webp' ? 'image/webp' : 'image/jpeg';
+        
         if (!ALLOWED_TYPES.includes(contentType)) {
-          throw new Error('Formato de imagem não suportado (use jpg, png ou webp).');
+          throw new Error(`Formato de imagem não suportado para imagem ${index + 1} (use jpg, png ou webp).`);
         }
 
         const fileName = `${authenticatedUserId}-${Date.now()}-${index}.${fileExt}`;
         const filePath = `service-images/${fileName}`;
 
-        const response = await fetch(imageUri);
-        if (!response.ok) {
-          throw new Error(`Falha ao ler arquivo local (${response.status})`);
+        // Usa FileSystem para ler a imagem como base64 (funciona com URIs locais)
+        let base64: string;
+        try {
+          base64 = await FileSystem.readAsStringAsync(imageUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        } catch (fileError) {
+          console.error(`Erro ao ler arquivo da imagem ${index + 1}:`, fileError);
+          throw new Error(`Não foi possível ler o arquivo de imagem ${index + 1}. Verifique se o arquivo não está corrompido.`);
         }
-        const blob = await response.blob();
+
+        // Converte base64 para Uint8Array
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
 
         const { error: uploadError } = await supabase.storage
           .from('services-assets')
-          .upload(filePath, blob, {
+          .upload(filePath, byteArray, {
             contentType,
             upsert: false,
           });
@@ -231,13 +221,17 @@ const MerchantSignupServicesScreen: React.FC = () => {
     } catch (error: any) {
       console.error('Erro ao fazer upload das imagens:', error);
 
-      if (uploadedPaths.length) {
+      if (uploadedPaths.length > 0) {
         // Limpa uploads parciais para evitar lixo no bucket
-        await Promise.all(
-          uploadedPaths.map(async (path) =>
-            supabase.storage.from('services-assets').remove([path])
-          )
-        );
+        try {
+          await Promise.all(
+            uploadedPaths.map(async (path) =>
+              supabase.storage.from('services-assets').remove([path])
+            )
+          );
+        } catch (cleanupError) {
+          console.error('Erro ao limpar uploads parciais:', cleanupError);
+        }
       }
 
       throw new Error(`Erro ao fazer upload das imagens: ${error.message}`);
@@ -372,175 +366,120 @@ const MerchantSignupServicesScreen: React.FC = () => {
     });
 
     if (serviceError) {
-      console.error('Erro ao inserir serviço:', serviceError);
-      setError(serviceError.message);
+      const processed = handleError(serviceError, 'service');
+      setError(processed.userMessage);
+      showError(processed.userMessage);
       return;
     }
 
     resetForm();
-    router.replace('/(auth)/merchant-signup-loading');
+    showSuccess('Serviço criado com sucesso!');
+    router.replace('/(merchant)/services');
   };
 
   return (
-    <View style={styles.background}>
-      <MerchantTopBar title="Novo Serviço" showBack showNotification />
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={true}
+      hasTabBar={false}
+      backgroundColor="#FAFAFA"
+      footer={
+        <View style={styles.footerContainer}>
+          <CustomButton
+            compact
+            title="Continuar"
+            variant="primary"
+            onPress={handleContinue}
+            isLoading={loading || imagesUploading}
+            disabled={loading || imagesUploading}
+          />
+        </View>
+      }
+      header={
+        <AppHeader 
+          title="Novo Serviço"
+          showBackButton={true}
+          onPressBack={() => safeGoBack('/(merchant)/services')}
+        />
+      }
+    >
           {/* Form */}
           <View style={styles.form}>
             {/* Nome do serviço */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nome do Serviço</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Nome do Serviço"
-                placeholderTextColor="#0f0f0f"
-                value={serviceName}
-                onChangeText={setServiceName}
-              />
-            </View>
+            <CustomInput
+              label="Nome do Serviço"
+              placeholder="Nome do Serviço"
+              value={serviceName}
+              onChangeText={setServiceName}
+              containerStyle={styles.inputGroup}
+            />
 
             {/* Forma de cobrança */}
             <View style={styles.radioGroup}>
               <Text style={styles.label}>Forma de cobrança</Text>
-              <View style={styles.radioRow}>
-                <TouchableOpacity
-                  style={styles.radioOption}
-                  onPress={() => setChargeType('fixed')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.radioIconOuter}>
-                    {chargeType === 'fixed' && <View style={styles.radioIconInner} />}
-                  </View>
-                  <Text style={styles.radioText}>Valor Fixo</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.radioOption}
-                  onPress={() => setChargeType('hourly')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.radioIconOuter}>
-                    {chargeType === 'hourly' && <View style={styles.radioIconInner} />}
-                  </View>
-                  <Text style={styles.radioText}>Valor por hora</Text>
-                </TouchableOpacity>
-              </View>
+              <RadioGroup
+                options={[
+                  { label: 'Valor Fixo', value: 'fixed' },
+                  { label: 'Valor por hora', value: 'hourly' },
+                ]}
+                value={chargeType}
+                onValueChange={(value) => setChargeType(value as 'fixed' | 'hourly')}
+                direction="row"
+                gap={12}
+              />
             </View>
 
             {/* Preço */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Preço</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="R$ 100,00"
-                placeholderTextColor="#0f0f0f"
-                keyboardType="numeric"
-                value={price}
-                onChangeText={handlePriceChange}
-              />
-            </View>
+            <CustomInput
+              label="Preço"
+              placeholder="R$ 100,00"
+              keyboardType="numeric"
+              value={price}
+              onChangeText={handlePriceChange}
+              containerStyle={styles.inputGroup}
+            />
 
             {/* Duração */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Duração</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="1h"
-                placeholderTextColor="#0f0f0f"
-                value={duration}
-                onChangeText={setDuration}
-              />
-            </View>
+            <CustomInput
+              label="Duração"
+              placeholder="1h"
+              value={duration}
+              onChangeText={setDuration}
+              containerStyle={styles.inputGroup}
+            />
 
             {/* Categoria do Serviço */}
             <View style={styles.radioGroup}>
               <Text style={styles.label}>Categoria do Serviço</Text>
               <View style={styles.chipRow}>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[
-                      category === 'local' ? styles.chip : styles.chipOutline,
-                      category === 'local' && styles.chipActive,
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => setCategory('local')}
-                  >
-                    <Text
-                      style={[
-                        category === 'local' ? styles.chipText : styles.chipTextOutline,
-                        category === 'local' && styles.chipTextActive,
-                      ]}
-                    >
-                      No meu local
-                    </Text>
-                    {category === 'local' && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setCategory('home');
-                        }}
-                        style={styles.chipCloseButton}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Text style={styles.chipCloseIcon}>×</Text>
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[
-                      category === 'home' ? styles.chip : styles.chipOutline,
-                      category === 'home' && styles.chipActive,
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => setCategory('home')}
-                  >
-                    <Text
-                      style={[
-                        category === 'home' ? styles.chipText : styles.chipTextOutline,
-                        category === 'home' && styles.chipTextActive,
-                      ]}
-                    >
-                      À domicílio
-                    </Text>
-                    {category === 'home' && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setCategory('local');
-                        }}
-                        style={styles.chipCloseButton}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Text style={styles.chipCloseIcon}>×</Text>
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                <Chip
+                  label="No meu local"
+                  selected={category === 'local'}
+                  variant={category === 'local' ? 'filled' : 'outline'}
+                  onPress={() => setCategory('local')}
+                  onClose={category === 'local' ? () => setCategory('home') : undefined}
+                />
+                <Chip
+                  label="À domicílio"
+                  selected={category === 'home'}
+                  variant={category === 'home' ? 'filled' : 'outline'}
+                  onPress={() => setCategory('home')}
+                  onClose={category === 'home' ? () => setCategory('local') : undefined}
+                />
               </View>
             </View>
 
             {/* Descrição do serviço */}
-            <View style={styles.textareaGroup}>
-              <Text style={styles.label}>Descrição do Serviço</Text>
-              <TextInput
-                style={styles.textarea}
-                placeholder="Deixe aqui sua opinião."
-                placeholderTextColor="#0f0f0f"
-                multiline
-                numberOfLines={4}
-                value={description}
-                onChangeText={setDescription}
-              />
-            </View>
+            <CustomInput
+              label="Descrição do Serviço"
+              placeholder="Deixe aqui sua opinião."
+              multiline
+              numberOfLines={4}
+              value={description}
+              onChangeText={setDescription}
+              containerStyle={styles.textareaGroup}
+              inputContainerStyle={styles.textarea}
+            />
 
             {/* Disponibilidade */}
             <View style={styles.inputGroup}>
@@ -556,86 +495,22 @@ const MerchantSignupServicesScreen: React.FC = () => {
             </View>
 
             {/* Fotos do serviço */}
-            <View style={styles.photoGroup}>
-              <Text style={styles.label}>Adicione fotos do seu serviço</Text>
-              <View style={styles.photoRow}>
-                {Array.from({ length: 4 }).map((_, index) => {
-                  const imageUri = serviceImages[index];
-                  return imageUri ? (
-                    <View key={index} style={styles.photoBoxContainer}>
-                      <Image
-                        source={{ uri: imageUri }}
-                        style={styles.photoPreview}
-                        resizeMode="cover"
-                      />
-                  <TouchableOpacity
-                    style={styles.removePhotoButton}
-                    onPress={() => handleRemoveImage(index)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.removePhotoBadge}>
-                      <Text style={styles.removePhotoText}>X</Text>
-                    </View>
-                  </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.photoBox}
-                      onPress={handlePickImage}
-                      activeOpacity={0.7}
-                      disabled={imagesUploading || serviceImages.length >= 4}
-                    >
-                      {imagesUploading ? (
-                        <ActivityIndicator color="#474747" />
-                      ) : (
-                        <IconAddPhoto width={34} height={34} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+            <ServiceImagePicker
+              images={serviceImages}
+              onImagesChange={setServiceImages}
+              uploading={imagesUploading}
+              maxImages={4}
+            />
           </View>
 
           {!!error && <Text style={styles.errorText}>{error}</Text>}
-        </ScrollView>
-
-        {/* Botão Continuar */}
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.buttonContained}
-            activeOpacity={0.8}
-            onPress={handleContinue}
-            disabled={loading || imagesUploading}
-          >
-            {loading || imagesUploading ? (
-              <ActivityIndicator color="#FEFEFE" />
-            ) : (
-              <Text style={styles.buttonContainedText}>Continuar</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </View>
+    </ScreenContainer>
   );
 };
 
 export default MerchantSignupServicesScreen;
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 32,
-  },
   form: {
     marginTop: 24,
     width: '90%',
@@ -645,6 +520,7 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     width: '100%',
+    marginBottom: 16,
   },
   label: {
     fontFamily: 'Montserrat_700Bold',
@@ -652,50 +528,8 @@ const styles = StyleSheet.create({
     color: '#000E3D',
     marginBottom: 4,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
-  },
   radioGroup: {
     width: '100%',
-  },
-  radioRow: {
-    flexDirection: 'row',
-    marginTop: 8,
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  radioOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  radioIconOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#000E3D',
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioIconInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#000E3D',
-  },
-  radioText: {
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
   },
   chipRow: {
     flexDirection: 'row',
@@ -703,62 +537,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     flexWrap: 'wrap',
   },
-  chipContainer: {
-    flexDirection: 'row',
-  },
-  chip: {
-    backgroundColor: '#000E3D',
-    borderRadius: 32,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  chipText: {
-    fontFamily: 'Montserrat_500Medium',
-    fontSize: 12,
-    color: '#FEFEFE',
-  },
-  chipOutline: {
-    borderWidth: 1,
-    borderColor: '#000E3D',
-    borderRadius: 32,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  chipTextOutline: {
-    fontFamily: 'Montserrat_500Medium',
-    fontSize: 12,
-    color: '#000E3D',
-  },
-  chipActive: {
-    backgroundColor: '#000E3D',
-  },
-  chipActiveOutline: {
-    backgroundColor: '#000E3D',
-  },
-  chipTextActive: {
-    color: '#FEFEFE',
-  },
-  chipCloseButton: {
-    marginLeft: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chipCloseIcon: {
-    color: '#FEFEFE',
-    fontSize: 20,
-    fontFamily: 'Montserrat_700Bold',
-    lineHeight: 22,
-  },
   textareaGroup: {
     marginTop: 16,
+    marginBottom: 16,
   },
   textarea: {
     borderWidth: 1,
@@ -766,66 +547,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 16,
-    minHeight: 120,
     textAlignVertical: 'top',
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
-  },
-  photoGroup: {
-    marginTop: 16,
-  },
-  photoRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  photoBox: {
-    width: '48%',
-    aspectRatio: 1,
-    borderWidth: 1,
-    borderColor: '#000000',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#D9D9D9',
-    marginBottom: 12,
-  },
-  photoBoxContainer: {
-    width: '48%',
-    aspectRatio: 1,
-    position: 'relative',
-    marginBottom: 12,
-  },
-  photoPreview: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 8,
-  },
-  removePhotoButton: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removePhotoBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#E5102E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removePhotoText: {
-    color: '#FEFEFE',
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    lineHeight: 20,
   },
   errorText: {
     marginTop: 16,
@@ -834,28 +556,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
   },
-  actions: {
-    paddingHorizontal: 24,
-    paddingBottom: 32,
-  },
-  buttonContained: {
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
-    backgroundColor: '#000E3D',
-    borderRadius: 24,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  buttonContainedText: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 16,
-    color: '#FEFEFE',
+  footerContainer: {
+    paddingTop: 16,
+    backgroundColor: '#FAFAFA',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
   },
 });

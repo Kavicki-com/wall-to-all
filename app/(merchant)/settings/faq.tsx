@@ -3,15 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { IconBack, IconNotification } from '../../../lib/icons';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
-import { useResponsiveHeight } from '../../../lib/responsive';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
 
 type FAQItem = {
   id: string;
@@ -70,9 +65,7 @@ const FAQ_DATA: FAQItem[] = [
 ];
 
 const FAQScreen: React.FC = () => {
-  const router = useRouter();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const topBarHeight = useResponsiveHeight(56); // Altura responsiva do header SVG (viewBox="0 0 410 56")
 
   const toggleItem = (id: string) => {
     const newExpanded = new Set(expandedItems);
@@ -85,64 +78,12 @@ const FAQScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Top Bar with Gradient */}
-      <View style={styles.topBarContainer}>
-        <View style={styles.topBarDivider} />
-        <View style={styles.topBarContent}>
-          <View style={styles.topBarGradientContainer}>
-            <Svg style={[StyleSheet.absoluteFill, { height: topBarHeight }]} viewBox="0 0 410 56" preserveAspectRatio="none">
-              <Defs>
-                <RadialGradient
-                  id="topBarRadialGradient"
-                  cx="50%"
-                  cy="50%"
-                  r="50%"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <Stop offset="0%" stopColor="rgba(214,224,255,1)" />
-                  <Stop offset="25%" stopColor="rgba(161,172,207,1)" />
-                  <Stop offset="37.5%" stopColor="rgba(134,145,182,1)" />
-                  <Stop offset="50%" stopColor="rgba(107,119,158,1)" />
-                  <Stop offset="62.5%" stopColor="rgba(80,93,134,1)" />
-                  <Stop offset="75%" stopColor="rgba(54,67,110,1)" />
-                  <Stop offset="87.5%" stopColor="rgba(27,40,85,1)" />
-                  <Stop offset="93.75%" stopColor="rgba(13,27,73,1)" />
-                  <Stop offset="100%" stopColor="rgba(0,14,61,1)" />
-                </RadialGradient>
-              </Defs>
-              <Rect x="0" y="0" width="410" height="56" fill="url(#topBarRadialGradient)" opacity={0.2} />
-            </Svg>
-            <LinearGradient
-              colors={['rgba(0, 14, 61, 0.2)', 'rgba(214, 224, 255, 0.2)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <LinearGradient
-              colors={['rgba(0, 14, 61, 1)', 'rgba(0, 14, 61, 1)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View style={styles.topBarInner}>
-              <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                <IconBack size={24} color="#FEFEFE" />
-              </TouchableOpacity>
-              <Text style={styles.topBarTitle}>FAQ</Text>
-              <TouchableOpacity style={styles.notificationButton}>
-                <IconNotification size={24} color="#FEFEFE" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+    <ScreenContainer 
+      scroll={true}
+      hasTabBar={false}
+      backgroundColor="#FAFAFA"
+      contentContainerStyle={styles.scrollContent}
+    >
         <View style={styles.optionsContainer}>
           <View style={styles.optionsList}>
             {FAQ_DATA.map((item) => {
@@ -167,8 +108,7 @@ const FAQScreen: React.FC = () => {
             })}
           </View>
         </View>
-      </ScrollView>
-    </View>
+    </ScreenContainer>
   );
 };
 
@@ -177,7 +117,6 @@ export default FAQScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   topBarContainer: {
     width: '100%',
@@ -196,7 +135,6 @@ const styles = StyleSheet.create({
   topBarInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
     paddingVertical: 16,
     height: '100%',
   },
@@ -219,13 +157,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    paddingTop: 90,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
+    flexGrow: 1,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   optionsContainer: {
     marginBottom: 32,

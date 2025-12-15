@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -9,74 +9,15 @@ import {
   IconSupport,
   IconDocs,
   IconHelp,
+  IconDelete,
 } from '../../../lib/icons';
-
-type BusinessProfile = {
-  id: string;
-  business_name: string;
-  description: string | null;
-  logo_url: string | null;
-  categories?: {
-    id: number;
-    name: string;
-  } | null;
-};
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import { CustomButton } from '../../../components/CustomButton';
+import { useBusinessProfile } from '../../../context/BusinessProfileContext';
 
 const SettingsScreen: React.FC = () => {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
-
-  useEffect(() => {
-    loadBusinessProfile();
-  }, []);
-
-  const loadBusinessProfile = async () => {
-    try {
-      setLoading(true);
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      const { data: businessData, error } = await supabase
-        .from('business_profiles')
-        .select(`
-          id,
-          business_name,
-          description,
-          logo_url,
-          categories:category_id (
-            id,
-            name
-          )
-        `)
-        .eq('owner_id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Erro ao buscar perfil:', error);
-      } else if (businessData) {
-        // A query retorna category_id como objeto único, não array
-        const profile = {
-          ...businessData,
-          categories: Array.isArray(businessData.categories) 
-            ? businessData.categories[0] || null
-            : businessData.categories || null,
-        } as BusinessProfile;
-        setBusinessProfile(profile);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { businessProfile, loading } = useBusinessProfile();
 
   const handleLogout = () => {
     Alert.alert('Sair', 'Tem certeza que deseja sair?', [
@@ -157,20 +98,23 @@ const SettingsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
+      <ScreenContainer 
+        scroll={false} 
+        backgroundColor="#FAFAFA" 
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer 
+      scroll={false} 
+      backgroundColor="#FAFAFA" 
+    >
       {/* Profile Container */}
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
         {/* Profile Avatar */}
         <View style={styles.profileContainer}>
           <View style={styles.avatarContainer}>
@@ -225,7 +169,7 @@ const SettingsScreen: React.FC = () => {
               onPress={handleDeleteAccount}
               activeOpacity={0.7}
             >
-              <MaterialIcons name="delete-outline" size={24} color="#000E3D" />
+              <IconDelete size={24} color="#000E3D" />
               <Text style={styles.optionText}>Excluir Conta</Text>
               <View style={styles.chevronContainer}>
                 <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
@@ -274,12 +218,14 @@ const SettingsScreen: React.FC = () => {
         </View>
         {/* Logout Button */}
         <View style={styles.logoutContainer}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
-            <Text style={styles.logoutButtonText}>Sair</Text>
-          </TouchableOpacity>
+          <CustomButton
+            title="Sair"
+            variant="ghost"
+            onPress={handleLogout}
+            style={{ borderRadius: 24, width: '90%', maxWidth: 342, alignSelf: 'center' }}
+          />
         </View>
-      </ScrollView>
-    </View>
+    </ScreenContainer>
   );
 };
 
@@ -288,7 +234,6 @@ export default SettingsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   loadingContainer: {
     flex: 1,
@@ -296,12 +241,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    paddingTop: 32,
-    paddingHorizontal: 24,
+    paddingTop: 16,
     paddingBottom: 24,
   },
   profileContainer: {
@@ -370,21 +311,6 @@ const styles = StyleSheet.create({
   },
   logoutContainer: {
     paddingBottom: 24,
-    paddingHorizontal: 24,
     alignItems: 'center',
-  },
-  logoutButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    alignItems: 'center',
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
-  },
-  logoutButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
   },
 });

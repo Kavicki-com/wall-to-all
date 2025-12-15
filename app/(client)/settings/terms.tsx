@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { CustomButton } from '../../../components/CustomButton';
 
 const TERMS_CONTENT = `
 1. Aceitação dos Termos
@@ -95,12 +95,12 @@ const TermsScreen: React.FC = () => {
           <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={true}>
             <Text style={styles.contentText}>{TERMS_CONTENT}</Text>
           </ScrollView>
-          <TouchableOpacity
-            style={styles.closeButton}
+          <CustomButton
+            title="Fechar"
+            variant="outline"
             onPress={() => router.back()}
-          >
-            <Text style={styles.closeButtonText}>Fechar</Text>
-          </TouchableOpacity>
+            style={{ borderRadius: 24, width: '90%', maxWidth: 256, alignSelf: 'center' }}
+          />
         </View>
       </View>
     </Modal>
@@ -141,19 +141,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_400Regular',
     color: '#000000',
     lineHeight: 18,
-  },
-  closeButton: {
-    width: 256,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    alignItems: 'center',
-    alignSelf: 'center',
-  },
-  closeButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: '#000E3D',
   },
 });
 

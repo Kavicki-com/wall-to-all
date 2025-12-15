@@ -3,14 +3,18 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconChevronDown, IconForkSpoon } from '../../../lib/icons';
-import { MerchantTopBar } from '../../../components/MerchantTopBar';
+import { applyAcceptedReschedules } from '../../../lib/utils';
+import { IconForkSpoon } from '../../../lib/icons';
+import AppHeader from '../../../components/layout/AppHeader';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import MonthCalendar from '../../../components/calendar/MonthCalendar';
+import { CustomButton } from '../../../components/CustomButton';
+import { safeGoBack } from '../../../lib/router-utils';
 
 type TimeSlot = {
   time: string;
@@ -25,20 +29,23 @@ const ScheduleTimeScreen: React.FC = () => {
     serviceId: string;
     date?: string;
   }>();
+  const initialDate = params.date ? new Date(params.date) : new Date();
   const [loading, setLoading] = useState(true);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [calendarExpanded, setCalendarExpanded] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<Date>(
-    params.date ? new Date(params.date) : new Date(),
-  );
+  const [currentMonth, setCurrentMonth] = useState<Date>(initialDate);
+  const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
+  const [calendarResetKey, setCalendarResetKey] = useState(0);
 
   useFocusEffect(
     React.useCallback(() => {
       setSelectedTime(null);
+      setCurrentMonth(params.date ? new Date(params.date) : new Date());
+      setSelectedDate(params.date ? new Date(params.date) : new Date());
+      setCalendarResetKey((prev) => prev + 1);
       return () => {
       };
-    }, [])
+    }, [params.date])
   );
 
   useEffect(() => {
@@ -78,7 +85,32 @@ const ScheduleTimeScreen: React.FC = () => {
         return;
       }
 
-      const serviceDuration = serviceResult.data?.duration_minutes || 60;
+      // duration_minutes deve estar em minutos
+      let serviceDuration = serviceResult.data?.duration_minutes || 60;
+      
+      // Se o valor for muito grande (provavelmente está em formato incorreto), converter
+      // Valores normais de duração em minutos: 15, 30, 60, 90, 120, etc.
+      // Se for maior que 480 (8 horas), provavelmente está em milissegundos ou segundos
+      if (serviceDuration > 480) {
+        console.warn('[ScheduleTime] serviceDuration parece estar em formato incorreto:', serviceDuration);
+        // Tentar converter de milissegundos
+        const convertedFromMs = Math.round(serviceDuration / 1000 / 60);
+        if (convertedFromMs > 0 && convertedFromMs <= 480) {
+          serviceDuration = convertedFromMs;
+          console.log('[ScheduleTime] serviceDuration convertido de ms para minutos:', serviceDuration);
+        } else {
+          // Se ainda for muito grande, tentar converter de segundos
+          const convertedFromSeconds = Math.round(serviceDuration / 60);
+          if (convertedFromSeconds > 0 && convertedFromSeconds <= 480) {
+            serviceDuration = convertedFromSeconds;
+            console.log('[ScheduleTime] serviceDuration convertido de segundos para minutos:', serviceDuration);
+          } else {
+            // Se nada funcionar, usar um valor padrão razoável (60 minutos)
+            console.warn('[ScheduleTime] serviceDuration inválido, usando padrão de 60 minutos');
+            serviceDuration = 60;
+          }
+        }
+      }
 
       // Verificar qual dia da semana é a data selecionada
       const dayNames = [
@@ -103,17 +135,23 @@ const ScheduleTimeScreen: React.FC = () => {
       // Buscar appointments existentes para esta data
       const { data: existingAppointments } = await supabase
         .from('appointments')
-        .select('start_time, end_time')
+        .select('id, start_time, end_time')
         .eq('business_id', params.businessId)
         .gte('start_time', `${dateString}T00:00:00`)
         .lt('start_time', `${dateString}T23:59:59`)
         .in('status', ['pending', 'confirmed']);
+      
+      // Aplicar reagendamentos aceitos aos appointments existentes
+      const appointmentsWithReschedules = existingAppointments 
+        ? await applyAcceptedReschedules(existingAppointments)
+        : [];
 
       // Gerar slots de horário baseado no horário de funcionamento
+      // Usar appointments com reagendamentos aplicados
       const slots = generateTimeSlots(
         workDay.start,
         workDay.end,
-        existingAppointments || [],
+        appointmentsWithReschedules || [],
         serviceDuration,
         dateString,
       );
@@ -234,252 +272,130 @@ const ScheduleTimeScreen: React.FC = () => {
     );
   };
 
-  const generateCalendar = () => {
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const prevMonthLastDay = new Date(year, month, 0).getDate();
-
-    const days: Array<{ day: number; isCurrentMonth: boolean; isPrevMonth: boolean; isNextMonth: boolean }> = [];
-    
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      days.push({ 
-        day: prevMonthLastDay - i, 
-        isCurrentMonth: false, 
-        isPrevMonth: true,
-        isNextMonth: false
-      });
-    }
-    
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push({ 
-        day: i, 
-        isCurrentMonth: true,
-        isPrevMonth: false,
-        isNextMonth: false
-      });
-    }
-
-    const remainingDays = days.length % 7;
-    if (remainingDays !== 0) {
-      for (let i = 1; i <= (7 - remainingDays); i++) {
-        days.push({ 
-          day: i, 
-          isCurrentMonth: false,
-          isPrevMonth: false,
-          isNextMonth: true
-        });
-      }
-    }
-
-    return days;
+  const handleMonthChange = (direction: 'prev' | 'next') => {
+    setCurrentMonth((prevMonth) => {
+      const newMonth = new Date(prevMonth);
+      newMonth.setMonth(prevMonth.getMonth() + (direction === 'next' ? 1 : -1));
+      return newMonth;
+    });
   };
 
-  const getFirstWeek = () => {
-    const allDays = generateCalendar();
-    return allDays.slice(0, 7);
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+    setCurrentMonth(date);
   };
-
-  const calendarDays = calendarExpanded ? generateCalendar() : getFirstWeek();
-  const dayNames = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
   return (
-    <View style={styles.container}>
-      <MerchantTopBar
-        showBack
-        onBackPress={() => router.back()}
-        fallbackPath="/(client)/home"
-      />
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
-
-        {/* Calendar */}
-        <View style={styles.calendarContainer}>
-          <View style={styles.calendarGrid}>
-            {/* Days of week */}
-            <View style={styles.daysOfWeek}>
-              {dayNames.map((day, index) => (
-                <View key={index} style={styles.dayOfWeek}>
-                  <Text style={styles.dayOfWeekText}>{day}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Calendar days */}
-            <View style={styles.calendarWeeks}>
-              {Array.from({ length: Math.ceil(calendarDays.length / 7) }).map((_, weekIndex) => (
-                <View key={weekIndex} style={styles.calendarWeek}>
-                  {calendarDays.slice(weekIndex * 7, (weekIndex + 1) * 7).map((dayObj, dayIndex) => {
-                    // Calcular a data correta
-                    let targetDate: Date;
-                    if (dayObj.isPrevMonth) {
-                      targetDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, dayObj.day);
-                    } else if (dayObj.isNextMonth) {
-                      targetDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, dayObj.day);
-                    } else {
-                      targetDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), dayObj.day);
-                    }
-                    
-                    const isSelected = 
-                      targetDate.getDate() === selectedDate.getDate() &&
-                      targetDate.getMonth() === selectedDate.getMonth() &&
-                      targetDate.getFullYear() === selectedDate.getFullYear();
-                    
-                    const isOtherMonth = !dayObj.isCurrentMonth;
-                    
-                    return (
-                      <TouchableOpacity
-                        key={dayIndex}
-                        style={[
-                          styles.calendarDay,
-                          isSelected && styles.calendarDaySelected,
-                        ]}
-                        onPress={() => setSelectedDate(targetDate)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Dia ${dayObj.day}${isSelected ? ', selecionado' : ''}`}
-                        accessibilityHint="Toque para selecionar esta data"
-                        accessibilityState={{ selected: isSelected }}
-                      >
-                        <Text
-                          style={[
-                            styles.calendarDayText,
-                            isOtherMonth && styles.calendarDayTextOtherMonth,
-                            isSelected && styles.calendarDayTextSelected,
-                          ]}
-                        >
-                          {dayObj.day}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Toggle calendar button */}
-          <TouchableOpacity
-            style={styles.calendarToggle}
-            onPress={() => setCalendarExpanded(!calendarExpanded)}
-            accessibilityRole="button"
-            accessibilityLabel={calendarExpanded ? "Ocultar calendário" : "Mostrar calendário completo"}
-            accessibilityHint="Toque para expandir ou recolher o calendário"
-            accessibilityState={{ expanded: calendarExpanded }}
-          >
-            <Text style={styles.calendarToggleText}>
-              {calendarExpanded ? 'Ocultar' : 'Ver tudo'}
-            </Text>
-            <View
-              style={[
-                styles.calendarToggleIcon,
-                !calendarExpanded && styles.calendarToggleIconRotated,
-              ]}
-            >
-              <IconChevronDown size={24} color="#000E3D" />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Date header */}
-        <View style={styles.dateHeader}>
-          <Text style={styles.dateHeaderText}>{formatSelectedDate()}</Text>
-          {isToday(selectedDate) && <Text style={styles.dateHeaderToday}>Hoje</Text>}
-        </View>
-
-        {/* Time slots list */}
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#E5102E" />
-          </View>
-        ) : timeSlots.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              Não há horários disponíveis para esta data.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.timeSlotsList}>
-            {timeSlots.map((slot, index) => {
-              const isSelected = selectedTime === slot.time;
-              const isDisabled = !slot.available;
-
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.timeSlotCard,
-                    isSelected && styles.timeSlotCardSelected,
-                    isDisabled && styles.timeSlotCardDisabled,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => handleTimeSelect(slot.time)}
-                  disabled={isDisabled}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Horário ${formatTime(slot.time)}${slot.type === 'lunch' ? ', horário de almoço' : slot.type === 'occupied' ? ', ocupado' : ', disponível'}`}
-                  accessibilityHint={isDisabled ? "Este horário não está disponível" : isSelected ? "Horário selecionado. Toque novamente para desmarcar" : "Toque para selecionar este horário"}
-                  accessibilityState={{ selected: isSelected, disabled: isDisabled }}
-                >
-                  {slot.type === 'lunch' && (
-                    <View style={styles.lunchIcon}>
-                      <IconForkSpoon size={24} color="#0F0F0F" />
-                    </View>
-                  )}
-                  <View style={styles.timeSlotContent}>
-                    <Text
-                      style={[
-                        styles.timeSlotTime,
-                        isSelected && styles.timeSlotTimeSelected,
-                        isDisabled && styles.timeSlotTimeDisabled,
-                      ]}
-                    >
-                      {formatTime(slot.time)}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.timeSlotStatus,
-                        isSelected && styles.timeSlotStatusSelected,
-                        isDisabled && styles.timeSlotStatusDisabled,
-                      ]}
-                    >
-                      {slot.type === 'lunch'
-                        ? 'Almoço'
-                        : slot.type === 'occupied'
-                        ? 'Ocupado'
-                        : 'Disponível'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Continue Button */}
-      {selectedTime && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.continueButton}
-            activeOpacity={0.8}
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={true}
+      hasTabBar={true}
+      backgroundColor="#FAFAFA"
+      header={
+        <AppHeader
+          showBackButton={true}
+          onPressBack={() => safeGoBack('/(client)/home')}
+        />
+      }
+      footer={selectedTime ? (
+        <View style={styles.footerContainer}>
+          <CustomButton
+            compact
+            title="Continuar"
             onPress={handleContinue}
-            accessibilityRole="button"
+            variant="primary"
             accessibilityLabel="Continuar para confirmação do agendamento"
             accessibilityHint="Toque para continuar e confirmar o agendamento"
-          >
-            <Text style={styles.continueButtonText}>Continuar</Text>
-          </TouchableOpacity>
+          />
+        </View>
+      ) : undefined}
+    >
+      <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
+
+      {/* Calendar */}
+      <MonthCalendar
+        key={calendarResetKey}
+        currentMonth={currentMonth}
+        onMonthChange={handleMonthChange}
+        selectedDate={selectedDate}
+        onSelectDate={handleDateSelect}
+        markedDates={[]}
+      />
+
+      {/* Date header */}
+      <View style={styles.dateHeader}>
+        <Text style={styles.dateHeaderText}>{formatSelectedDate()}</Text>
+        {isToday(selectedDate) && <Text style={styles.dateHeaderToday}>Hoje</Text>}
+      </View>
+
+      {/* Time slots list */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      ) : timeSlots.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            Não há horários disponíveis para esta data.
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.timeSlotsList}>
+          {timeSlots.map((slot, index) => {
+            const isSelected = selectedTime === slot.time;
+            const isDisabled = !slot.available;
+
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.timeSlotCard,
+                  isSelected && styles.timeSlotCardSelected,
+                  isDisabled && styles.timeSlotCardDisabled,
+                ]}
+                activeOpacity={0.8}
+                onPress={() => handleTimeSelect(slot.time)}
+                disabled={isDisabled}
+                accessibilityRole="button"
+                accessibilityLabel={`Horário ${formatTime(slot.time)}${slot.type === 'lunch' ? ', horário de almoço' : slot.type === 'occupied' ? ', ocupado' : ', disponível'}`}
+                accessibilityHint={isDisabled ? "Este horário não está disponível" : isSelected ? "Horário selecionado. Toque novamente para desmarcar" : "Toque para selecionar este horário"}
+                accessibilityState={{ selected: isSelected, disabled: isDisabled }}
+              >
+                {slot.type === 'lunch' && (
+                  <View style={styles.lunchIcon}>
+                    <IconForkSpoon size={24} color="#0F0F0F" />
+                  </View>
+                )}
+                <View style={styles.timeSlotContent}>
+                  <Text
+                    style={[
+                      styles.timeSlotTime,
+                      isSelected && styles.timeSlotTimeSelected,
+                      isDisabled && styles.timeSlotTimeDisabled,
+                    ]}
+                  >
+                    {formatTime(slot.time)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.timeSlotStatus,
+                      isSelected && styles.timeSlotStatusSelected,
+                      isDisabled && styles.timeSlotStatusDisabled,
+                    ]}
+                  >
+                    {slot.type === 'lunch'
+                      ? 'Almoço'
+                      : slot.type === 'occupied'
+                      ? 'Ocupado'
+                      : 'Disponível'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
-    </View>
+    </ScreenContainer>
   );
 };
 
@@ -488,104 +404,17 @@ export default ScheduleTimeScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   loadingContainer: {
     padding: 32,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 100,
-  },
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#E5102E',
     marginBottom: 16,
-  },
-  calendarContainer: {
-    backgroundColor: '#D6E0FF',
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 24,
-  },
-  calendarGrid: {
-    paddingTop: 24,
-    paddingHorizontal: 12,
-    paddingBottom: 4,
-  },
-  daysOfWeek: {
-    flexDirection: 'row',
-    height: 24,
-    marginBottom: 0,
-  },
-  dayOfWeek: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayOfWeekText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
-  },
-  calendarWeeks: {
-    marginTop: 0,
-  },
-  calendarWeek: {
-    flexDirection: 'row',
-    height: 48,
-  },
-  calendarDay: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 40,
-    width: 40,
-    borderRadius: 20,
-  },
-  calendarDayEmpty: {
-    flex: 1,
-  },
-  calendarDaySelected: {
-    backgroundColor: '#E5102E',
-  },
-  calendarDayText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-  },
-  calendarDayTextOtherMonth: {
-    color: '#B8B8B8',
-    opacity: 0.6,
-  },
-  calendarDayTextSelected: {
-    color: '#FEFEFE',
-  },
-  calendarToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 14, 61, 0.1)',
-  },
-  calendarToggleText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  calendarToggleIcon: {
-    transform: [{ rotate: '0deg' }],
-  },
-  calendarToggleIconRotated: {
-    transform: [{ rotate: '180deg' }],
   },
   dateHeader: {
     flexDirection: 'row',
@@ -673,34 +502,10 @@ const styles = StyleSheet.create({
     color: '#474747',
     textAlign: 'center',
   },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  footerContainer: {
     backgroundColor: '#FEFEFE',
-    paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
-  },
-  continueButton: {
-    backgroundColor: '#000E3D',
-    borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
   },
 });

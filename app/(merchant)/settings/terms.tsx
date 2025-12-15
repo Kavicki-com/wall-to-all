@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Modal,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { CustomButton } from '../../../components/CustomButton';
+import { safeGoBack } from '../../../lib/router-utils';
 
 const TERMS_CONTENT = `
 1. Aceitação dos Termos
@@ -80,14 +80,13 @@ Ao utilizar o aplicativo Wall to All, você concorda com estes Termos de Uso. Ca
 `;
 
 const TermsScreen: React.FC = () => {
-  const router = useRouter();
 
   return (
     <Modal
       visible={true}
       transparent
       animationType="fade"
-      onRequestClose={() => router.back()}
+      onRequestClose={() => safeGoBack('/(merchant)/settings')}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
@@ -95,12 +94,12 @@ const TermsScreen: React.FC = () => {
           <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={true}>
             <Text style={styles.contentText}>{TERMS_CONTENT}</Text>
           </ScrollView>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.closeButtonText}>Fechar</Text>
-          </TouchableOpacity>
+          <CustomButton
+            title="Fechar"
+            variant="outline"
+            onPress={() => safeGoBack('/(merchant)/settings')}
+            style={{ borderRadius: 24, width: 256, alignSelf: 'center' }}
+          />
         </View>
       </View>
     </Modal>
@@ -141,19 +140,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_400Regular',
     color: '#000000',
     lineHeight: 18,
-  },
-  closeButton: {
-    width: 256,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    alignItems: 'center',
-    alignSelf: 'center',
-  },
-  closeButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: '#000E3D',
   },
 });
 

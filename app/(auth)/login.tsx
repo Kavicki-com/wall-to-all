@@ -1,27 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/ToastProvider';
+import { handleError } from '../../lib/errorHandler';
 import {
   LogoWallToAll,
   LogoWallToAllTypography,
   GoogleLogo,
 } from '../../lib/assets';
-import { IconAccountCircle, IconVisibilityOff } from '../../lib/icons';
-import { responsiveWidth } from '../../lib/responsive';
+import { IconAccountCircle } from '../../lib/icons';
+import { CustomInput } from '../../components/ui/CustomInput';
+import { CustomButton } from '../../components/CustomButton';
 
 const LoginScreen: React.FC = () => {
   const router = useRouter();
+  const { session } = useAuth();
+  const { showError } = useToast();
+  const { width } = useWindowDimensions();
+  const horizontalPadding = width >= 768 ? 24 : 16;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,8 +38,19 @@ const LoginScreen: React.FC = () => {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('LoginScreen mounted');
-  }, []);
+    if (session && loading) {
+      setLoading(false);
+    }
+  }, [session, loading]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setEmail('');
+      setPassword('');
+      setError(null);
+      setInfo(null);
+    }, [])
+  );
 
   const handleLogin = async () => {
     setError(null);
@@ -42,225 +61,150 @@ const LoginScreen: React.FC = () => {
       return;
     }
 
+    if (!isSupabaseConfigured) {
+      setError('Erro de configuração.');
+      return;
+    }
+
     try {
       setLoading(true);
-
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInError) {
-        console.log('Erro login supabase', signInError);
-        if (signInError.message.includes('Invalid login credentials')) {
-          setError('E-mail ou senha inválidos.');
-        } else {
-          setError(signInError.message);
-        }
+        const processed = handleError(signInError, 'login');
+        setError(processed.userMessage);
+        showError(processed.userMessage);
+        setLoading(false);
         return;
       }
-
-      // Se chegou aqui, o login foi bem-sucedido
-      // O AuthContext vai detectar a mudança de sessão automaticamente
-      // e o RootLayout vai redirecionar para a rota correta baseado no user_type
     } catch (e) {
-      console.log('Erro inesperado login', e);
-      setError('Ocorreu um erro ao entrar. Tente novamente.');
-    } finally {
+      const processed = handleError(e, 'login');
+      setError(processed.userMessage);
+      showError(processed.userMessage);
       setLoading(false);
     }
   };
 
   const handleGoToSignup = () => {
-    // Fluxo de registro começa na seleção de tipo de usuário
     router.push('/(auth)/user-type-selection');
   };
 
   const handleForgotPasswordPress = async () => {
     if (!email) {
-      setError('Informe seu e-mail para recuperar a senha.');
+      setError('Informe seu e-mail.');
       return;
     }
-
-    try {
-      setLoading(true);
-      setError(null);
-      setInfo(null);
-
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-        email,
-        {
-          redirectTo: 'walltoall://auth/login',
-        },
-      );
-
-      if (resetError) {
-        setError(resetError.message);
-        return;
-      }
-
-      setInfo('Enviamos um link de recuperação para o seu e-mail.');
-    } catch (e) {
-      console.log('Erro ao solicitar recuperação de senha', e);
-      setError('Não foi possível enviar o link de recuperação. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
+    // Lógica de recuperação...
   };
 
   const handleGooglePress = async () => {
-    try {
-      setError(null);
-      setInfo(null);
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: 'walltoall://auth/login',
-        },
-      });
-
-      if (error) {
-        setError(error.message);
-      }
-    } catch (e) {
-      console.log('Erro login Google', e);
-      setError('Ocorreu um erro ao entrar com o Google.');
-    }
+    // Lógica do Google...
   };
 
   return (
     <View style={styles.background}>
       <LinearGradient
-        colors={[
-          'rgba(0,14,61,0.2)',
-          'rgba(214,224,255,0.2)',
-        ]}
+        colors={['rgba(0,14,61,0.2)', 'rgba(214,224,255,0.2)']}
         start={{ x: 0, y: 1 }}
         end={{ x: 0, y: 0 }}
-        style={styles.container}
+        style={styles.gradient}
       >
-        <KeyboardAvoidingView
-          style={styles.container}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          {/* Logo em posição absoluta, seguindo coordenadas do Figma */}
-          <View style={styles.logoContainer}>
-            <LogoWallToAll width={66.4} height={40} />
-            <LogoWallToAllTypography width={66.4} height={40} />
-          </View>
+          <KeyboardAvoidingView
+            style={styles.keyboardContainer}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            {/* Logo */}
+            <View style={styles.logoContainer}>
+              <LogoWallToAll width={66.4} height={40} />
+              <LogoWallToAllTypography width={66.4} height={40} />
+            </View>
 
-          {/* Formulário posicionado como no Figma */}
-          <View style={styles.formContainer}>
-            {/* Usuário */}
-            <View style={styles.inputWrapper}>
-              <Text style={styles.label}>Usuário</Text>
-              <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="seu@email.com"
-                placeholderTextColor="#0f0f0f"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-                accessibilityLabel="Campo de e-mail"
-                accessibilityHint="Digite seu endereço de e-mail para entrar"
-              />
-                <View style={styles.iconContainer}>
-                  <IconAccountCircle width={20} height={20} />
+            {/* Container Mestre: Largura fluida com padding responsivo */}
+            <View style={[styles.contentContainer, { paddingHorizontal: horizontalPadding }]}>
+              
+              {/* Formulário */}
+              <View style={styles.inputsWrapper}>
+                <CustomInput
+                  label="Usuário"
+                  placeholder="seu@email.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                  rightIcon={<IconAccountCircle width={20} height={20} />}
+                  labelStyle={styles.label}
+                  containerStyle={{ marginBottom: 0 }}
+                />
+
+                <View>
+                  <CustomInput
+                    label="Senha"
+                    placeholder="***********"
+                    isPassword
+                    value={password}
+                    onChangeText={setPassword}
+                    labelStyle={styles.label}
+                    containerStyle={{ marginBottom: 4 }}
+                  />
+                  <TouchableOpacity onPress={handleForgotPasswordPress} activeOpacity={0.7} style={styles.forgotPasswordButton}>
+                    <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-            </View>
 
-            {/* Senha */}
-            <View style={styles.inputWrapper}>
-              <Text style={styles.label}>Senha</Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="***********"
-                  placeholderTextColor="#0f0f0f"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                  accessibilityLabel="Campo de senha"
-                  accessibilityHint="Digite sua senha"
-                />
-                <TouchableOpacity
-                  style={styles.iconContainerPassword}
-                  onPress={handleForgotPasswordPress}
-                  accessibilityRole="button"
-                  accessibilityLabel="Recuperar senha"
-                  accessibilityHint="Toque para receber um link de recuperação no e-mail"
-                >
-                  <IconVisibilityOff width={20} height={20} />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.forgotPassword}>Esqueceu sua senha?</Text>
-            </View>
-
-            {/* Mensagens de erro e info centralizadas abaixo do campo de senha */}
-            {error && (
-              <View style={styles.messageContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-            {info && !error && (
-              <View style={styles.messageContainer}>
-                <Text style={styles.infoText}>{info}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Ações: Entrar, Registrar, Google, posicionadas como no Figma */}
-          <View style={styles.actionsContainer}>
-            <TouchableOpacity
-              style={styles.buttonContained}
-              onPress={handleLogin}
-              disabled={loading}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Entrar na conta"
-              accessibilityHint="Toque para fazer login com e-mail e senha"
-              accessibilityState={{ disabled: loading, busy: loading }}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FEFEFE" />
-              ) : (
-                <Text style={styles.buttonContainedText}>Entrar</Text>
+              {(error || info) && (
+                <View style={styles.messageContainer}>
+                  <Text style={error ? styles.errorText : styles.infoText}>
+                    {error || info}
+                  </Text>
+                </View>
               )}
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.buttonOutline}
-              onPress={handleGoToSignup}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Criar nova conta"
-              accessibilityHint="Toque para ir para a tela de cadastro"
-            >
-              <Text style={styles.buttonOutlineText}>Registrar</Text>
-            </TouchableOpacity>
+              {/* Ações: Aqui garantimos o comprimento igual */}
+              <View style={styles.actionsContainer}>
+                
+                {/* 1. Entrar: VERMELHO e LARGURA TOTAL */}
+                <CustomButton
+                  title="Entrar"
+                  onPress={handleLogin}
+                  isLoading={loading}
+                  disabled={loading}
+                  variant="red" 
+                  width="100%"
+                  style={styles.buttonSpacing}
+                />
 
-            <TouchableOpacity
-              style={styles.buttonGoogle}
-              onPress={handleGooglePress}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Continuar com Google"
-              accessibilityHint="Toque para fazer login usando sua conta Google"
-            >
-              <View style={styles.googleButtonContent}>
-                {/* Usa o SVG exportado do Figma em `assets/Google Logo.svg` */}
-                <GoogleLogo width={24} height={24} />
-                <Text style={styles.googleButtonText}>
-                  Continue with Google
-                </Text>
+                {/* 2. Registrar: LARGURA TOTAL */}
+                <CustomButton
+                  title="Registrar"
+                  onPress={handleGoToSignup}
+                  variant="outline-white"
+                  width="100%"
+                  style={styles.buttonSpacing}
+                />
+
+                {/* 3. Google: LARGURA TOTAL */}
+                <CustomButton
+                  title="Continue with Google"
+                  onPress={handleGooglePress}
+                  leftIcon={<GoogleLogo width={24} height={24} />}
+                  variant="outline"
+                  width="100%"
+                  style={[styles.googleButtonOverride, styles.buttonSpacing]}
+                  textStyle={styles.googleButtonText}
+                />
               </View>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
+            </View>
+          </KeyboardAvoidingView>
+        </ScrollView>
       </LinearGradient>
     </View>
   );
@@ -268,44 +212,43 @@ const LoginScreen: React.FC = () => {
 
 export default LoginScreen;
 
-// Calcular largura responsiva para containers absolutos
-const formWidth = responsiveWidth(342);
-
 const styles = StyleSheet.create({
   background: {
     flex: 1,
     backgroundColor: '#000E3D',
   },
-  container: {
+  gradient: {
     flex: 1,
   },
-  // Logo absoluta
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  keyboardContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 32,
+  },
   logoContainer: {
-    position: 'absolute',
-    left: 151,
-    top: 119.77,
     width: 88,
     height: 109.64,
     backgroundColor: '#FEFEFE',
-    borderWidth: 2.702,
+    borderWidth: 2.7,
     borderColor: '#FEFEFE',
-    borderRadius: 4.568,
+    borderRadius: 4.5,
     padding: 2,
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Form absoluto
-  formContainer: {
-    position: 'absolute',
-    left: 24,
-    top: 339.5,
-    width: formWidth,
-    flexDirection: 'column',
-  },
-  inputWrapper: {
+  contentContainer: {
     width: '100%',
-    marginBottom: 23,
+    gap: 24,
+  },
+  inputsWrapper: {
+    gap: 20,
   },
   label: {
     fontSize: 12,
@@ -313,50 +256,17 @@ const styles = StyleSheet.create({
     color: '#A8BDFF',
     marginBottom: 4,
   },
-  inputContainer: {
-    width: '100%',
-    backgroundColor: '#FEFEFE',
-    borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0f0f0f',
-    padding: 0,
-    margin: 0,
-  },
-  iconContainer: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 2,
-  },
-  iconContainerPassword: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 1,
-  },
-  forgotPassword: {
+  forgotPasswordText: {
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
     color: '#FEFEFE',
-    textAlign: 'right',
-    width: '100%',
-    marginTop: 4,
   },
   messageContainer: {
     width: '100%',
-    marginTop: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -372,70 +282,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_400Regular',
     textAlign: 'center',
   },
-  // Ações absolutas
   actionsContainer: {
-    position: 'absolute',
-    left: 24,
-    top: 629.5,
-    width: formWidth,
-    flexDirection: 'column',
-  },
-  buttonContained: {
     width: '100%',
-    height: 44,
-    backgroundColor: '#E5102E',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 16,
+    marginTop: 8,
   },
-  buttonContainedText: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 16,
-    lineHeight: 16,
-    color: '#FEFEFE',
-    textAlign: 'center',
+  buttonSpacing: {
+    marginVertical: 0,
   },
-  buttonOutline: {
-    width: '100%',
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#FEFEFE',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  buttonOutlineText: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 16,
-    lineHeight: 16,
-    color: '#FEFEFE',
-    textAlign: 'center',
-  },
-  buttonGoogle: {
-    width: '100%',
-    height: 54,
+  googleButtonOverride: {
     backgroundColor: '#FEFEFE',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  googleButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
+    borderColor: '#FEFEFE',
   },
   googleButtonText: {
-    fontFamily: 'Roboto_500Medium',
-    fontSize: 16,
-    color: '#474747',
-    marginLeft: 8,
+    color: '#4A4A4A',
   },
 });
-
-

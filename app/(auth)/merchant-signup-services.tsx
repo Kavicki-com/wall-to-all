@@ -1,26 +1,26 @@
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
-  ScrollView,
-  Image,
   Alert,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { IconCheckboxPayment } from '../../lib/assets';
-import { IconAddPhoto } from '../../lib/icons';
-import { responsiveHeight } from '../../lib/responsive';
+import { useToast } from '../../components/ui/ToastProvider';
+import { handleError } from '../../lib/errorHandler';
 import SelectDropdown from '../../components/ui/SelectDropdown';
+import ServiceImagePicker from '../../components/ui/ServiceImagePicker';
+import { Icon } from '../../components/ui/Icon';
+import { CustomInput } from '../../components/ui/CustomInput';
+import ScreenContainer from '../../components/layout/ScreenContainer';
+import SignupHeaderMerchant from '../../components/auth/SignupHeaderMerchant';
+import { CustomButton } from '../../components/CustomButton';
 
 type AvailabilityOption = {
   value: string;
@@ -34,6 +34,7 @@ const AVAILABILITY_OPTIONS: AvailabilityOption[] = [
 
 const MerchantSignupServicesScreen: React.FC = () => {
   const router = useRouter();
+  const { showError } = useToast();
   const params = useLocalSearchParams<{ userId?: string; companyId?: string }>();
   const companyId = params.companyId as string | undefined;
 
@@ -51,14 +52,25 @@ const MerchantSignupServicesScreen: React.FC = () => {
   const [serviceImages, setServiceImages] = useState<string[]>([]);
   const [imagesUploading, setImagesUploading] = useState(false);
 
+  // Resetar campos quando a tela é focada (quando volta de outras telas)
+  useFocusEffect(
+    React.useCallback(() => {
+      setServiceName('');
+      setChargeType('fixed');
+      setPrice('');
+      setDuration('');
+      setCategory('local');
+      setAvailability(null);
+      setDescription('');
+      setServiceImages([]);
+      setError(null);
+    }, [])
+  );
+
   // Função para formatar preço como moeda BRL
   const formatCurrency = (value: string): string => {
-    // Remove tudo exceto números
     const numbers = value.replace(/\D/g, '');
-    
     if (!numbers) return '';
-    
-    // Converte para número e formata como BRL
     const amount = parseInt(numbers, 10) / 100;
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -72,6 +84,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
     setPrice(formatted);
   };
 
+  // Função para converter duração de formato texto para minutos
   // Função para converter duração de formato texto para minutos
   const parseDurationToMinutes = (durationText: string): number => {
     if (!durationText) return 60; // Default 1 hora
@@ -93,66 +106,29 @@ const MerchantSignupServicesScreen: React.FC = () => {
       minutes = parseInt(minuteMatch[1], 10);
     }
     
-    // Se não encontrou horas nem minutos, tenta interpretar como número puro (assumindo horas)
+    // Se não encontrou horas nem minutos, tenta interpretar como número puro
+    // Para evitar ambiguidade, assumimos que números pequenos (<= 8) são horas
+    // e números maiores são minutos (mais comum para serviços)
     if (!hourMatch && !minuteMatch) {
       const numberMatch = cleaned.match(/(\d+)/);
       if (numberMatch) {
-        hours = parseInt(numberMatch[1], 10);
+        const number = parseInt(numberMatch[1], 10);
+        // Se o número for <= 8, assume horas (ex: "1" = 1h, "2" = 2h)
+        // Se for > 8, assume minutos (ex: "30" = 30min, "60" = 60min)
+        // Isso evita que "10" seja interpretado como 10 horas (600 min)
+        if (number <= 8) {
+          hours = number;
+        } else {
+          minutes = number;
+        }
       }
     }
     
-    return hours * 60 + minutes || 60; // Default 60 minutos se não conseguir converter
+    const totalMinutes = hours * 60 + minutes;
+    return totalMinutes > 0 ? totalMinutes : 60; // Default 60 minutos se não conseguir converter
   };
 
 
-  // Função para solicitar permissões de imagem
-  const requestImagePermissions = async () => {
-    if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permissão necessária',
-          'Precisamos da permissão para acessar suas fotos!'
-        );
-        return false;
-      }
-    }
-    return true;
-  };
-
-  // Função para selecionar imagem
-  const handlePickImage = async () => {
-    if (serviceImages.length >= 4) {
-      Alert.alert('Limite atingido', 'Você pode adicionar no máximo 4 fotos.');
-      return;
-    }
-
-    const hasPermission = await requestImagePermissions();
-    if (!hasPermission) return;
-
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const newImage = result.assets[0].uri;
-        setServiceImages([...serviceImages, newImage]);
-      }
-    } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
-    }
-  };
-
-  // Função para remover imagem
-  const handleRemoveImage = (index: number) => {
-    const newImages = serviceImages.filter((_, i) => i !== index);
-    setServiceImages(newImages);
-  };
 
   // Função para fazer upload de múltiplas imagens para Supabase Storage
   const uploadImagesToSupabase = async (): Promise<string[]> => {
@@ -161,7 +137,6 @@ const MerchantSignupServicesScreen: React.FC = () => {
     try {
       setImagesUploading(true);
 
-      // Verificar se o usuário está autenticado
       const { data, error: authError } = await supabase.auth.getUser();
       const currentUser = data?.user;
       
@@ -171,17 +146,14 @@ const MerchantSignupServicesScreen: React.FC = () => {
 
       const authenticatedUserId = currentUser.id;
       const uploadPromises = serviceImages.map(async (imageUri, index) => {
-        // Criar nome único para cada arquivo
         const fileExt = imageUri.split('.').pop() || 'jpg';
         const fileName = `${authenticatedUserId}-${Date.now()}-${index}.${fileExt}`;
         const filePath = `service-images/${fileName}`;
 
-        // Ler o arquivo como base64
         const base64 = await FileSystem.readAsStringAsync(imageUri, {
           encoding: FileSystem.EncodingType.Base64,
         });
 
-        // Converter base64 para ArrayBuffer
         const byteCharacters = atob(base64);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -189,7 +161,6 @@ const MerchantSignupServicesScreen: React.FC = () => {
         }
         const byteArray = new Uint8Array(byteNumbers);
 
-        // Fazer upload para Supabase Storage
       const { error: uploadError } = await supabase.storage
           .from('services-assets')
           .upload(filePath, byteArray, {
@@ -197,12 +168,8 @@ const MerchantSignupServicesScreen: React.FC = () => {
             upsert: false,
           });
 
-        if (uploadError) {
-          console.error(`Erro no upload da imagem ${index}:`, uploadError);
-          throw uploadError;
-        }
+        if (uploadError) throw uploadError;
 
-        // Obter URL pública da imagem
         const {
           data: { publicUrl },
         } = supabase.storage.from('services-assets').getPublicUrl(filePath);
@@ -221,8 +188,8 @@ const MerchantSignupServicesScreen: React.FC = () => {
     }
   };
 
+
   const handleContinue = async () => {
-    // Buscar business_id do business_profiles baseado no usuário logado
     const { data: authData, error: authError } = await supabase.auth.getUser();
     const currentUser = authData?.user;
     
@@ -234,7 +201,6 @@ const MerchantSignupServicesScreen: React.FC = () => {
       return;
     }
 
-    // Buscar business_id
     let businessIdToUse = companyId;
     
     if (!businessIdToUse) {
@@ -252,7 +218,6 @@ const MerchantSignupServicesScreen: React.FC = () => {
       businessIdToUse = businessData.id;
     }
 
-    // Validações
     if (!serviceName || !price) {
       setError('Informe pelo menos nome e preço do serviço.');
       return;
@@ -262,7 +227,6 @@ const MerchantSignupServicesScreen: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Converter preço para número (remove formatação BRL)
       const numericPrice = Number(
         price.replace('R$', '').replace('.', '').replace(',', '.').trim(),
       );
@@ -272,26 +236,21 @@ const MerchantSignupServicesScreen: React.FC = () => {
         return;
       }
 
-      // Converter duração para minutos
       const durationMinutes = parseDurationToMinutes(duration);
 
-      // Fazer upload das imagens
       let imageUrls: string[] = [];
       if (serviceImages.length > 0) {
         try {
           imageUrls = await uploadImagesToSupabase();
-        } catch (uploadError) {
+        } catch {
           Alert.alert(
             'Erro no upload',
-            `Não foi possível fazer upload de todas as imagens: ${
-              uploadError instanceof Error ? uploadError.message : ''
-            }. Deseja continuar sem as imagens?`,
+            'Não foi possível fazer upload de todas as imagens. Deseja continuar sem as imagens?',
             [
               { text: 'Cancelar', style: 'cancel' },
               {
                 text: 'Continuar',
                 onPress: async () => {
-                  // Continuar sem as imagens
                   await performInsert(businessIdToUse!, numericPrice, durationMinutes, []);
                 },
               },
@@ -316,7 +275,6 @@ const MerchantSignupServicesScreen: React.FC = () => {
     durationMinutes: number,
     imageUrls: string[]
   ) => {
-    // Buscar a categoria da loja para herdar no serviço
     const { data: businessData, error: businessError } = await supabase
       .from('business_profiles')
       .select('category_id')
@@ -327,13 +285,8 @@ const MerchantSignupServicesScreen: React.FC = () => {
       console.error('Erro ao buscar categoria da loja:', businessError);
     }
 
-    // Mapear disponibilidade para is_active
     const isActive = availability?.value === 'available';
-
-    // Mapear categoria para location_type
     const locationType = category === 'home' ? 'home' : 'shop';
-
-    // Mapear chargeType para price_type
     const priceTypeValue = chargeType === 'hourly' ? 'hourly' : 'fixed';
 
     const { error: serviceError } = await supabase.from('services').insert({
@@ -345,13 +298,14 @@ const MerchantSignupServicesScreen: React.FC = () => {
       location_type: locationType,
       is_active: isActive,
       price_type: priceTypeValue,
-      category_id: businessData?.category_id || null, // Herdar categoria da loja
-      photos: imageUrls.length > 0 ? imageUrls : null, // Array já está no formato correto
+      category_id: businessData?.category_id || null,
+      photos: imageUrls.length > 0 ? imageUrls : null,
     });
 
     if (serviceError) {
-      console.error('Erro ao inserir serviço:', serviceError);
-      setError(serviceError.message);
+      const processed = handleError(serviceError, 'service');
+      setError(processed.userMessage);
+      showError(processed.userMessage);
       return;
     }
 
@@ -359,82 +313,35 @@ const MerchantSignupServicesScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.background}>
+    <ScreenContainer
+      scroll
+      backgroundColor="#FEFEFE"
+      contentContainerStyle={{ flexGrow: 1, paddingTop: 0, paddingBottom: 16 }}
+      header={
+        <SignupHeaderMerchant
+          title="Seus serviços"
+          subtitle="Cadastre os serviços do seu negócio"
+          steps={['Cadastro', 'Endereço', 'Negócio', 'Serviços']}
+          currentStepIndex={3}
+          showBackButton={true}
+          onPressBack={router.back}
+        />
+      }
+    >
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header com o mesmo gradiente da seleção de tipo */}
-          <View style={styles.header}>
-            <View style={styles.headerBackground}>
-              {/* Fundo Sólido - Base Dark Navy */}
-              <View
-                style={[
-                  StyleSheet.absoluteFillObject,
-                  { backgroundColor: '#000E3D' },
-                ]}
-              />
-
-              {/* Svg Radial Gradient - Efeito Difuso */}
-              <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
-                <Defs>
-                  <SvgRadialGradient
-                    id="headerRadialGradient"
-                    cx="0.5"
-                    cy="0.3" 
-                    rx="100%" 
-                    ry="100%" 
-                    gradientUnits="objectBoundingBox"
-                  >
-                    {/* CORREÇÃO AQUI: 
-                      1. rx="100%" estica a luz horizontalmente para não formar uma "bola".
-                      2. cy="0.3" sobe um pouco a luz para vir de cima.
-                      3. Cor central muito mais escura e desaturada (rgba 50, 70, 140).
-                         Antes estava muito neon (74, 108, 255), o que causava o brilho excessivo.
-                    */}
-                    <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
-                    
-                    {/* As pontas fundem perfeitamente com o background */}
-                    <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
-                  </SvgRadialGradient>
-                </Defs>
-                <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
-              </Svg>
-            </View>
-
-            <View style={styles.headerContent}>
-              <Text style={styles.welcomeTitle}>Seus serviços</Text>
-              <Text style={styles.welcomeSubtitle}>
-                Conte um pouco sobre o que você faz
-              </Text>
-            </View>
-          </View>
-
-          {/* Step bar */}
-          <View style={styles.stepBar}>
-            <View style={[styles.stepSegment, styles.stepSegmentComplete]} />
-            <View style={[styles.stepSegment, styles.stepSegmentComplete]} />
-            <View style={[styles.stepSegment, styles.stepSegmentComplete]} />
-            <View style={[styles.stepSegment, styles.stepSegmentActive]} />
-          </View>
 
           {/* Form */}
           <View style={styles.form}>
             {/* Nome do serviço */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nome do Serviço</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Nome do Serviço"
-                placeholderTextColor="#0f0f0f"
-                value={serviceName}
-                onChangeText={setServiceName}
-              />
-            </View>
+            <CustomInput
+              label="Nome do Serviço"
+              placeholder="Nome do Serviço"
+              value={serviceName}
+              onChangeText={setServiceName}
+            />
 
             {/* Forma de cobrança */}
             <View style={styles.radioGroup}>
@@ -472,29 +379,21 @@ const MerchantSignupServicesScreen: React.FC = () => {
             </View>
 
             {/* Preço */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Preço</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="R$ 100,00"
-                placeholderTextColor="#0f0f0f"
-                keyboardType="numeric"
-                value={price}
-                onChangeText={handlePriceChange}
-              />
-            </View>
+            <CustomInput
+              label="Preço"
+              placeholder="R$ 100,00"
+              keyboardType="numeric"
+              value={price}
+              onChangeText={handlePriceChange}
+            />
 
             {/* Duração */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Duração</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="1h"
-                placeholderTextColor="#0f0f0f"
-                value={duration}
-                onChangeText={setDuration}
-              />
-            </View>
+            <CustomInput
+              label="Duração"
+              placeholder="1h"
+              value={duration}
+              onChangeText={setDuration}
+            />
 
             {/* Categoria do Serviço */}
             <View style={styles.radioGroup}>
@@ -526,7 +425,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
                         style={styles.chipCloseButton}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Text style={styles.chipCloseIcon}>×</Text>
+                        <Icon name="close" family="MaterialSymbols" size={16} color="#FEFEFE" />
                       </TouchableOpacity>
                     )}
                   </TouchableOpacity>
@@ -557,7 +456,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
                         style={styles.chipCloseButton}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Text style={styles.chipCloseIcon}>×</Text>
+                        <Icon name="close" family="MaterialSymbols" size={16} color="#FEFEFE" />
                       </TouchableOpacity>
                     )}
                   </TouchableOpacity>
@@ -566,198 +465,76 @@ const MerchantSignupServicesScreen: React.FC = () => {
             </View>
 
             {/* Descrição do serviço */}
-            <View style={styles.textareaGroup}>
-              <Text style={styles.label}>Descrição do Serviço</Text>
-              <TextInput
-                style={styles.textarea}
-                placeholder="Deixe aqui sua opinião."
-                placeholderTextColor="#0f0f0f"
-                multiline
-                numberOfLines={4}
-                value={description}
-                onChangeText={setDescription}
-              />
-            </View>
+            <CustomInput
+              label="Descrição do Serviço"
+              placeholder="Deixe aqui sua opinião."
+              multiline
+              numberOfLines={4}
+              value={description}
+              onChangeText={setDescription}
+              containerStyle={styles.textareaGroup}
+            />
 
             {/* Disponibilidade */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Disponibilidade</Text>
-              <SelectDropdown<AvailabilityOption>
-                data={AVAILABILITY_OPTIONS}
-                labelKey="label"
-                valueKey="value"
-                onSelect={(option) => setAvailability(option)}
-                selectedValue={availability}
-                placeholder="Selecione aqui"
-                strong
-              />
+            <SelectDropdown<AvailabilityOption>
+              data={AVAILABILITY_OPTIONS}
+              labelKey="label"
+              valueKey="value"
+              onSelect={(option) => setAvailability(option)}
+              selectedValue={availability}
+              placeholder="Selecione aqui"
+            />
             </View>
 
             {/* Fotos do serviço */}
-            <View style={styles.photoGroup}>
-              <Text style={styles.label}>Adicione fotos do seu serviço</Text>
-              <View style={styles.photoRow}>
-                {Array.from({ length: 4 }).map((_, index) => {
-                  const imageUri = serviceImages[index];
-                  return imageUri ? (
-                    <View key={index} style={styles.photoBoxContainer}>
-                      <Image
-                        source={{ uri: imageUri }}
-                        style={styles.photoPreview}
-                        resizeMode="cover"
-                      />
-                      <TouchableOpacity
-                        style={styles.removePhotoButton}
-                        onPress={() => handleRemoveImage(index)}
-                        activeOpacity={0.7}
-                      >
-                    <View style={styles.removePhotoBadge}>
-                      <Text style={styles.removePhotoText}>×</Text>
-                    </View>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.photoBox}
-                      onPress={handlePickImage}
-                      activeOpacity={0.7}
-                      disabled={imagesUploading || serviceImages.length >= 4}
-                    >
-                      {imagesUploading ? (
-                        <ActivityIndicator color="#474747" />
-                      ) : (
-                        <IconAddPhoto width={34} height={34} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+            <ServiceImagePicker
+              images={serviceImages}
+              onImagesChange={setServiceImages}
+              uploading={imagesUploading}
+              maxImages={4}
+            />
           </View>
 
           {!!error && <Text style={styles.errorText}>{error}</Text>}
-        </ScrollView>
 
         {/* Botão Continuar */}
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.buttonContained}
-            activeOpacity={0.8}
+          <CustomButton
+            title="Continuar"
             onPress={handleContinue}
+            isLoading={loading || imagesUploading}
             disabled={loading || imagesUploading}
-          >
-            {loading || imagesUploading ? (
-              <ActivityIndicator color="#FEFEFE" />
-            ) : (
-              <Text style={styles.buttonContainedText}>Continuar</Text>
-            )}
-          </TouchableOpacity>
+            variant="primary"
+            style={{ borderRadius: 24, marginVertical: 0 }}
+            width="100%"
+          />
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </ScreenContainer>
   );
 };
 
 export default MerchantSignupServicesScreen;
 
-// Calcular altura responsiva do header ANTES do StyleSheet.create
-const headerHeight = responsiveHeight(129);
-
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
   container: {
     flex: 1,
   },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 0,
-    paddingBottom: 32,
-  },
-  header: {
-    height: headerHeight,
-    paddingVertical: 40,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    alignSelf: 'stretch',
-    overflow: 'hidden',
-    position: 'relative',
-    marginHorizontal: -24,
-  },
-  headerBackground: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-  },
-  headerContent: {
-    width: '90%',
-    maxWidth: 342,
-    height: 49,
-    gap: 4,
-    alignItems: 'flex-start',
-    zIndex: 1,
-    alignSelf: 'center',
-  },
-  welcomeTitle: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 20,
-    color: '#FEFEFE',
-  },
-  welcomeSubtitle: {
-    marginTop: 4,
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#FEFEFE',
-  },
-  stepBar: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 24,
-    marginBottom: 24,
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
-  },
-  stepSegment: {
-    flex: 1,
-    height: 8,
-    borderRadius: 24,
-    backgroundColor: '#DBDBDB',
-  },
-  stepSegmentComplete: {
-    backgroundColor: '#E5102E',
-  },
-  stepSegmentActive: {
-    backgroundColor: '#DBDBDB',
-  },
   form: {
     marginTop: 24,
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
+    width: '100%',
     gap: 16,
   },
   inputGroup: {
     width: '100%',
   },
   label: {
-    fontFamily: 'Montserrat_700Bold',
     fontSize: 12,
+    fontFamily: 'Montserrat_700Bold',
     color: '#000E3D',
     marginBottom: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
   },
   radioGroup: {
     width: '100%',
@@ -784,9 +561,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#000E3D',
   },
-  radioCircleSelected: {
-    backgroundColor: '#000E3D',
-  },
   radioLabel: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 16,
@@ -808,7 +582,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
   },
   chipText: {
     fontFamily: 'Montserrat_500Medium',
@@ -823,7 +597,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
   },
   chipTextOutline: {
     fontFamily: 'Montserrat_500Medium',
@@ -833,16 +607,13 @@ const styles = StyleSheet.create({
   chipActive: {
     backgroundColor: '#000E3D',
   },
-  chipActiveOutline: {
-    backgroundColor: '#000E3D',
-  },
   chipTextActive: {
     color: '#FEFEFE',
   },
   chipCloseButton: {
-    marginLeft: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    marginLeft: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -855,71 +626,6 @@ const styles = StyleSheet.create({
   textareaGroup: {
     marginTop: 16,
   },
-  textarea: {
-    borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    minHeight: 120,
-    textAlignVertical: 'top',
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
-  },
-  photoGroup: {
-    marginTop: 16,
-  },
-  photoRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    marginTop: 8,
-  },
-  photoBox: {
-    width: 163,
-    height: 107,
-    borderWidth: 1,
-    borderColor: '#000000',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#D9D9D9',
-  },
-  photoBoxContainer: {
-    width: 163,
-    height: 107,
-    position: 'relative',
-  },
-  photoPreview: {
-    width: 163,
-    height: 107,
-    borderRadius: 8,
-  },
-  removePhotoButton: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removePhotoBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#E5102E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removePhotoText: {
-    color: '#FEFEFE',
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    lineHeight: 20,
-  },
   errorText: {
     marginTop: 16,
     alignSelf: 'center',
@@ -928,27 +634,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   actions: {
-    paddingHorizontal: 24,
     paddingBottom: 32,
-  },
-  buttonContained: {
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
-    backgroundColor: '#000E3D',
-    borderRadius: 24,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  buttonContainedText: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 16,
-    color: '#FEFEFE',
   },
 });

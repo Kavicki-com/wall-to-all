@@ -1,16 +1,18 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { MerchantCustomTabBar } from '../../components/MerchantCustomTabBar';
+import { BusinessProfileProvider } from '../../context/BusinessProfileContext';
 
 const MerchantLayout: React.FC = () => {
   return (
-    <Tabs
-      tabBar={(props) => <MerchantCustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-      }}
-    >
+    <BusinessProfileProvider>
+      <Tabs
+        tabBar={(props) => <MerchantCustomTabBar {...props} />}
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: false,
+        }}
+      >
       {/* ========================================
           TABS VISÍVEIS (5 ícones conforme Figma)
           ======================================== */}
@@ -108,6 +110,7 @@ const MerchantLayout: React.FC = () => {
         }}
       />
     </Tabs>
+    </BusinessProfileProvider>
   );
 };
 

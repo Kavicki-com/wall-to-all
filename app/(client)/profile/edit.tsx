@@ -3,98 +3,70 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  TextInput,
   Image,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconBack, IconNotification, IconAddPhoto, IconVisibilityOff } from '../../../lib/icons';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
-
-type Profile = {
-  id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  email?: string;
-};
+import { useProfile } from '../../../context/ProfileContext';
+import { IconAddPhoto } from '../../../lib/icons';
+import { CustomInput } from '../../../components/ui/CustomInput';
+import AppHeader from '../../../components/layout/AppHeader';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import { CustomButton } from '../../../components/CustomButton';
+import { safeGoBack } from '../../../lib/router-utils';
+import { useToast } from '../../../components/ui/ToastProvider';
+import { handleError } from '../../../lib/errorHandler';
 
 const EditProfileScreen: React.FC = () => {
   const router = useRouter();
+  const { showError, showSuccess } = useToast();
+  const { profile: contextProfile, loading: profileLoading, refreshProfile } = useProfile();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
   const [password] = useState('*************');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    loadProfile();
-    requestImagePermission();
-  }, []);
-
-  const loadProfile = async () => {
-    try {
-      setLoading(true);
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.replace('/(auth)/login');
-        return;
-      }
-
-      // Buscar perfil
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Erro ao buscar perfil:', error);
-        Alert.alert('Erro', 'Não foi possível carregar o perfil.');
-        router.replace('/(client)/profile');
-        return;
-      }
-
-      if (profileData) {
-        setProfile(profileData as Profile);
-        setFullName(profileData.full_name || '');
-        setEmail(user.email || '');
-        setConfirmEmail(user.email || '');
-        setAvatarUri(profileData.avatar_url);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao carregar o perfil.');
-    } finally {
+    if (contextProfile) {
+      setFullName(contextProfile.full_name || '');
+      setEmail(contextProfile.email || '');
+      setConfirmEmail(contextProfile.email || '');
+      setAvatarUri(contextProfile.avatar_url || null);
       setLoading(false);
+    } else if (!profileLoading) {
+      // Se não há perfil e não está carregando, redireciona
+      router.replace('/(client)/profile');
     }
-  };
-
-  const requestImagePermission = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
-    }
-  };
+  }, [contextProfile, profileLoading]);
 
   const pickImage = async () => {
     try {
+      // Solicitar permissão apenas quando necessário
+      if (Platform.OS !== 'web') {
+        try {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+            return;
+          }
+        } catch (permissionError) {
+          console.error('Erro ao solicitar permissão de imagem:', permissionError);
+          Alert.alert('Erro', 'Não foi possível solicitar permissão para acessar suas fotos.');
+          return;
+        }
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -129,10 +101,24 @@ const EditProfileScreen: React.FC = () => {
       const fileName = `${user.id}_${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
+      // Verificar se o arquivo existe antes de ler
+      const fileInfo = await FileSystem.getInfoAsync(avatarUri);
+      if (!fileInfo.exists) {
+        Alert.alert('Erro', 'Arquivo de imagem não encontrado. Por favor, selecione a imagem novamente.');
+        return null;
+      }
+
       // Ler o arquivo como base64 usando FileSystem (mais confiável no React Native)
-      const base64 = await FileSystem.readAsStringAsync(avatarUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      let base64: string;
+      try {
+        base64 = await FileSystem.readAsStringAsync(avatarUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch (fileError) {
+        console.error('Erro ao ler arquivo do avatar:', fileError);
+        Alert.alert('Erro', 'Não foi possível ler o arquivo de imagem. Verifique se o arquivo não está corrompido.');
+        return null;
+      }
 
       // Converter base64 para ArrayBuffer
       const byteCharacters = atob(base64);
@@ -174,26 +160,8 @@ const EditProfileScreen: React.FC = () => {
 
       return publicUrl;
     } catch (error) {
-      console.error('Erro ao processar imagem:', error);
-      const message = error instanceof Error ? error.message : '';
-      // Tratamento de erros mais específico
-      if (message.includes('Network') || message.includes('network')) {
-        Alert.alert(
-          'Erro de conexão',
-          'Não foi possível fazer upload da imagem. Verifique sua conexão com a internet e tente novamente.'
-        );
-      } else if (message.includes('permission') || message.includes('Permission')) {
-        Alert.alert(
-          'Permissão negada',
-          'Não foi possível acessar a imagem. Verifique as permissões do aplicativo.'
-        );
-      } else {
-        Alert.alert(
-          'Erro ao processar imagem',
-          message || 'Ocorreu um erro inesperado ao processar a imagem.'
-        );
-      }
-      
+      const processed = handleError(error, 'upload');
+      showError(processed.userMessage);
       return null;
     }
   };
@@ -204,7 +172,7 @@ const EditProfileScreen: React.FC = () => {
       return;
     }
 
-    if (!profile) {
+    if (!contextProfile) {
       Alert.alert('Erro', 'Perfil não encontrado.');
       return;
     }
@@ -220,84 +188,161 @@ const EditProfileScreen: React.FC = () => {
           full_name: fullName.trim(),
           avatar_url: avatarUrl,
         })
-        .eq('id', profile.id);
+        .eq('id', contextProfile.id);
 
       if (error) {
-        console.error('Erro ao atualizar perfil:', error);
-        Alert.alert('Erro', 'Não foi possível atualizar o perfil.');
+        const processed = handleError(error, 'profile');
+        showError(processed.userMessage);
         return;
       }
 
-      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      showSuccess('Perfil atualizado com sucesso');
+      // Atualizar o contexto do perfil antes de voltar
+      await refreshProfile();
+      setTimeout(() => {
+        router.back();
+      }, 1000);
     } catch (error) {
-      console.error('Erro ao salvar perfil:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao salvar o perfil.');
+      const processed = handleError(error, 'profile');
+      showError(processed.userMessage);
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      'Excluir Conta',
+      'Tem certeza que deseja excluir sua conta? Esta ação é irreversível e todos os seus dados serão permanentemente removidos, incluindo:\n\n• Seus agendamentos\n• Seus serviços\n• Suas avaliações\n• Seu perfil de negócio\n\nEsta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir Conta',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+
+              if (!user) {
+                Alert.alert('Erro', 'Usuário não autenticado.');
+                return;
+              }
+
+              // Buscar business_profile
+              const { data: businessData } = await supabase
+                .from('business_profiles')
+                .select('id')
+                .eq('owner_id', user.id)
+                .single();
+
+              if (businessData) {
+                const businessId = businessData.id;
+
+                // 1. Deletar agendamentos
+                await supabase.from('appointments').delete().eq('business_id', businessId);
+
+                // 2. Deletar avaliações
+                await supabase.from('reviews').delete().eq('business_id', businessId);
+
+                // 3. Deletar serviços
+                await supabase.from('services').delete().eq('business_id', businessId);
+
+                // 4. Deletar business_profile
+                await supabase.from('business_profiles').delete().eq('id', businessId);
+              }
+
+              // 5. Deletar profile do usuário
+              await supabase.from('profiles').delete().eq('id', user.id);
+
+              // 6. Fazer logout e deletar conta de autenticação
+              // Nota: A exclusão de auth.users geralmente requer função server-side
+              // Por enquanto, apenas fazemos logout
+              await supabase.auth.signOut();
+
+              Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');
+              router.replace('/(auth)/login');
+            } catch (error) {
+              console.error('Erro ao excluir conta:', error);
+              Alert.alert('Erro', 'Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  if (loading || profileLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
+      <ScreenContainer 
+        style={{ backgroundColor: '#FAFAFA' }} 
+        hasHeader={true}
+        hasTabBar={false}
+        header={
+          <AppHeader 
+            title="Editar perfil"
+            showBackButton={true}
+            onPressBack={() => safeGoBack('/(client)/profile')}
+          />
+        }
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      </ScreenContainer>
     );
   }
 
-  if (!profile) {
+  if (!contextProfile) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer 
+        style={{ backgroundColor: '#FAFAFA' }} 
+        hasHeader={true}
+        hasTabBar={false}
+        header={
+          <AppHeader 
+            title="Editar perfil"
+            showBackButton={true}
+            onPressBack={() => safeGoBack('/(client)/profile')}
+          />
+        }
+      >
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Perfil não encontrado.</Text>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Top Bar with Gradient */}
-      <View style={styles.topBarContainer}>
-        <LinearGradient
-          colors={['#000E3D', '#000E3D']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.headerGradient}
-        >
-          <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
-            <Defs>
-              <RadialGradient
-                id="grad"
-                cx="50%"
-                cy="50%"
-                r="50%"
-                gradientUnits="userSpaceOnUse"
-                gradientTransform="matrix(1 0 0 0.5 0 0)"
-              >
-                <Stop offset="0%" stopColor="#D6E0FF" />
-                <Stop offset="100%" stopColor="#000E3D" />
-              </RadialGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#grad)" opacity="0.2" />
-          </Svg>
-          <View style={styles.topBarContent}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <IconBack size={24} color="#FEFEFE" />
-            </TouchableOpacity>
-            <Text style={styles.topBarTitle}>Editar perfil</Text>
-            <IconNotification size={24} color="#FEFEFE" />
-          </View>
-        </LinearGradient>
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={true}
+      hasTabBar={false}
+      backgroundColor="#FAFAFA"
+      contentContainerStyle={{ alignItems: 'center' }}
+      header={
+        <AppHeader 
+          title="Editar perfil"
+          showBackButton={true}
+          onPressBack={() => safeGoBack('/(client)/profile')}
+        />
+      }
+      footer={
+        <View style={styles.footerContainer}>
+          <CustomButton
+            title="Continuar"
+            onPress={handleSave}
+            isLoading={saving}
+            disabled={saving}
+            variant="primary"
+            style={{ borderRadius: 24, marginVertical: 0 }}
+            width="100%"
+          />
+        </View>
+      }
+    >
         {/* Logo Upload */}
         <View style={styles.logoUploadSection}>
           <Text style={styles.logoUploadLabel}>Alterar foto de perfil</Text>
@@ -319,114 +364,64 @@ const EditProfileScreen: React.FC = () => {
         {/* Form Fields */}
         <View style={styles.form}>
           {/* Name */}
-          <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Seu nome</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Seu nome completo"
-                placeholderTextColor="#9E9E9E"
-                value={fullName}
-                onChangeText={setFullName}
-              />
-            </View>
-          </View>
+          <CustomInput
+            label="Seu nome"
+            placeholder="Seu nome completo"
+            value={fullName}
+            onChangeText={setFullName}
+            containerStyle={styles.inputSection}
+          />
 
           {/* Email */}
-          <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Email</Text>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputText}>{email}</Text>
-            </View>
-          </View>
+          <CustomInput
+            label="Email"
+            value={email}
+            readOnly
+            containerStyle={styles.inputSection}
+          />
 
           {/* Confirm Email */}
-          <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Confirme seu email</Text>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputText}>{confirmEmail}</Text>
-            </View>
-          </View>
+          <CustomInput
+            label="Confirme seu email"
+            value={confirmEmail}
+            readOnly
+            containerStyle={styles.inputSection}
+          />
 
           {/* Password */}
-          <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Senha</Text>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputText}>{password}</Text>
-              <TouchableOpacity
-                style={styles.eyeButton}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                <IconVisibilityOff size={24} color="#0F0F0F" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.helperText}>
-              Utilize letras, números e um caractere especial
-            </Text>
-          </View>
+          <CustomInput
+            label="Senha"
+            value={password}
+            readOnly
+            containerStyle={styles.inputSection}
+            helperText="Utilize letras, números e um caractere especial"
+          />
 
           {/* Change Password Button */}
-          <TouchableOpacity
-            style={styles.ghostButton}
+          <CustomButton
+            title="Alterar senha"
+            variant="ghost"
             onPress={() => router.push('/(client)/profile/password')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.ghostButtonText}>Alterar senha</Text>
-          </TouchableOpacity>
+            style={{ borderRadius: 24, marginTop: 8 }}
+            width="100%"
+          />
 
           {/* Delete Account Button */}
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => {
-              Alert.alert(
-                'Excluir conta',
-                'Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita.',
-                [
-                  { text: 'Cancelar', style: 'cancel' },
-                  {
-                    text: 'Excluir',
-                    style: 'destructive',
-                    onPress: () => {
-                      // Implementar exclusão de conta
-                      Alert.alert('Atenção', 'Funcionalidade de exclusão de conta em desenvolvimento.');
-                    },
-                  },
-                ]
-              );
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.deleteButtonText}>Excluir conta</Text>
-          </TouchableOpacity>
+          <CustomButton
+            title="Excluir conta"
+            variant="danger"
+            onPress={handleDeleteAccount}
+            style={{ borderRadius: 24, marginTop: 8 }}
+            width="100%"
+          />
         </View>
-      </ScrollView>
-
-      {/* Continue Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.continueButton, saving && styles.continueButtonDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.8}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FEFEFE" />
-          ) : (
-            <Text style={styles.continueButtonText}>Continuar</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
+    </ScreenContainer>
   );
 };
 
 export default EditProfileScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -439,7 +434,6 @@ const styles = StyleSheet.create({
   headerGradient: {
     height: '100%',
     justifyContent: 'flex-end',
-    paddingHorizontal: 24,
     paddingBottom: 16,
   },
   topBarContent: {
@@ -459,14 +453,6 @@ const styles = StyleSheet.create({
     color: '#FEFEFE',
     flex: 1,
     textAlign: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 100,
-    alignItems: 'center',
   },
   logoUploadSection: {
     width: '90%',
@@ -508,94 +494,13 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   inputSection: {
-    gap: 4,
+    marginBottom: 16,
   },
-  inputLabel: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEFEFE',
-    borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    gap: 16,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
-  },
-  inputText: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
-  },
-  eyeButton: {
-    padding: 1,
-  },
-  helperText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-  },
-  ghostButton: {
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ghostButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  deleteButton: {
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 32,
-    left: 24,
-    right: 24,
-  },
-  continueButton: {
-    backgroundColor: '#000E3D',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  continueButtonDisabled: {
-    opacity: 0.6,
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+  footerContainer: {
+    paddingTop: 16,
+    backgroundColor: '#FAFAFA',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
   },
   emptyContainer: {
     flex: 1,

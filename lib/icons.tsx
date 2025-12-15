@@ -1,116 +1,186 @@
-import React from 'react';
-import { MaterialIcons } from '@expo/vector-icons';
-import { StyleProp, ViewStyle } from 'react-native';
-import {
-  IconBack as BackIconSvg,
-  IconChevronDown as ChevronDownIconSvg,
-  IconKeyboardArrowDown as KeyboardArrowDownIconSvg,
-  IconClose as CloseIconSvg,
-  IconCloseSmall as CloseSmallIconSvg,
-  IconMenu as MenuIconSvg,
-  IconFilter as FilterIconSvg,
-  IconAccountCircle as AccountCircleIconSvg,
-  IconAccount as AccountIconSvg,
-  IconPix as PixIconSvg,
-  IconCreditCard as CreditCardIconSvg,
-  IconCash as CashIconSvg,
-  IconRatingStar as RatingStarIconSvg,
-  IconKidStar as KidStarIconSvg,
-  IconSchedule as ScheduleIconSvg,
-  IconNotification as NotificationIconSvg,
-  IconSearch as SearchIconSvg,
-  IconSettings as SettingsIconSvg,
-  IconAddPhoto as AddPhotoIconSvg,
-  IconVisibilityOff as VisibilityOffIconSvg,
-  IconCheckbox as CheckboxIconSvg,
-  IconCheckboxOutline as CheckboxOutlineIconSvg,
-  IconCheckCircle as CheckCircleIconSvg,
-  IconRadioFill as RadioFillIconSvg,
-  IconRadioNoFill as RadioNoFillIconSvg,
-  IconDelete as DeleteIconSvg,
-  IconShare as ShareIconSvg,
-  IconHelp as HelpIconSvg,
-  IconLock as LockIconSvg,
-  IconDocs as DocsIconSvg,
-  IconReview as ReviewIconSvg,
-  IconDateRange as DateRangeIconSvg,
-  IconTimer as TimerIconSvg,
-  IconSupport as SupportIconSvg,
-  IconHome as HomeIconSvg,
-  IconBusinessCenter as BusinessCenterIconSvg,
-  IconProfileTabBar as ProfileTabBarIconSvg,
-  IconForkSpoon as ForkSpoonIconSvg,
-  IconSelfCare as SelfCareIconSvg,
-} from './assets';
+// Este arquivo agora exporta componentes que usam o Icon.tsx unificado
+// Mantém compatibilidade com a API existente, mas usa MaterialIcons por padrão
 
-interface IconProps {
-  width?: number;
-  height?: number;
-  color?: string;
-  size?: number;
-  style?: StyleProp<ViewStyle>;
-}
+import { Icon } from '../components/ui/Icon';
+import { StyleProp, TextStyle } from 'react-native';
 
-type SvgComponentProps = {
-  width?: number;
-  height?: number;
-  fill?: string;
-  color?: string;
-  style?: StyleProp<ViewStyle>;
-};
+// Manter apenas os SVGs especiais que não têm equivalente em MaterialIcons
+// Logos, backgrounds e ícones de marcas são mantidos em lib/assets.tsx
 
-const createSvgIcon = (SvgComponent: React.FC<SvgComponentProps>) => {
-  return ({ width, height, color = '#000E3D', size, style }: IconProps) => {
-    const iconSize = size || width || height || 24;
-    return <SvgComponent width={iconSize} height={iconSize} fill={color} color={color} style={style} />;
-  };
-};
+// Mapeamento de ícones para MaterialIcons (padrão)
+export const IconBack = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="arrow-back" size={size} color={color} style={style} />
+);
 
-const createMaterialIcon = (name: keyof typeof MaterialIcons.glyphMap) => {
-  return ({ width, height, color = '#000E3D', size, style }: IconProps) => {
-    const iconSize = size || width || height || 24;
-    return <MaterialIcons name={name} size={iconSize} color={color} style={style} />;
-  };
-};
+export const IconChevronDown = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="keyboard-arrow-down" size={size} color={color} style={style} />
+);
 
-export const IconBack = createSvgIcon(BackIconSvg);
-export const IconChevronDown = createSvgIcon(ChevronDownIconSvg);
-export const IconKeyboardArrowDown = createSvgIcon(KeyboardArrowDownIconSvg);
-export const IconClose = createSvgIcon(CloseIconSvg);
-export const IconCloseSmall = createSvgIcon(CloseSmallIconSvg);
-export const IconMenu = createSvgIcon(MenuIconSvg);
-export const IconFilter = createSvgIcon(FilterIconSvg);
-export const IconAccountCircle = createSvgIcon(AccountCircleIconSvg);
-export const IconAccount = createSvgIcon(AccountIconSvg);
-export const IconPix = createSvgIcon(PixIconSvg);
-export const IconCreditCard = createSvgIcon(CreditCardIconSvg);
-export const IconCash = createSvgIcon(CashIconSvg);
-export const IconRatingStar = createSvgIcon(RatingStarIconSvg);
-export const IconKidStar = createSvgIcon(KidStarIconSvg);
-export const IconSchedule = createSvgIcon(ScheduleIconSvg);
-export const IconNotification = createSvgIcon(NotificationIconSvg);
-export const IconSearch = createSvgIcon(SearchIconSvg);
-export const IconSettings = createSvgIcon(SettingsIconSvg);
-export const IconAddPhoto = createSvgIcon(AddPhotoIconSvg);
-export const IconVisibilityOff = createSvgIcon(VisibilityOffIconSvg);
-export const IconCheckbox = createSvgIcon(CheckboxIconSvg);
-export const IconCheckboxOutline = createSvgIcon(CheckboxOutlineIconSvg);
-export const IconCheckCircle = createSvgIcon(CheckCircleIconSvg);
-export const IconRadioFill = createSvgIcon(RadioFillIconSvg);
-export const IconRadioNoFill = createSvgIcon(RadioNoFillIconSvg);
-export const IconDelete = createSvgIcon(DeleteIconSvg);
-export const IconShare = createSvgIcon(ShareIconSvg);
-export const IconHelp = createSvgIcon(HelpIconSvg);
-export const IconLock = createSvgIcon(LockIconSvg);
-export const IconDocs = createSvgIcon(DocsIconSvg);
-export const IconReview = createSvgIcon(ReviewIconSvg);
-export const IconDateRange = createSvgIcon(DateRangeIconSvg);
-export const IconTimer = createSvgIcon(TimerIconSvg);
-export const IconSupport = createSvgIcon(SupportIconSvg);
-export const IconHome = createSvgIcon(HomeIconSvg);
-export const IconBusinessCenter = createSvgIcon(BusinessCenterIconSvg);
-export const IconProfileTabBar = createSvgIcon(ProfileTabBarIconSvg);
-export const IconForkSpoon = createSvgIcon(ForkSpoonIconSvg);
-export const IconSelfCare = createSvgIcon(SelfCareIconSvg);
+export const IconKeyboardArrowDown = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="keyboard-arrow-down" size={size} color={color} style={style} />
+);
 
-export const IconProfile = createMaterialIcon('person');
+export const IconClose = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="close" size={size} color={color} style={style} />
+);
+
+export const IconCloseSmall = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="close" size={size} color={color} style={style} />
+);
+
+export const IconMenu = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="menu" size={size} color={color} style={style} />
+);
+
+export const IconFilter = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="filter-list" size={size} color={color} style={style} />
+);
+
+export const IconAccountCircle = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="account-circle-outline" family="MaterialCommunityIcons" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconAccount = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="account-circle-outline" family="MaterialCommunityIcons" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconVisibility = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="visibility" family="MaterialSymbols" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconVisibilityOff = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="visibility_off" family="MaterialSymbols" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconSearch = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="search" size={size} color={color} style={style} />
+);
+
+export const IconSettings = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="settings" size={size} color={color} style={style} />
+);
+
+export const IconAddPhoto = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="add-a-photo" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconDelete1 = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="delete-outline" size={size} color={color} style={style} />
+);
+
+export const IconShare = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="share" size={size} color={color} style={style} />
+);
+
+export const IconHelp = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="help" family="MaterialSymbols" size={size} color={color} style={style} />
+);
+
+export const IconLock = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="lock" family="MaterialSymbols" size={size} color={color} style={style} />
+);
+
+export const IconDocs = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="docs" family="MaterialSymbols" size={size} color={color} style={style} />
+);
+
+export const IconSchedule = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="schedule" size={size} color={color} style={style} />
+);
+
+export const IconDateRange = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="date-range" size={size} color={color} style={style} />
+);
+
+export const IconTimer = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="timer" size={size} color={color} style={style} />
+);
+
+export const IconNotification = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="notifications" size={size} color={color} style={style} />
+);
+
+export const IconSupport = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="support_agent" family="MaterialSymbols" size={size} color={color} style={style} />
+);
+
+export const IconDelete = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="delete" family="MaterialSymbols" size={size} color={color} style={style} />
+);
+
+export const IconHandyman = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="handyman" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconBusinessCenter = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="business-center" size={size} color={color} style={style} />
+);
+
+export const IconSelfCare = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="self-improvement" size={size} color={color} style={style} />
+);
+
+export const IconContentCut = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="content-cut" size={size} color={color} style={style} />
+);
+
+export const IconForkSpoon = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="restaurant" size={size} color={color} style={style} />
+);
+
+export const IconHome = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="home" size={size} color={color} style={style} />
+);
+
+export const IconCheckbox = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="check-box" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconCheckboxOutline = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="check-box-outline-blank" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconCheckCircle = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="check-circle" size={size} color={color} style={style} />
+);
+
+export const IconRadioFill = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="radio-button-checked" size={size} color={color} style={style} />
+);
+
+export const IconRadioNoFill = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="radio-button-unchecked" size={size} color={color} style={style} />
+);
+
+export const IconRatingStar = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="star" size={size} color={color} style={style} />
+);
+
+export const IconKidStar = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="star-border" size={size} color={color} style={style} />
+);
+
+export const IconReview = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="rate-review" size={size} color={color} style={style} />
+);
+
+export const IconProfile = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="person" size={size} color={color} style={style} />
+);
+
+// Ícones de marcas - usando famílias específicas
+export const IconPix = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="pix" family="FontAwesome6" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconCreditCard = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="credit-card" size={size || width || height || 24} color={color} style={style} />
+);
+
+export const IconCash = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
+  <Icon name="attach-money" size={size || width || height || 24} color={color} style={style} />
+);
+
+// Ícones que ainda usam SVGs especiais (mantidos em assets.tsx)
+// Estes não têm equivalente direto em MaterialIcons ou são muito específicos
+export { IconCheckboxPayment, IconRatingCount, IconGreyElipse, IconLoading, IconRemovePhoto, IconTrash, IconGreenMark, IconProfileTabBar, IconHandshake } from './assets';

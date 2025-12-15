@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { sortCategories } from './categoryUtils';
 
 export type Category = {
-  id: number;
+  id: string;
   name: string;
   created_at: string;
 };
@@ -52,7 +52,7 @@ export const findCategoryByName = async (name: string): Promise<Category | null>
   }
 };
 
-export const findCategoryById = async (id: number): Promise<Category | null> => {
+export const findCategoryById = async (id: string): Promise<Category | null> => {
   try {
     const { data, error } = await supabase
       .from('categories')

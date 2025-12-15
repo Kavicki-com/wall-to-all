@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LogoWallToAll } from '../../lib/assets';
+import ScreenContainer from '../../components/layout/ScreenContainer';
 
 const ClientSignupLoadingScreen: React.FC = () => {
   const router = useRouter();
@@ -15,7 +16,7 @@ const ClientSignupLoadingScreen: React.FC = () => {
   }, [router]);
 
   return (
-    <View style={styles.background}>
+    <ScreenContainer scroll backgroundColor="#FFFFFF">
       <View style={styles.content}>
         <View style={styles.logoWrapper}>
           <LogoWallToAll width={64} height={40} />
@@ -24,22 +25,17 @@ const ClientSignupLoadingScreen: React.FC = () => {
           Aguarde, enquanto preparamos tudo para você
         </Text>
       </View>
-    </View>
+    </ScreenContainer>
   );
 };
 
 export default ClientSignupLoadingScreen;
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
   },
   logoWrapper: {
     marginBottom: 24,
