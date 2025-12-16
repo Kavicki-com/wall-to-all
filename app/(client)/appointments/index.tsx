@@ -1,17 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconChevronDown, IconSelfCare } from '../../../lib/icons';
-import { MerchantTopBar } from '../../../components/MerchantTopBar';
+import { format } from 'date-fns';
+import AppHeader from '../../../components/layout/AppHeader';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import { safeGoBack } from '../../../lib/router-utils';
+import MonthCalendar from '../../../components/calendar/MonthCalendar';
+import AppointmentDaySection from '../../../components/appointments/AppointmentDaySection';
+import AppointmentCard from '../../../components/appointments/AppointmentCard';
+import { applyAcceptedReschedules } from '../../../lib/utils';
+
+type AppointmentService = {
+  id: string;
+  name: string;
+  price: number;
+  photos: string[] | string | null;
+};
+
+type AppointmentBusiness = {
+  id: string;
+  business_name: string;
+  logo_url: string | null;
+};
+
+type RawAppointment = {
+  id: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  payment_method: string;
+  service: AppointmentService | AppointmentService[];
+  business: AppointmentBusiness | AppointmentBusiness[];
+  hasPendingReschedule?: boolean;
+};
 
 type Appointment = {
   id: string;
@@ -30,44 +59,46 @@ type Appointment = {
     business_name: string;
     logo_url: string | null;
   };
+  hasPendingReschedule?: boolean;
 };
+
+const normalizeAppointment = (appointment: RawAppointment): Appointment => ({
+  ...appointment,
+  service: Array.isArray(appointment.service) ? appointment.service[0] : appointment.service,
+  business: Array.isArray(appointment.business) ? appointment.business[0] : appointment.business,
+});
+
+const normalizeAppointmentsList = (items: RawAppointment[] = []) =>
+  items.map(normalizeAppointment);
 
 const ClientAppointmentsScreen: React.FC = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [calendarExpanded, setCalendarExpanded] = useState(true);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  useEffect(() => {
-    loadAppointments();
-  }, []);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE_SIZE = 50; // Carregar 50 appointments por vez
+  
+  // Usar ref para evitar que mudanças em page recriem loadAppointments
+  const pageRef = React.useRef(0);
 
-  useEffect(() => {
-    // Quando carregar agendamentos, selecionar a data do primeiro agendamento se não houver agendamentos na data atual
-    if (appointments.length > 0) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayString = today.toISOString().split('T')[0];
-      
-      const hasTodayAppointments = appointments.some((apt) => {
-        const aptDate = new Date(apt.start_time);
-        aptDate.setHours(0, 0, 0, 0);
-        return aptDate.toISOString().split('T')[0] === todayString;
-      });
-      
-      if (!hasTodayAppointments) {
-        const firstAppointment = appointments[0];
-        const firstDate = new Date(firstAppointment.start_time);
-        firstDate.setHours(0, 0, 0, 0);
-        setSelectedDate(firstDate);
-      }
-    }
-  }, [appointments.length]);
+  // Criar uma chave baseada nos horários dos agendamentos para detectar mudanças
+  const appointmentsKey = useMemo(() => {
+    return appointments.map(apt => `${apt.id}-${apt.start_time}-${apt.end_time}`).join('|');
+  }, [appointments]);
 
-  const loadAppointments = async () => {
+  const loadAppointments = React.useCallback(async (reset = false) => {
     try {
-      setLoading(true);
+      if (reset) {
+        setLoading(true);
+        setHasMore(true);
+        pageRef.current = 0;
+      } else {
+        setLoadingMore(true);
+      }
 
       const {
         data: { user },
@@ -76,37 +107,205 @@ const ClientAppointmentsScreen: React.FC = () => {
       if (!user) {
         console.log('Usuário não autenticado');
         setLoading(false);
+        setLoadingMore(false);
+        setRefreshing(false);
         return;
       }
 
-      const { data: appointmentsData, error } = await supabase
-        .from('appointments')
-        .select(
-          `
-          *,
-          service:services(id, name, price, photos),
-          business:business_profiles(id, business_name, logo_url)
-        `,
-        )
-        .eq('client_id', user.id)
-        .order('start_time', { ascending: false });
+      // Para reset, buscar todos os agendamentos (sem paginação)
+      // Para loadMore, usar paginação
+      let appointmentsData;
+      let error;
+      
+      if (reset) {
+        // Buscar todos os agendamentos quando for reset (ordenado por data, mais recentes primeiro)
+        const result = await supabase
+          .from('appointments')
+          .select(
+            `
+            id, start_time, end_time, status, payment_method,
+            service:services(id, name, price, photos),
+            business:business_profiles(id, business_name, logo_url)
+          `,
+          )
+          .eq('client_id', user.id)
+          .order('start_time', { ascending: false })
+          .limit(1000); // Limite alto para garantir que todos sejam carregados
+        
+        appointmentsData = result.data;
+        error = result.error;
+      } else {
+        // Usar paginação apenas para loadMore
+        const currentPage = pageRef.current;
+        const from = currentPage * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        
+        const result = await supabase
+          .from('appointments')
+          .select(
+            `
+            id, start_time, end_time, status, payment_method,
+            service:services(id, name, price, photos),
+            business:business_profiles(id, business_name, logo_url)
+          `,
+          )
+          .eq('client_id', user.id)
+          .order('start_time', { ascending: false })
+          .range(from, to);
+        
+        appointmentsData = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error('Erro ao buscar agendamentos:', error);
-      } else if (appointmentsData) {
-        setAppointments(appointmentsData as Appointment[]);
+        setLoading(false);
+        setLoadingMore(false);
+        setRefreshing(false);
+        return;
+      }
+
+      if (appointmentsData) {
+        // Aplicar reagendamentos aceitos aos agendamentos primeiro
+        const appointmentsWithAcceptedReschedules = await applyAcceptedReschedules(appointmentsData);
+        
+        // Buscar reagendamentos pendentes criados pelo cliente para cada agendamento
+        const appointmentIds = appointmentsWithAcceptedReschedules.map(apt => apt.id);
+        
+        if (appointmentIds.length > 0) {
+          const { data: pendingReschedules } = await supabase
+            .from('appointment_reschedules')
+            .select('appointment_id')
+            .in('appointment_id', appointmentIds)
+            .eq('status', 'pending')
+            .eq('requested_by_type', 'client');
+
+          // Criar um Set com IDs de agendamentos que têm reagendamento pendente
+          // Converter ambos para string para garantir comparação correta
+          const pendingRescheduleAppointmentIds = new Set(
+            (pendingReschedules || []).map(r => String(r.appointment_id))
+          );
+
+          // Adicionar flag hasPendingReschedule para cada agendamento
+          const appointmentsWithReschedule = appointmentsWithAcceptedReschedules.map(apt => ({
+            ...apt,
+            hasPendingReschedule: pendingRescheduleAppointmentIds.has(String(apt.id)),
+          }));
+
+          const normalizedAppointments = normalizeAppointmentsList(
+            appointmentsWithReschedule as RawAppointment[],
+          );
+
+          if (reset) {
+            setAppointments(normalizedAppointments);
+            pageRef.current = 1;
+          } else {
+            const nextPage = pageRef.current + 1;
+            setAppointments((prev) => [...prev, ...normalizedAppointments]);
+            pageRef.current = nextPage;
+          }
+        } else {
+          const normalizedAppointments = normalizeAppointmentsList(
+            appointmentsWithAcceptedReschedules as RawAppointment[],
+          );
+
+          if (reset) {
+            setAppointments(normalizedAppointments);
+            pageRef.current = 1;
+          } else {
+            const nextPage = pageRef.current + 1;
+            setAppointments((prev) => [...prev, ...normalizedAppointments]);
+            pageRef.current = nextPage;
+          }
+        }
+        
+        // Verificar se há mais dados para carregar (apenas para paginação)
+        if (!reset) {
+          setHasMore(appointmentsData.length === PAGE_SIZE);
+        } else {
+          // Se foi reset, não há mais para carregar (já trouxe tudo)
+          setHasMore(false);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar agendamentos:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       setRefreshing(false);
     }
-  };
+  }, [PAGE_SIZE]);
+
+  const loadMoreAppointments = React.useCallback(() => {
+    if (!loadingMore && hasMore) {
+      loadAppointments(false);
+    }
+  }, [loadingMore, hasMore, loadAppointments]);
+
+  // Recarregar agendamentos quando a tela receber foco (voltar de outras telas)
+  // Isso garante que os dados sejam atualizados quando o usuário aceita um reagendamento
+  useFocusEffect(
+    React.useCallback(() => {
+      // Não resetar a data selecionada, apenas recarregar os dados
+      // Isso permite que o usuário veja a data atualizada se foi alterada
+      loadAppointments(true);
+    }, [loadAppointments])
+  );
+
+  useEffect(() => {
+    loadAppointments(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Quando os agendamentos mudarem (incluindo mudanças nos horários), atualizar a data selecionada
+    if (appointments.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const currentSelectedString = selectedDate.toISOString().split('T')[0];
+      
+      // Verificar se há agendamentos na data selecionada
+      const hasSelectedDateAppointments = appointments.some((apt) => {
+        const aptDate = new Date(apt.start_time);
+        aptDate.setHours(0, 0, 0, 0);
+        return aptDate.toISOString().split('T')[0] === currentSelectedString;
+      });
+      
+      // Se não há agendamentos na data selecionada, encontrar a próxima data com agendamentos
+      if (!hasSelectedDateAppointments) {
+        // Ordenar por start_time descendente (mais recentes primeiro) para priorizar agendamentos futuros
+        const sortedAppointments = [...appointments].sort((a, b) => 
+          new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
+        );
+        
+        // Primeiro tentar encontrar um agendamento futuro
+        const todayString = today.toISOString().split('T')[0];
+        const futureAppointment = sortedAppointments.find((apt) => {
+          const aptDate = new Date(apt.start_time);
+          aptDate.setHours(0, 0, 0, 0);
+          return aptDate.toISOString().split('T')[0] >= todayString;
+        });
+        
+        // Se não houver futuro, pegar o mais recente (pode ser passado)
+        const appointmentToShow = futureAppointment || sortedAppointments[0];
+        
+        if (appointmentToShow) {
+          const appointmentDate = new Date(appointmentToShow.start_time);
+          appointmentDate.setHours(0, 0, 0, 0);
+          
+          // Atualizar para a data do agendamento
+          setSelectedDate(appointmentDate);
+          setCurrentMonth(appointmentDate);
+        }
+      }
+      // Se há agendamentos na data selecionada, não fazer nada (manter a seleção atual)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentsKey]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadAppointments();
+    loadAppointments(true);
   };
 
   const formatSelectedDate = () => {
@@ -138,15 +337,6 @@ const ClientAppointmentsScreen: React.FC = () => {
     );
   };
 
-  const hasAppointmentOnDate = (date: Date) => {
-    const dateString = date.toISOString().split('T')[0];
-    return appointments.some((apt) => {
-      const aptDate = new Date(apt.start_time);
-      const aptDateString = aptDate.toISOString().split('T')[0];
-      return aptDateString === dateString;
-    });
-  };
-
   const getFilteredAppointments = () => {
     const dateString = selectedDate.toISOString().split('T')[0];
     return appointments.filter((apt) => {
@@ -156,98 +346,23 @@ const ClientAppointmentsScreen: React.FC = () => {
     });
   };
 
-  const generateCalendar = () => {
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const prevMonthLastDay = new Date(year, month, 0).getDate();
-
-    const days: Array<{ day: number; isCurrentMonth: boolean; isPrevMonth: boolean; isNextMonth: boolean }> = [];
-    
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      days.push({ 
-        day: prevMonthLastDay - i, 
-        isCurrentMonth: false, 
-        isPrevMonth: true,
-        isNextMonth: false
-      });
-    }
-    
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push({ 
-        day: i, 
-        isCurrentMonth: true,
-        isPrevMonth: false,
-        isNextMonth: false
-      });
-    }
-
-    const remainingDays = days.length % 7;
-    if (remainingDays !== 0) {
-      for (let i = 1; i <= (7 - remainingDays); i++) {
-        days.push({ 
-          day: i, 
-          isCurrentMonth: false,
-          isPrevMonth: false,
-          isNextMonth: true
-        });
-      }
-    }
-
-    return days;
-  };
-
-  const getFirstWeek = () => {
-    const allDays = generateCalendar();
-    return allDays.slice(0, 7);
-  };
-
-  const renderAppointmentCard = ({ item }: { item: Appointment }) => {
-    const startDate = new Date(item.start_time);
-    const timeString = startDate.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
+  const handleMonthChange = (direction: 'prev' | 'next') => {
+    setCurrentMonth((prevMonth) => {
+      const newMonth = new Date(prevMonth);
+      newMonth.setMonth(prevMonth.getMonth() + (direction === 'next' ? 1 : -1));
+      return newMonth;
     });
-    const dateString = `Data ${startDate.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-    })}`;
-
-    return (
-      <TouchableOpacity
-        style={styles.appointmentCard}
-        activeOpacity={0.8}
-        onPress={() => {
-          router.push(`/(client)/appointments/${item.id}`);
-        }}
-      >
-        <View style={styles.appointmentHeader}>
-          <Text style={styles.appointmentTime}>{timeString}</Text>
-          <Text style={styles.appointmentDate}>{dateString}</Text>
-        </View>
-
-        <View style={styles.appointmentContent}>
-          <IconSelfCare size={24} color="#000E3D" />
-          <View style={styles.appointmentTexts}>
-            <Text style={styles.appointmentServiceName} numberOfLines={1}>
-              {item.service?.name || 'Serviço'}
-            </Text>
-            <Text style={styles.appointmentBusinessName} numberOfLines={1}>
-              {item.business?.business_name || 'Estabelecimento'}
-            </Text>
-          </View>
-          <Text style={styles.appointmentChevron}>›</Text>
-        </View>
-      </TouchableOpacity>
-    );
   };
 
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+    setCurrentMonth(date);
+  };
+
+  const markedDates = useMemo(
+    () => appointments.map((apt) => format(new Date(apt.start_time), 'yyyy-MM-dd')),
+    [appointments],
+  );
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -256,143 +371,107 @@ const ClientAppointmentsScreen: React.FC = () => {
     );
   }
 
-  const calendarDays = calendarExpanded ? generateCalendar() : getFirstWeek();
-  const dayNames = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
-
   return (
-    <View style={styles.container}>
-      {/* Top Bar */}
-      <MerchantTopBar showNotification fallbackPath="/(client)/home" />
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
-
-        {/* Calendar */}
-        <View style={styles.calendarContainer}>
-          <View style={styles.calendarGrid}>
-            {/* Days of week */}
-            <View style={styles.daysOfWeek}>
-              {dayNames.map((day, index) => (
-                <View key={index} style={styles.dayOfWeek}>
-                  <Text style={styles.dayOfWeekText}>{day}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Calendar days */}
-            <View style={styles.calendarWeeks}>
-              {Array.from({ length: Math.ceil(calendarDays.length / 7) }).map((_, weekIndex) => (
-                <View key={weekIndex} style={styles.calendarWeek}>
-                  {calendarDays.slice(weekIndex * 7, (weekIndex + 1) * 7).map((dayObj, dayIndex) => {
-                    // Calcular a data correta
-                    let targetDate: Date;
-                    if (dayObj.isPrevMonth) {
-                      targetDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, dayObj.day);
-                    } else if (dayObj.isNextMonth) {
-                      targetDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, dayObj.day);
-                    } else {
-                      targetDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), dayObj.day);
-                    }
-                    
-                    const isSelectedDate = 
-                      targetDate.getDate() === selectedDate.getDate() &&
-                      targetDate.getMonth() === selectedDate.getMonth() &&
-                      targetDate.getFullYear() === selectedDate.getFullYear();
-                    const hasAppointment = hasAppointmentOnDate(targetDate);
-                    const isOtherMonth = !dayObj.isCurrentMonth;
-                    
-                    return (
-                      <TouchableOpacity
-                        key={dayIndex}
-                        style={[
-                          styles.calendarDay,
-                          isSelectedDate && styles.calendarDaySelected,
-                          hasAppointment && !isSelectedDate && styles.calendarDayWithAppointment,
-                        ]}
-                        onPress={() => setSelectedDate(targetDate)}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[
-                            styles.calendarDayText,
-                            isOtherMonth && styles.calendarDayTextOtherMonth,
-                            isSelectedDate && styles.calendarDayTextSelected,
-                          ]}
-                        >
-                          {dayObj.day}
-                        </Text>
-                        {hasAppointment && !isSelectedDate && (
-                          <View style={styles.appointmentIndicator} />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Toggle calendar button */}
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={true}
+      backgroundColor="#FAFAFA"
+      contentContainerStyle={styles.scrollContent}
+      header={
+        <AppHeader 
+          showBackButton={true} 
+          onPressBack={() => safeGoBack('/(client)/home')}
+        />
+      }
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      footer={
+        <View style={styles.footerContainer}>
           <TouchableOpacity
-            style={styles.calendarToggle}
-            onPress={() => setCalendarExpanded(!calendarExpanded)}
+            style={styles.scheduleButton}
+            activeOpacity={0.8}
+            onPress={() => router.push('/(client)/home')}
           >
-            <Text style={styles.calendarToggleText}>
-              {calendarExpanded ? 'Ocultar' : 'Ver tudo'}
-            </Text>
-            <View
-              style={[
-                styles.calendarToggleIcon,
-                !calendarExpanded && styles.calendarToggleIconRotated,
-              ]}
-            >
-              <IconChevronDown size={24} color="#000E3D" />
-            </View>
+            <Text style={styles.scheduleButtonText}>Agendar serviços</Text>
           </TouchableOpacity>
         </View>
+      }
+    >
+      <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
 
-        {/* Date header */}
-        <View style={styles.dateHeader}>
-          <Text style={styles.dateHeaderText}>{formatSelectedDate()}</Text>
-          {isToday(selectedDate) && <Text style={styles.dateHeaderToday}>Hoje</Text>}
+      {/* Calendar */}
+      <MonthCalendar
+        key={0}
+        currentMonth={currentMonth}
+        onMonthChange={handleMonthChange}
+        selectedDate={selectedDate}
+        onSelectDate={handleDateSelect}
+        markedDates={markedDates}
+      />
+
+      {/* Appointments List */}
+      {(() => {
+        const filteredAppointments = getFilteredAppointments();
+        const hasPendingReschedule = filteredAppointments.some(
+          (apt) => apt.hasPendingReschedule === true
+        );
+
+        return (
+          <AppointmentDaySection
+            dateLabel={formatSelectedDate()}
+            isToday={isToday(selectedDate)}
+            statusLabel={hasPendingReschedule ? 'Reagendamento Pendente' : undefined}
+            hasAppointments={filteredAppointments.length > 0}
+          >
+            {filteredAppointments.map((appointment) => {
+              const startDate = new Date(appointment.start_time);
+              const time = startDate.toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              });
+              const dateLabel = `Data ${startDate.toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: '2-digit',
+              })}`;
+
+              return (
+                <AppointmentCard
+                  key={appointment.id}
+                  time={time}
+                  dateLabel={dateLabel}
+                  serviceName={appointment.service?.name || 'Serviço'}
+                  shopName={appointment.business?.business_name || 'Estabelecimento'}
+                  showShopName={true}
+                  onPress={() => {
+                    router.push(`/(client)/appointments/${appointment.id}`);
+                  }}
+                />
+              );
+            })}
+          </AppointmentDaySection>
+        );
+      })()}
+
+      {/* Botão Carregar Mais */}
+      {hasMore && (
+        <View style={styles.loadMoreContainer}>
+          <TouchableOpacity
+            style={styles.loadMoreButton}
+            onPress={loadMoreAppointments}
+            disabled={loadingMore}
+          >
+            {loadingMore ? (
+              <ActivityIndicator size="small" color="#000E3D" />
+            ) : (
+              <Text style={styles.loadMoreText}>Carregar mais agendamentos</Text>
+            )}
+          </TouchableOpacity>
         </View>
-
-        {/* Appointments List */}
-        {getFilteredAppointments().length === 0 ? (
-          <View style={styles.emptyStateCard}>
-            <Text style={styles.emptyStateText}>
-              Nenhum agendamento para esta data.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.appointmentsList}>
-            {getFilteredAppointments().map((appointment) => (
-              <View key={appointment.id}>
-                {renderAppointmentCard({ item: appointment })}
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Schedule Button */}
-      <View style={styles.actionFooter}>
-        <TouchableOpacity
-          style={styles.scheduleButton}
-          activeOpacity={0.8}
-          onPress={() => router.push('/(client)/home')}
-        >
-          <Text style={styles.scheduleButtonText}>Agendar serviços</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+      )}
+    </ScreenContainer>
   );
 };
 
@@ -401,7 +480,6 @@ export default ClientAppointmentsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   loadingContainer: {
     flex: 1,
@@ -409,12 +487,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    padding: 24,
-    paddingBottom: 120,
+    flexGrow: 1,
+    paddingTop: 16,
   },
   sectionTitle: {
     fontSize: 16,
@@ -422,188 +497,9 @@ const styles = StyleSheet.create({
     color: '#E5102E',
     marginBottom: 16,
   },
-  calendarContainer: {
-    backgroundColor: '#D6E0FF',
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 24,
-  },
-  calendarGrid: {
-    paddingTop: 24,
-    paddingHorizontal: 12,
-    paddingBottom: 4,
-  },
-  daysOfWeek: {
-    flexDirection: 'row',
-    height: 24,
-    marginBottom: 0,
-  },
-  dayOfWeek: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayOfWeekText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
-  },
-  calendarWeeks: {
-    marginTop: 0,
-  },
-  calendarWeek: {
-    flexDirection: 'row',
-    height: 48,
-  },
-  calendarDay: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 40,
-    width: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  calendarDayEmpty: {
-    flex: 1,
-  },
-  calendarDaySelected: {
-    backgroundColor: '#E5102E',
-    borderColor: '#E5102E',
-  },
-  calendarDayText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-  },
-  calendarDayTextOtherMonth: {
-    color: '#B8B8B8',
-    opacity: 0.6,
-  },
-  calendarDayTextSelected: {
-    color: '#FEFEFE',
-  },
-  calendarDayWithAppointment: {
-    position: 'relative',
-  },
-  appointmentIndicator: {
-    position: 'absolute',
-    bottom: 4,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E5102E',
-  },
-  calendarToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 14, 61, 0.1)',
-  },
-  calendarToggleText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  calendarToggleIcon: {
-    transform: [{ rotate: '0deg' }],
-  },
-  calendarToggleIconRotated: {
-    transform: [{ rotate: '180deg' }],
-  },
-  dateHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  dateHeaderText: {
-    fontSize: 20,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
-  },
-  dateHeaderToday: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
-  },
-  emptyStateCard: {
+  footerContainer: {
     backgroundColor: '#FEFEFE',
-    borderWidth: 1,
-    borderColor: '#DBDBDB',
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
-  },
-  appointmentsList: {
-    gap: 0,
-  },
-  appointmentCard: {
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#000000',
-    gap: 12,
-  },
-  appointmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  appointmentTime: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_600SemiBold',
-    color: '#474747',
-  },
-  appointmentDate: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_600SemiBold',
-    color: '#0F0F0F',
-  },
-  appointmentContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  appointmentTexts: {
-    flex: 1,
-    gap: 4,
-  },
-  appointmentServiceName: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
-  },
-  appointmentBusinessName: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
-  },
-  appointmentChevron: {
-    fontSize: 24,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#E5102E',
-    width: 24,
-    textAlign: 'center',
-  },
-  actionFooter: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FEFEFE',
-    paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
   },
@@ -611,13 +507,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#000E3D',
     borderRadius: 24,
-    paddingHorizontal: 16,
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scheduleButtonText: {
     fontSize: 16,
+    fontFamily: 'Montserrat_700Bold',
+    color: '#000E3D',
+  },
+  loadMoreContainer: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  loadMoreButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#000E3D',
+    backgroundColor: '#FEFEFE',
+    minWidth: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
     color: '#000E3D',
   },

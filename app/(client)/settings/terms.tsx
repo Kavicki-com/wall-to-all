@@ -4,79 +4,110 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { CustomButton } from '../../../components/CustomButton';
+import { safeGoBack } from '../../../lib/router-utils';
 
 const TERMS_CONTENT = `
+Termos de Uso – Wall to All
+
 1. Aceitação dos Termos
 
-Ao utilizar o aplicativo Wall to All, você concorda com estes Termos de Uso. Caso não concorde com alguma condição, não utilize a plataforma.
+1.1. Ao acessar ou utilizar o aplicativo Wall to All, o usuário (cliente ou logista) declara ter lido, compreendido e aceitado integralmente os presentes Termos de Uso e a Política de Privacidade.
+1.2. Caso não concorde com qualquer disposição, o usuário não deverá utilizar a plataforma.
 
 2. Definições
 
-• Aplicativo: Wall to All, plataforma digital para agendamento de serviços.
-• Cliente/Usuário: Pessoa física ou jurídica que utiliza o aplicativo para buscar e agendar serviços.
-• Logista/Prestador de Serviços: Pessoa física ou jurídica que oferece seus serviços na plataforma.
+• Aplicativo: Plataforma digital "Wall to All", destinada a intermediar agendamento de serviços entre clientes e logistas.
+• Cliente/Usuário: Pessoa física ou jurídica que utiliza o aplicativo para pesquisar, agendar e contratar serviços.
+• Logista/Prestador de Serviços: Pessoa física ou jurídica cadastrada na plataforma para oferecer seus serviços a clientes.
+• Conta: Perfil único criado no aplicativo, pessoal e intransferível.
+• Agendamento: Registro de contratação de um serviço, com data, horário, valor e condições definidas.
 
-3. Cadastro e Responsabilidade das Informações
+3. Cadastro e Acesso
 
-• Clientes devem fornecer dados reais (nome, contato, CPF/CNPJ quando aplicável).
-• Logistas devem fornecer dados comerciais verídicos (razão social, endereço, CNPJ/CPF, descrição dos serviços).
-• O usuário é responsável pela veracidade e atualização de suas informações.
+3.1. Para utilizar o aplicativo, é necessário criar uma conta, informando dados corretos, completos e atualizados.
+3.2. É proibido criar contas falsas, duplicadas ou com informações de terceiros.
+3.3. O usuário é responsável por manter a confidencialidade de seu login e senha.
 
-4. Uso da Plataforma
+4. Responsabilidades dos Clientes
 
-• O Wall to All é apenas intermediador entre clientes e logistas.
-• A plataforma não garante a execução, qualidade ou conclusão dos serviços contratados.
-• É vedado o uso do aplicativo para fins ilegais, fraudulentos ou que violem direitos de terceiros.
+4.1. Fornecer informações corretas ao solicitar um serviço.
+4.2. Respeitar horários e condições estabelecidas no momento do agendamento.
+4.3. Realizar pagamentos dentro dos prazos e meios disponibilizados.
+4.4. Cancelar agendamentos dentro das regras definidas pelo logista.
+4.5. Avaliar logistas de forma respeitosa e baseada na experiência real.
 
-5. Obrigações dos Logistas
+5. Responsabilidades dos Logistas
 
-• Manter informações atualizadas sobre serviços, preços, horários e políticas de cancelamento.
-• Cumprir os serviços agendados conforme descritos no aplicativo.
-• Garantir que possuem licenças, alvarás ou certificações necessárias (quando aplicável).
-• Tratar clientes com respeito, zelando por qualidade e segurança.
+5.1. Manter informações atualizadas sobre serviços, preços, duração, horários e condições.
+5.2. Garantir que os serviços ofertados correspondem à realidade.
+5.3. Cumprir pontualmente os serviços agendados pelos clientes.
+5.4. Possuir todas as licenças, autorizações, registros profissionais e sanitários necessários para a execução do serviço.
+5.5. Tratar os clientes com cordialidade, respeito e profissionalismo.
+5.6. Informar claramente a política de cancelamento, reembolso e reagendamento.
 
-6. Obrigações dos Clientes
+6. Intermediação da Plataforma
 
-• Agendar serviços de forma responsável, respeitando horários e condições informadas.
-• Fornecer informações corretas sobre o serviço solicitado.
-• Efetuar pagamentos dentro das condições estabelecidas (quando realizados pelo app).
-• Cancelar agendamentos dentro do prazo informado pelo logista.
+6.1. O Wall to All atua apenas como intermediador tecnológico, não sendo parte da relação contratual entre cliente e logista.
+6.2. A plataforma não garante a qualidade, pontualidade ou resultado dos serviços prestados.
+6.3. Eventuais conflitos entre cliente e logista deverão ser solucionados entre as partes, sem responsabilidade do Wall to All, salvo quando a plataforma intermediar pagamentos.
 
 7. Pagamentos
 
-• Quando o pagamento for feito via aplicativo, este apenas intermediará a transação entre cliente e logista.
-• Tarifas e condições de reembolso estarão descritas no momento da contratação.
+7.1. Os pagamentos poderão ser realizados:
+• Diretamente ao logista (fora do aplicativo, sob responsabilidade das partes);
+• Por meio do aplicativo (quando disponível), com intermediação da plataforma.
+7.2. O Wall to All poderá cobrar taxas de intermediação e/ou serviço, previamente informadas ao usuário.
+7.3. Em caso de pagamento intermediado, os valores só serão repassados ao logista após a confirmação do serviço.
 
-8. Cancelamentos e Reembolsos
+8. Cancelamentos, Reembolsos e Reagendamentos
 
-• A política de cancelamento é definida pelo logista e exibida no aplicativo.
-• O Wall to All não se responsabiliza por devoluções fora das regras estabelecidas pelo prestador.
+8.1. A política de cancelamento e reembolso será definida pelo logista e exibida no aplicativo.
+8.2. Em caso de pagamento intermediado, o Wall to All seguirá a política estabelecida pelo logista.
+8.3. O não comparecimento do cliente sem aviso prévio dentro do prazo estipulado poderá implicar em cobrança integral.
+8.4. O logista que descumprir agendamentos poderá sofrer sanções, como suspensão da conta.
 
-9. Limitação de Responsabilidade
+9. Avaliações e Comentários
 
-• O aplicativo não se responsabiliza por perdas, danos, atrasos, acidentes ou quaisquer prejuízos resultantes de serviços contratados via plataforma.
-• O Wall to All atua somente como intermediador tecnológico.
+9.1. Os clientes poderão avaliar os serviços prestados e deixar comentários.
+9.2. É vedada a publicação de conteúdo ofensivo, discriminatório, difamatório ou inverídico.
+9.3. O Wall to All poderá remover avaliações que violem estes termos.
 
 10. Privacidade e Proteção de Dados
 
-• O tratamento de dados pessoais seguirá a Lei Geral de Proteção de Dados (LGPD – Lei 13.709/18).
-• Dados coletados serão usados apenas para fins de cadastro, comunicação e funcionamento do aplicativo.
+10.1. O tratamento de dados pessoais seguirá a Lei Geral de Proteção de Dados (LGPD – Lei nº 13.709/2018).
+10.2. Informações coletadas serão usadas para funcionamento do aplicativo, comunicação entre partes e melhoria da experiência.
+10.3. Dados de pagamento são processados por parceiros financeiros, não sendo armazenados pelo Wall to All.
 
-11. Penalidades e Suspensão
+11. Direitos de Propriedade Intelectual
 
-• O Wall to All pode suspender ou excluir contas em casos de fraude, descumprimento dos termos ou má conduta.
+11.1. Todos os direitos sobre o aplicativo, design, marcas, logotipos e funcionalidades pertencem ao Wall to All.
+11.2. É proibida a cópia, reprodução, engenharia reversa ou uso indevido da plataforma.
 
-12. Alterações dos Termos
+12. Suporte e Comunicação
 
-• Estes termos podem ser atualizados a qualquer momento. A versão vigente sempre estará disponível no aplicativo.
+12.1. O usuário poderá entrar em contato com o suporte pelo aplicativo ou canais oficiais.
+12.2. O Wall to All poderá enviar notificações, alertas e comunicações relacionadas ao uso da plataforma.
 
-13. Foro
+13. Penalidades
 
-• Fica eleito o foro da comarca de [cidade/estado a definir] para dirimir eventuais litígios relacionados a estes termos.
+13.1. O descumprimento destes termos poderá resultar em:
+• Advertência;
+• Suspensão temporária da conta;
+• Exclusão definitiva da conta;
+• Responsabilização civil e criminal.
+
+14. Alterações nos Termos
+
+14.1. O Wall to All poderá alterar estes Termos de Uso a qualquer momento.
+14.2. A versão atualizada sempre estará disponível no aplicativo e o uso contínuo implica aceitação.
+
+15. Foro
+
+15.1. Fica eleito o foro da comarca de [cidade/estado a definir], com exclusão de qualquer outro, para dirimir eventuais controvérsias decorrentes destes termos.
 `;
 
 const TermsScreen: React.FC = () => {
@@ -87,20 +118,27 @@ const TermsScreen: React.FC = () => {
       visible={true}
       transparent
       animationType="fade"
-      onRequestClose={() => router.back()}
+      onRequestClose={() => safeGoBack('/(client)/settings')}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Termos de uso Wall to All</Text>
-          <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={true}>
-            <Text style={styles.contentText}>{TERMS_CONTENT}</Text>
-          </ScrollView>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.closeButtonText}>Fechar</Text>
-          </TouchableOpacity>
+          <View style={styles.scrollContainer}>
+            <ScrollView 
+              style={styles.contentScroll} 
+              contentContainerStyle={styles.contentContainer}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+              <Text style={styles.contentText}>{TERMS_CONTENT}</Text>
+            </ScrollView>
+          </View>
+          <CustomButton
+            title="Fechar"
+            variant="outline"
+            onPress={() => safeGoBack('/(client)/settings')}
+            style={{ borderRadius: 24, width: 256, alignSelf: 'center' }}
+          />
         </View>
       </View>
     </Modal>
@@ -124,36 +162,29 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 342,
     maxHeight: '80%',
-    gap: 16,
   },
   modalTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#E5102E',
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  scrollContainer: {
+    height: 400,
+    marginBottom: 16,
   },
   contentScroll: {
     flex: 1,
-    maxHeight: 400,
+  },
+  contentContainer: {
+    paddingBottom: 8,
   },
   contentText: {
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
     color: '#000000',
     lineHeight: 18,
-  },
-  closeButton: {
-    width: 256,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    alignItems: 'center',
-    alignSelf: 'center',
-  },
-  closeButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: '#000E3D',
   },
 });
 

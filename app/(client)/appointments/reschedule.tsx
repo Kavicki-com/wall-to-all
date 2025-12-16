@@ -1,23 +1,36 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
-  useWindowDimensions,
   Modal,
-  Image,
   TouchableWithoutFeedback,
   Platform,
   Alert,
+  Dimensions,
+  ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconDateRange, IconTimer, IconSchedule, IconPix, IconCheckCircle } from '../../../lib/icons';
-import { MaterialIcons } from '@expo/vector-icons';
-import { MerchantTopBar } from '../../../components/MerchantTopBar';
+import { useToast } from '../../../components/ui/ToastProvider';
+import { handleError } from '../../../lib/errorHandler';
+import { IconDateRange, IconTimer, IconCheckCircle } from '../../../lib/icons';
+import { Icon } from '../../../components/ui/Icon';
+import AppHeader from '../../../components/layout/AppHeader';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import RescheduleModalCard from '../../../components/ui/RescheduleModalCard';
+import { ScheduleSectionHeader } from '../../../components/appointments/ScheduleSectionHeader';
+import { PrimaryActionButton } from '../../../components/appointments/PrimaryActionButton';
+import { PillGrid, PillItem } from '../../../components/appointments/PillGrid';
+import { InlineLink } from '../../../components/appointments/InlineLink';
+import { format } from 'date-fns';
+import { notifyRescheduleRequested } from '../../../lib/notifications';
+import { CustomButton } from '../../../components/CustomButton';
+import { useResponsiveWidth } from '../../../lib/responsive';
+import { safeGoBack } from '../../../lib/router-utils';
+import { validateTime, validateDate } from '../../../lib/validations';
+import { RESCHEDULE_DEFAULTS } from '../../../lib/constants';
 
 type Appointment = {
   id: string;
@@ -26,7 +39,8 @@ type Appointment = {
   start_time: string;
   end_time: string;
   payment_method?: string;
-  reschedule_justification?: string | null;
+  // NOTA: A justificativa de reagendamento fica em appointment_reschedules.justification, não aqui
+  // client_notes armazena as observações do cliente sobre o agendamento
   business: {
     id: string;
     business_name: string;
@@ -51,18 +65,23 @@ type TimeSlot = {
 const RescheduleAppointmentScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ appointmentId: string; reason?: string }>();
-  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
+  const { showError } = useToast();
   const [loading, setLoading] = useState(true);
+  const [loadingTimes, setLoadingTimes] = useState(false);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
+  const [markedDates, setMarkedDates] = useState<string[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [showMoreDates, setShowMoreDates] = useState(false);
-  const [showMoreTimes, setShowMoreTimes] = useState(false);
+  const [timesToShow, setTimesToShow] = useState<number>(RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW);
+  const [datesToShow, setDatesToShow] = useState<number>(RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [justification, setJustification] = useState(params.reason || '');
+
+  // Dimensões responsivas
+  const iconSize = useResponsiveWidth(67);
 
   // Recarregar dados sempre que o agendamento ou a justificativa nos params mudar.
   // Isso evita manter dados do agendamento anterior quando o usuário abre a tela
@@ -75,9 +94,9 @@ const RescheduleAppointmentScreen: React.FC = () => {
     if (selectedDate && appointment) {
       loadAvailableTimes();
     } else {
-      // Limpar horários quando não há data selecionada
       setTimeSlots([]);
       setSelectedTime(null);
+      setTimesToShow(RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW);
     }
   }, [selectedDate, appointment]);
 
@@ -90,13 +109,15 @@ const RescheduleAppointmentScreen: React.FC = () => {
         setJustification('');
         setSelectedDate(null);
         setSelectedTime(null);
+        setTimesToShow(RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW);
+        setDatesToShow(RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW);
         setShowRescheduleModal(false);
         setShowConfirmationModal(false);
       } else {
-        // Se tem reason, é porque veio da tela anterior com justificativa
-        // Manter o reason mas resetar seleções
         setSelectedDate(null);
         setSelectedTime(null);
+        setTimesToShow(RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW);
+        setDatesToShow(RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW);
         setShowRescheduleModal(false);
         setShowConfirmationModal(false);
       }
@@ -113,13 +134,11 @@ const RescheduleAppointmentScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.error('Usuário não autenticado');
         router.replace('/(client)/appointments');
         return;
       }
 
       if (!params.appointmentId) {
-        console.error('ID do agendamento não fornecido');
         router.replace('/(client)/appointments');
         return;
       }
@@ -138,7 +157,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
         .single();
 
       if (error || !appointmentData) {
-        console.error('Erro ao buscar agendamento:', error);
+        handleError(error || new Error('Agendamento não encontrado'), 'appointment');
         router.replace('/(client)/appointments');
         return;
       }
@@ -146,76 +165,108 @@ const RescheduleAppointmentScreen: React.FC = () => {
       setAppointment(appointmentData as Appointment);
       generateAvailableDates(appointmentData as Appointment);
       
-      // Carregar justificativa apenas se vier nos params (da tela anterior)
-      // Não carregar justificativa de processos anteriores para evitar histórico
       if (params.reason) {
         setJustification(params.reason);
       } else {
-        // Se não há reason nos params, garantir que está vazio
         setJustification('');
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      handleError(error, 'appointment');
       router.replace('/(client)/appointments');
     } finally {
       setLoading(false);
     }
   };
 
-  const generateAvailableDates = (apt: Appointment) => {
+  const generateAvailableDates = (_apt: Appointment) => {
     const dates: Date[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const workDays = apt.business.work_days;
-    
-    // Se não houver work_days, retornar array vazio
-    if (!workDays) {
-      setAvailableDates([]);
-      return;
-    }
-
-    const dayNames = [
-      'sunday',
-      'monday',
-      'tuesday',
-      'wednesday',
-      'thursday',
-      'friday',
-      'saturday',
-    ];
-
-    // Gerar próximas datas, filtrando apenas dias que o negócio funciona
-    // Se o dia existe no work_days, significa que está ativo
-    // Limitar a busca a 60 dias para evitar loop infinito
-    let daysChecked = 0;
-    const maxDaysToCheck = 60;
-    
-    for (let i = 1; dates.length < 30 && daysChecked < maxDaysToCheck; i++) {
-      daysChecked++;
+    for (let i = 1; i <= 30; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
-      const dayName = dayNames[date.getDay()];
-      const workDay = workDays[dayName];
-
-      // Se o dia existe no work_days, está ativo (não há propriedade 'active')
-      if (workDay) {
-        dates.push(date);
-      }
+      dates.push(date);
     }
 
     setAvailableDates(dates);
-    // Não selecionar data automaticamente - deixar usuário escolher
+    // Criar array de datas marcadas no formato 'yyyy-MM-dd'
+    const markedDatesArray = dates.map((date) => format(date, 'yyyy-MM-dd'));
+    setMarkedDates(markedDatesArray);
+  };
+
+  // Função auxiliar para converter duração do serviço (mesma lógica do merchant)
+  const parseServiceDuration = (duration: number): number => {
+    if (!duration) return 60;
+    if (duration <= 480) return duration;
+    const convertedFromMs = Math.round(duration / 1000 / 60);
+    if (convertedFromMs > 0 && convertedFromMs <= 480) return convertedFromMs;
+    const convertedFromSeconds = Math.round(duration / 60);
+    if (convertedFromSeconds > 0 && convertedFromSeconds <= 480) return convertedFromSeconds;
+    return 60;
   };
 
   const loadAvailableTimes = async () => {
-    if (!selectedDate || !appointment) return;
+    if (!selectedDate || !appointment) {
+      return;
+    }
 
     try {
-      setLoading(true);
+      setLoadingTimes(true);
       const dateString = selectedDate.toISOString().split('T')[0];
 
-      const workDays = appointment.business.work_days;
+      let workDays = appointment.business.work_days;
+      let lunchBreakStart: string | null = null;
+      let lunchBreakEnd: string | null = null;
+      
+      if (!workDays) {
+        const { data: businessProfile, error: businessError } = await supabase
+          .from('business_profiles')
+          .select('work_days, lunch_break_start, lunch_break_end')
+          .eq('id', appointment.business_id)
+          .single();
+
+        if (businessError || !businessProfile) {
+          handleError(businessError || new Error('Perfil do negócio não encontrado'), 'appointment');
+          setTimeSlots([]);
+          setLoadingTimes(false);
+          return;
+        }
+        
+        workDays = businessProfile.work_days;
+        lunchBreakStart = businessProfile.lunch_break_start;
+        lunchBreakEnd = businessProfile.lunch_break_end;
+        
+        if (typeof workDays === 'string') {
+          try {
+            workDays = JSON.parse(workDays);
+          } catch (e) {
+            handleError(e, 'appointment');
+            setTimeSlots([]);
+            setLoadingTimes(false);
+            return;
+          }
+        }
+      } else {
+        // Se workDays já está disponível, ainda precisamos buscar os horários de almoço
+        const { data: businessProfile } = await supabase
+          .from('business_profiles')
+          .select('lunch_break_start, lunch_break_end')
+          .eq('id', appointment.business_id)
+          .single();
+        
+        if (businessProfile) {
+          lunchBreakStart = businessProfile.lunch_break_start;
+          lunchBreakEnd = businessProfile.lunch_break_end;
+        }
+      }
+      
+      if (!workDays) {
+        setTimeSlots([]);
+        setLoadingTimes(false);
+        return;
+      }
+
       const dayNames = [
         'sunday',
         'monday',
@@ -230,11 +281,19 @@ const RescheduleAppointmentScreen: React.FC = () => {
 
       if (!workDay) {
         setTimeSlots([]);
-        setLoading(false);
+        setLoadingTimes(false);
         return;
       }
 
-      // Buscar appointments existentes para esta data
+      const startTime = workDay.start;
+      const endTime = workDay.end;
+
+      if (!startTime || !endTime || typeof startTime !== 'string' || typeof endTime !== 'string') {
+        setTimeSlots([]);
+        setLoadingTimes(false);
+        return;
+      }
+
       const { data: existingAppointments } = await supabase
         .from('appointments')
         .select('start_time, end_time')
@@ -242,22 +301,25 @@ const RescheduleAppointmentScreen: React.FC = () => {
         .gte('start_time', `${dateString}T00:00:00`)
         .lt('start_time', `${dateString}T23:59:59`)
         .in('status', ['pending', 'confirmed'])
-        .neq('id', params.appointmentId); // Excluir o agendamento atual
+        .neq('id', params.appointmentId);
 
-      const serviceDuration = appointment.service.duration_minutes || 60;
+      const serviceDuration = parseServiceDuration(appointment.service.duration_minutes || 60);
       const slots = generateTimeSlots(
-        workDay.start,
-        workDay.end,
+        startTime,
+        endTime,
         existingAppointments || [],
         serviceDuration,
         dateString,
+        lunchBreakStart,
+        lunchBreakEnd,
       );
+      
       setTimeSlots(slots);
     } catch (error) {
-      console.error('Erro ao carregar horários:', error);
+      handleError(error, 'appointment');
       setTimeSlots([]);
     } finally {
-      setLoading(false);
+      setLoadingTimes(false);
     }
   };
 
@@ -267,10 +329,16 @@ const RescheduleAppointmentScreen: React.FC = () => {
     existingAppointments: Array<{ start_time: string; end_time: string }>,
     serviceDuration: number,
     dateString: string,
+    lunchBreakStart?: string | null,
+    lunchBreakEnd?: string | null,
   ): TimeSlot[] => {
     const slots: TimeSlot[] = [];
     const [startHour] = startTime.split(':').map(Number);
     const [endHour] = endTime.split(':').map(Number);
+
+    if (isNaN(startHour) || isNaN(endHour)) {
+      return [];
+    }
 
     let currentHour = startHour;
 
@@ -283,21 +351,46 @@ const RescheduleAppointmentScreen: React.FC = () => {
       const slotStart = new Date(`${dateString}T${timeString}:00`);
       const slotEnd = new Date(`${dateString}T${slotEndTime}:00`);
 
+      // Verificar se está no horário de almoço
+      if (lunchBreakStart && lunchBreakEnd) {
+        const [lunchStartHour] = lunchBreakStart.split(':').map(Number);
+        const [lunchEndHour] = lunchBreakEnd.split(':').map(Number);
+        
+        // Verificar se o slot está dentro do horário de almoço
+        if (currentHour >= lunchStartHour && currentHour < lunchEndHour) {
+          type = 'lunch';
+          slots.push({ time: timeString, available: false, type });
+          currentHour += 1;
+          continue;
+        }
+      }
+
+      if (currentHour + Math.ceil(serviceDuration / 60) > endHour) {
+        type = 'occupied';
+        slots.push({ time: timeString, available: false, type });
+        currentHour += 1;
+        continue;
+      }
+
       const isOccupied = existingAppointments.some((apt) => {
         const aptStart = new Date(apt.start_time);
         const aptEnd = new Date(apt.end_time);
-        return (
-          (slotStart >= aptStart && slotStart < aptEnd) ||
-          (slotEnd > aptStart && slotEnd <= aptEnd) ||
-          (slotStart <= aptStart && slotEnd >= aptEnd)
+        
+        const aptDateString = aptStart.toISOString().split('T')[0];
+        if (aptDateString !== dateString) {
+          return false;
+        }
+        
+        const overlaps = (
+          (slotStart.getTime() >= aptStart.getTime() && slotStart.getTime() < aptEnd.getTime()) ||
+          (slotEnd.getTime() > aptStart.getTime() && slotEnd.getTime() <= aptEnd.getTime()) ||
+          (slotStart.getTime() <= aptStart.getTime() && slotEnd.getTime() >= aptEnd.getTime())
         );
+        
+        return overlaps;
       });
 
       if (isOccupied) {
-        type = 'occupied';
-      }
-
-      if (type === 'available' && currentHour + Math.ceil(serviceDuration / 60) > endHour) {
         type = 'occupied';
       }
 
@@ -309,15 +402,15 @@ const RescheduleAppointmentScreen: React.FC = () => {
     return slots;
   };
 
-  const formatDate = (date: Date) => {
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    return `${day}/${month}`;
-  };
-
   const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
-    setSelectedTime(null);
+    const dateString = format(date, 'yyyy-MM-dd');
+    const isAvailable = markedDates.includes(dateString);
+    
+    if (isAvailable) {
+      setSelectedDate(date);
+      setSelectedTime(null);
+      setTimesToShow(RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW);
+    }
   };
 
   const handleTimeSelect = (time: string) => {
@@ -336,13 +429,25 @@ const RescheduleAppointmentScreen: React.FC = () => {
     if (!selectedDate || !selectedTime || !appointment) return;
 
     try {
+      // Validar formato de horário
+      if (!validateTime(selectedTime)) {
+        showError('O formato do horário é inválido. Use o formato HH:mm.');
+        return;
+      }
+
+      // Validar data
+      if (!validateDate(selectedDate, false)) {
+        showError('Selecione uma data futura para o reagendamento.');
+        return;
+      }
+
       // Obter usuário autenticado
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.error('Usuário não autenticado');
+        showError('Usuário não autenticado');
         return;
       }
 
@@ -350,8 +455,17 @@ const RescheduleAppointmentScreen: React.FC = () => {
       const newStartTime = new Date(selectedDate);
       newStartTime.setHours(hours, minutes, 0, 0);
 
+      // Verificar se o horário não é no passado
+      const now = new Date();
+      if (newStartTime.getTime() < now.getTime()) {
+        showError('Selecione um horário futuro para o reagendamento.');
+        return;
+      }
+
+      // Usar função auxiliar para converter duração
+      const serviceDuration = parseServiceDuration(appointment.service.duration_minutes || 60);
       const newEndTime = new Date(newStartTime);
-      newEndTime.setMinutes(newEndTime.getMinutes() + appointment.service.duration_minutes);
+      newEndTime.setMinutes(newEndTime.getMinutes() + serviceDuration);
 
       // Horários originais do agendamento
       const originalStartTime = new Date(appointment.start_time);
@@ -375,30 +489,70 @@ const RescheduleAppointmentScreen: React.FC = () => {
         .single();
 
       if (rescheduleError) {
-        console.error('Erro ao criar solicitação de reagendamento:', rescheduleError);
-        Alert.alert('Erro', 'Não foi possível solicitar o reagendamento. Tente novamente.');
+        const processed = handleError(rescheduleError, 'appointment');
+        showError(processed.userMessage);
         return;
       }
 
+      // Cancelar outros reagendamentos pendentes do mesmo agendamento criados pelo cliente
+      // Isso garante que apenas o último reagendamento fique pendente
+      await supabase
+        .from('appointment_reschedules')
+        .update({
+          status: 'cancelled',
+        })
+        .eq('appointment_id', parseInt(params.appointmentId))
+        .eq('status', 'pending')
+        .eq('requested_by_type', 'client')
+        .neq('id', rescheduleData.id);
+
       // Atualizar status do agendamento para indicar que há um reagendamento pendente
       // Mantém os horários originais até ser aceito
+      // NOTA: A justificativa fica APENAS em appointment_reschedules.justification (já criada acima)
       const { error: updateError } = await supabase
         .from('appointments')
         .update({
-          reschedule_justification: justification || params.reason || null,
           status: 'pending', // Status indica que precisa de confirmação
         })
-        .eq('id', params.appointmentId);
+        .eq('id', Number(params.appointmentId));
 
       if (updateError) {
-        console.error('Erro ao atualizar agendamento:', updateError);
-        // Se falhar, tentar remover o registro de reagendamento criado
+        handleError(updateError, 'appointment');
         await supabase
           .from('appointment_reschedules')
           .delete()
           .eq('id', rescheduleData.id);
         Alert.alert('Erro', 'Não foi possível processar o reagendamento. Tente novamente.');
         return;
+      }
+
+      // Enviar notificação para o merchant
+      try {
+        // Buscar dados do merchant e cliente
+        const { data: businessData } = await supabase
+          .from('business_profiles')
+          .select('owner_id')
+          .eq('id', appointment.business.id)
+          .single();
+
+        const { data: clientData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
+        if (businessData?.owner_id && clientData?.full_name) {
+          await notifyRescheduleRequested(
+            businessData.owner_id,
+            parseInt(params.appointmentId),
+            rescheduleData.id,
+            clientData.full_name,
+            newStartTime.toISOString()
+          );
+        }
+      } catch (notifError) {
+        // Não bloquear o fluxo se a notificação falhar
+        console.warn('Erro ao enviar notificação de reagendamento:', notifError);
       }
 
       // Resetar campos após sucesso antes de mostrar o modal
@@ -408,42 +562,56 @@ const RescheduleAppointmentScreen: React.FC = () => {
       setShowRescheduleModal(false);
       setShowConfirmationModal(true);
     } catch (error) {
-      console.error('Erro ao sugerir novo horário:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao processar o reagendamento.');
+      const processed = handleError(error, 'appointment');
+      showError(processed.userMessage);
     }
   };
 
-  const formatDateLong = (date: Date) => {
-    const months = [
-      'Janeiro',
-      'Fevereiro',
-      'Março',
-      'Abril',
-      'Maio',
-      'Junho',
-      'Julho',
-      'Agosto',
-      'Setembro',
-      'Outubro',
-      'Novembro',
-      'Dezembro',
-    ];
-    return `${date.getDate()} de ${months[date.getMonth()]}`;
+
+  // Converter datas disponíveis em PillItem[]
+  const datePillItems: PillItem[] = availableDates.map((date) => ({
+    key: format(date, 'yyyy-MM-dd'),
+    label: format(date, 'dd/MM'),
+  }));
+  
+  const maxDates = Math.min(RESCHEDULE_DEFAULTS.MAX_DATES, datePillItems.length);
+  const displayedDates = datePillItems.slice(0, datesToShow);
+  const hasMoreDates = datesToShow < maxDates;
+  const hasLessDates = datesToShow > RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW;
+  const selectedDateKey = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
+  
+  const handleShowMoreDates = () => {
+    setDatesToShow((prev) => Math.min(prev + RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW, maxDates));
+  };
+  
+  const handleShowLessDates = () => {
+    setDatesToShow((prev) => Math.max(prev - RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW, RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW));
+  };
+  
+  // Converter todos os horários (disponíveis e não disponíveis) em PillItem[]
+  // Mostrar todos os horários do expediente em grid, incluindo ocupados e horário de almoço
+  const timePillItems: PillItem[] = timeSlots.map((slot) => ({
+    key: slot.time,
+    label: slot.time,
+    disabled: !slot.available,
+    showLunchIcon: slot.type === 'lunch',
+  }));
+  
+  const displayedTimes = timePillItems.slice(0, timesToShow);
+  const hasMoreTimes = timesToShow < timePillItems.length;
+  const hasLessTimes = timesToShow > RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW;
+  
+  const handleShowMoreTimes = () => {
+    setTimesToShow((prev) => Math.min(prev + RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW, timePillItems.length));
+  };
+  
+  const handleShowLessTimes = () => {
+    setTimesToShow((prev) => Math.max(prev - RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW, RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW));
   };
 
-  // Calcular largura dos cards de data e horário para grid 2x3 (2 colunas, 3 linhas - 3 de cada lado)
-  // ⚠️ IMPORTANTE: Recalcular TODAS as constantes derivadas dentro do useMemo
-  // para garantir que dependam apenas de SCREEN_WIDTH e SCREEN_HEIGHT
-  const styles = useMemo(() => {
-    const CONTENT_PADDING = 24 * 2; // Padding horizontal total (24 de cada lado)
-    const DATE_GRID_GAP = 27; // Gap entre os botões de data
-    const DATE_BUTTON_WIDTH = (SCREEN_WIDTH - CONTENT_PADDING - DATE_GRID_GAP) / 2;
-    const TIME_BUTTON_WIDTH = DATE_BUTTON_WIDTH; // Mesma largura dos cards de data
-
-    return StyleSheet.create({
+  const styles = StyleSheet.create({
       container: {
         flex: 1,
-        backgroundColor: '#FAFAFA',
       },
       loadingContainer: {
         flex: 1,
@@ -463,15 +631,22 @@ const RescheduleAppointmentScreen: React.FC = () => {
         height: 56,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 24,
         paddingVertical: 16,
         position: 'relative',
       },
       topBarGradientContainer: {
-        ...StyleSheet.absoluteFillObject,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        right: 0,
       },
       topBarGradientOverlay: {
-        ...StyleSheet.absoluteFillObject,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        right: 0,
         backgroundColor: 'rgba(0, 14, 61, 0.2)',
       },
       backButton: {
@@ -496,14 +671,11 @@ const RescheduleAppointmentScreen: React.FC = () => {
         justifyContent: 'center',
         alignItems: 'center',
       },
-      scrollView: {
-        flex: 1,
-      },
       scrollContent: {
-        paddingBottom: 100,
+        // flexGrow é aplicado automaticamente pelo ScreenContainer
+        // paddingBottom é aplicado automaticamente quando há footer
       },
       content: {
-        padding: 24,
         gap: 24,
       },
       mainTitle: {
@@ -514,115 +686,8 @@ const RescheduleAppointmentScreen: React.FC = () => {
       },
       section: {
         gap: 16,
-      },
-      sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 22,
-      },
-      sectionTitle: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#E5102E',
-      },
-      dateGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 27,
-        width: '100%',
-      },
-      dateButton: {
-        width: DATE_BUTTON_WIDTH,
-        paddingVertical: 4,
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-      },
-      dateButtonSelected: {
-        backgroundColor: '#000E3D',
-      },
-      dateButtonUnselected: {
-        backgroundColor: '#EBEFFF',
-      },
-      dateButtonText: {
-        fontSize: 24,
-        fontFamily: 'Montserrat_700Bold',
-        textAlign: 'center',
-      },
-      dateButtonTextSelected: {
-        color: '#FEFEFE',
-      },
-      dateButtonTextUnselected: {
-        color: '#000E3D',
-      },
-      timeGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 27,
-        width: '100%',
-      },
-      timeButton: {
-        width: TIME_BUTTON_WIDTH,
-        paddingVertical: 4,
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-      },
-      timeButtonSelected: {
-        backgroundColor: '#000E3D',
-      },
-      timeButtonUnselected: {
-        backgroundColor: '#EBEFFF',
-      },
-      timeButtonText: {
-        fontSize: 24,
-        fontFamily: 'Montserrat_700Bold',
-        textAlign: 'center',
-      },
-      timeButtonTextSelected: {
-        color: '#FEFEFE',
-      },
-      timeButtonTextUnselected: {
-        color: '#000E3D',
-      },
-      seeMoreButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 24,
-        alignSelf: 'center',
-        marginTop: 0,
-      },
-      seeMoreText: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#A8BDFF',
-      },
-      suggestButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        backgroundColor: '#000E3D',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 24,
-        shadowColor: '#1D1D1D',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.24,
-        shadowRadius: 8,
-        elevation: 4,
-      },
-      suggestButtonDisabled: {
-        opacity: 0.5,
-      },
-      suggestButtonText: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#FEFEFE',
+        backgroundColor: '#FAFAFA',
+        paddingVertical: 8,
       },
       loader: {
         marginVertical: 16,
@@ -645,111 +710,18 @@ const RescheduleAppointmentScreen: React.FC = () => {
         backgroundColor: '#FEFEFE',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
         paddingTop: 24,
-        paddingHorizontal: 24,
-        paddingBottom: 40,
-        maxHeight: SCREEN_HEIGHT * 0.9,
+        paddingBottom: 0,
+        maxHeight: Dimensions.get('window').height * 0.9,
         width: '100%',
-        ...Platform.select({
-          ios: {
-            shadowColor: '#1D1D1D',
-            shadowOffset: { width: 0, height: -4 },
-            shadowOpacity: 0.16,
-            shadowRadius: 16,
-          },
-          android: {
-            elevation: 16,
-          },
-        }),
-      },
-      modalScrollView: {
-        maxHeight: SCREEN_HEIGHT * 0.8,
-      },
-      modalScrollContent: {
-        gap: 24,
-        paddingBottom: 24,
-      },
-      modalHeading: {
-        gap: 8,
-      },
-      modalHeadingContent: {
-        gap: 8,
-      },
-      modalRescheduleLabel: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#E5102E',
-      },
-      modalServiceName: {
-        fontSize: 20,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#0F0F0F',
-      },
-      currentAppointmentCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-        backgroundColor: '#EBEFFF',
-        borderWidth: 2,
-        borderColor: '#000E3D',
-        borderRadius: 24,
-        padding: 16,
-      },
-      currentAppointmentContent: {
         flex: 1,
-        gap: 8,
-      },
-      currentAppointmentDate: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#000E3D',
-      },
-      currentAppointmentTime: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#000E3D',
-      },
-      modalSection: {
-        gap: 8,
-      },
-      modalSectionLabel: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#E5102E',
-      },
-      professionalInfo: {
-        gap: 8,
-      },
-      professionalHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-      },
-      businessLogo: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-      },
-      placeholderLogo: {
-        backgroundColor: '#E5E5E5',
-      },
-      businessName: {
-        flex: 1,
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#000000',
-      },
-      addressCard: {
-        backgroundColor: '#FEFEFE',
-        borderRadius: 4,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
         ...Platform.select({
           ios: {
             shadowColor: '#1D1D1D',
             shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.08,
+            shadowOpacity: 0.1,
             shadowRadius: 8,
           },
           android: {
@@ -757,92 +729,15 @@ const RescheduleAppointmentScreen: React.FC = () => {
           },
         }),
       },
-      addressText: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_400Regular',
-        color: '#000000',
-      },
-      paymentCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-        backgroundColor: '#FEFEFE',
-        borderRadius: 24,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
-        ...Platform.select({
-          ios: {
-            shadowColor: '#1D1D1D',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.08,
-            shadowRadius: 8,
-          },
-          android: {
-            elevation: 2,
-          },
-        }),
-      },
-      paymentContent: {
+      modalScrollView: {
         flex: 1,
-        gap: 8,
       },
-      paymentMethod: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#000000',
-      },
-      paymentAmount: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#17723F',
-      },
-      justificationAndButtonContainer: {
-        gap: 16,
+      modalScrollContent: {
+        gap: 24,
+        paddingBottom: 120,
+        paddingTop: 0,
+        paddingHorizontal: 0,
         width: '100%',
-      },
-      justificationLabel: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#000000',
-      },
-      justificationContainer: {
-        backgroundColor: '#FEFEFE',
-        borderRadius: 8,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
-      },
-      justificationText: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_400Regular',
-        color: '#000000',
-        lineHeight: 24,
-      },
-      modalSubmitButton: {
-        backgroundColor: '#000E3D',
-        borderRadius: 24,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '100%',
-        ...Platform.select({
-          ios: {
-            shadowColor: '#1D1D1D',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.24,
-            shadowRadius: 8,
-          },
-          android: {
-            elevation: 4,
-          },
-        }),
-      },
-      modalSubmitButtonText: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#FEFEFE',
       },
       // Confirmation Modal Styles
       confirmationOverlay: {
@@ -873,8 +768,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
         }),
       },
       confirmationIconContainer: {
-        width: 67,
-        height: 67,
+        // width e height serão aplicados dinamicamente via style prop
         justifyContent: 'center',
         alignItems: 'center',
       },
@@ -889,37 +783,19 @@ const RescheduleAppointmentScreen: React.FC = () => {
         fontFamily: 'Montserrat_400Regular',
         color: '#000000',
         textAlign: 'center',
-        width: 256,
-      },
-      confirmationCloseButton: {
-        width: 256,
-        backgroundColor: 'transparent',
-        borderRadius: 24,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-      },
-      confirmationCloseButtonText: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#000E3D',
+        width: '90%',
+        maxWidth: 256,
+        alignSelf: 'center',
       },
     });
-  }, [SCREEN_WIDTH, SCREEN_HEIGHT]);
-
-  // Sempre exibir 6 datas inicialmente (grid 3x2)
-  const displayedDates = showMoreDates ? availableDates : availableDates.slice(0, 6);
-  const availableTimeSlots = timeSlots.filter((slot) => slot.available && slot.type === 'available');
-  const displayedTimes = showMoreTimes
-    ? availableTimeSlots
-    : availableTimeSlots.slice(0, 6);
 
   if (loading && !appointment) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#000E3D" />
-      </View>
+      <ScreenContainer style={{ backgroundColor: '#FAFAFA' }}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000E3D" />
+        </View>
+      </ScreenContainer>
     );
   }
 
@@ -928,142 +804,106 @@ const RescheduleAppointmentScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <MerchantTopBar
-        title="Reagendamento"
-        showBack
-        onBackPress={() => router.back()}
-        fallbackPath="/(client)/home"
-      />
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={true}
+      backgroundColor="#FAFAFA"
+      header={
+        <AppHeader
+          title="Reagendamento"
+          showBackButton={true}
+          onPressBack={() => safeGoBack('/(client)/appointments')}
+        />
+      }
+    >
         <View style={styles.content}>
           <Text style={styles.mainTitle}>Selecione o Melhor dia e horário</Text>
 
           {/* Date Selection */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <IconDateRange size={24} color="#E5102E" />
-              <Text style={styles.sectionTitle}>Escolha uma data</Text>
-            </View>
+            <ScheduleSectionHeader
+              icon={<IconDateRange size={24} color="#E5102E" />}
+              title="Escolha uma data"
+            />
 
-            <View style={styles.dateGrid}>
-              {displayedDates.map((date, index) => {
-                const isSelected = selectedDate?.getTime() === date.getTime();
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dateButton,
-                      isSelected ? styles.dateButtonSelected : styles.dateButtonUnselected,
-                    ]}
-                    onPress={() => handleDateSelect(date)}
-                  >
-                    <Text
-                      style={[
-                        styles.dateButtonText,
-                        isSelected ? styles.dateButtonTextSelected : styles.dateButtonTextUnselected,
-                      ]}
-                    >
-                      {formatDate(date)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <PillGrid
+              items={displayedDates}
+              selectedKey={selectedDateKey}
+              onSelect={(key) => {
+                const date = availableDates.find((d) => format(d, 'yyyy-MM-dd') === key);
+                if (date) {
+                  handleDateSelect(date);
+                }
+              }}
+            />
 
-            {availableDates.length > 6 && (
-              <TouchableOpacity
-                style={styles.seeMoreButton}
-                onPress={() => setShowMoreDates(!showMoreDates)}
-                disabled
-              >
-                <Text style={styles.seeMoreText}>Ver mais datas</Text>
-                <MaterialIcons name="keyboard-arrow-right" size={24} color="#A8BDFF" />
-              </TouchableOpacity>
+            {availableDates.length > RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW && (
+              <>
+                {hasMoreDates && (
+                  <InlineLink
+                    label="Ver mais datas"
+                    onPress={handleShowMoreDates}
+                  />
+                )}
+                {!hasMoreDates && hasLessDates && (
+                  <InlineLink
+                    label="Ver menos datas"
+                    onPress={handleShowLessDates}
+                  />
+                )}
+              </>
             )}
           </View>
 
           {/* Time Selection */}
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <IconTimer size={24} color="#E5102E" />
-              <Text style={styles.sectionTitle}>Escolha um horário</Text>
-            </View>
+            <ScheduleSectionHeader
+              icon={<IconTimer size={24} color="#E5102E" />}
+              title="Escolha um horário"
+            />
 
             {!selectedDate ? (
               <Text style={styles.emptyMessage}>Selecione uma data primeiro</Text>
-            ) : loading ? (
+            ) : loadingTimes ? (
               <ActivityIndicator size="small" color="#000E3D" style={styles.loader} />
-            ) : availableTimeSlots.length === 0 ? (
+            ) : timeSlots.length === 0 ? (
               <Text style={styles.emptyMessage}>Nenhum horário disponível para esta data</Text>
             ) : (
               <>
-                <View style={styles.timeGrid}>
-                  {displayedTimes.map((slot, index) => {
-                    const isSelected = selectedTime === slot.time;
-                    return (
-                      <TouchableOpacity
-                        key={index}
-                        style={[
-                          styles.timeButton,
-                          isSelected ? styles.timeButtonSelected : styles.timeButtonUnselected,
-                        ]}
-                        onPress={() => handleTimeSelect(slot.time)}
-                        disabled={!slot.available}
-                      >
-                        <Text
-                          style={[
-                            styles.timeButtonText,
-                            isSelected
-                              ? styles.timeButtonTextSelected
-                              : styles.timeButtonTextUnselected,
-                          ]}
-                        >
-                          {slot.time}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <PillGrid
+                  items={displayedTimes}
+                  selectedKey={selectedTime}
+                  onSelect={(key) => handleTimeSelect(key)}
+                />
 
-                {availableTimeSlots.length > 6 && (
-                  <TouchableOpacity
-                    style={styles.seeMoreButton}
-                    onPress={() => setShowMoreTimes(!showMoreTimes)}
-                  >
-                    <Text style={styles.seeMoreText}>
-                      {showMoreTimes ? 'Ver menos horários' : 'Ver mais horários'}
-                    </Text>
-                    <MaterialIcons
-                      name={showMoreTimes ? 'keyboard-arrow-up' : 'keyboard-arrow-right'}
-                      size={24}
-                      color="#A8BDFF"
-                    />
-                  </TouchableOpacity>
+                {timePillItems.length > RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW && (
+                  <>
+                    {hasMoreTimes && (
+                      <InlineLink
+                        label="Ver mais horários"
+                        onPress={handleShowMoreTimes}
+                      />
+                    )}
+                    {!hasMoreTimes && hasLessTimes && (
+                      <InlineLink
+                        label="Ver menos horários"
+                        onPress={handleShowLessTimes}
+                      />
+                    )}
+                  </>
                 )}
               </>
             )}
           </View>
 
           {/* Suggest Button */}
-          <TouchableOpacity
-            style={[
-              styles.suggestButton,
-              (!selectedDate || !selectedTime) && styles.suggestButtonDisabled,
-            ]}
-            onPress={handleSuggestNewTime}
+          <PrimaryActionButton
+            title="Sugerir novo horário"
+            rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#FEFEFE" />}
             disabled={!selectedDate || !selectedTime}
-          >
-            <Text style={styles.suggestButtonText}>Sugerir novo horário</Text>
-            <IconSchedule size={24} color="#FEFEFE" />
-          </TouchableOpacity>
+            onPress={handleSuggestNewTime}
+          />
         </View>
-      </ScrollView>
 
       {/* Reschedule Modal */}
       <Modal
@@ -1083,101 +923,21 @@ const RescheduleAppointmentScreen: React.FC = () => {
                   contentContainerStyle={styles.modalScrollContent}
                   showsVerticalScrollIndicator={false}
                 >
-                  {/* Heading */}
-                  <View style={styles.modalHeading}>
-                    <View style={styles.modalHeadingContent}>
-                      <Text style={styles.modalRescheduleLabel}>Reagendamento</Text>
-                      <Text style={styles.modalServiceName}>
-                        {appointment?.service.name || 'Serviço'}
-                      </Text>
-                    </View>
-
-                    {/* New Appointment Card */}
-                    {selectedDate && selectedTime && (
-                      <View style={styles.currentAppointmentCard}>
-                        <IconDateRange size={24} color="#000E3D" />
-                        <View style={styles.currentAppointmentContent}>
-                          <Text style={styles.currentAppointmentDate}>
-                            {formatDateLong(selectedDate)}
-                          </Text>
-                          <Text style={styles.currentAppointmentTime}>
-                            {(() => {
-                              if (!appointment) return '';
-                              const [hours, minutes] = selectedTime.split(':').map(Number);
-                              const endTime = new Date(selectedDate);
-                              endTime.setHours(hours, minutes, 0, 0);
-                              endTime.setMinutes(
-                                endTime.getMinutes() + appointment.service.duration_minutes,
-                              );
-                              return `${hours}h às ${endTime.getHours()}h`;
-                            })()}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Professional Info */}
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionLabel}>Profissional:</Text>
-                    <View style={styles.professionalInfo}>
-                      <View style={styles.professionalHeader}>
-                        {appointment?.business.logo_url ? (
-                          <Image
-                            source={{ uri: appointment.business.logo_url }}
-                            style={styles.businessLogo}
-                          />
-                        ) : (
-                          <View style={[styles.businessLogo, styles.placeholderLogo]} />
-                        )}
-                        <Text style={styles.businessName}>
-                          {appointment?.business.business_name || 'Negócio'}
-                        </Text>
-                      </View>
-                      {appointment?.business.address && (
-                        <View style={styles.addressCard}>
-                          <Text style={styles.addressText}>
-                            {appointment.business.address}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Payment Method */}
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionLabel}>Método de pagamento:</Text>
-                    <View style={styles.paymentCard}>
-                      <IconPix size={24} color="#000E3D" />
-                      <View style={styles.paymentContent}>
-                        <Text style={styles.paymentMethod}>PIX</Text>
-                        <Text style={styles.paymentAmount}>
-                          R$ {appointment?.service.price
-                            ? appointment.service.price.toFixed(2).replace('.', ',')
-                            : '0,00'}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Justification and Submit Button Container */}
-                  <View style={styles.justificationAndButtonContainer}>
-                    <Text style={styles.justificationLabel}>Justificativa</Text>
-                    <View style={styles.justificationContainer}>
-                      <Text style={styles.justificationText}>
-                        {justification || 'Não vou conseguir chegar no horário e gostaria de trocar para o horário seguinte.'}
-                      </Text>
-                    </View>
-
-                    {/* Submit Button */}
-                    <TouchableOpacity
-                      style={styles.modalSubmitButton}
-                      onPress={handleSubmitReschedule}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.modalSubmitButtonText}>Enviar</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {appointment && selectedDate && selectedTime && (
+                    <RescheduleModalCard
+                      serviceName={appointment.service.name}
+                      price={appointment.service.price || 0}
+                      businessName={appointment.business.business_name}
+                      businessAddress={appointment.business.address}
+                      businessLogoUrl={appointment.business.logo_url}
+                      paymentMethod={(appointment.payment_method as 'pix' | 'card' | 'cash') || 'pix'}
+                      newDate={selectedDate}
+                      newTime={selectedTime}
+                      serviceDuration={parseServiceDuration(appointment.service.duration_minutes || 60)}
+                      justification={justification || params.reason || ''}
+                      onSubmit={handleSubmitReschedule}
+                    />
+                  )}
                 </ScrollView>
               </View>
             </TouchableWithoutFeedback>
@@ -1212,8 +972,8 @@ const RescheduleAppointmentScreen: React.FC = () => {
             <TouchableWithoutFeedback>
               <View style={styles.confirmationModalContainer}>
                 {/* Success Icon */}
-                <View style={styles.confirmationIconContainer}>
-                  <IconCheckCircle size={67} color="#17723F" />
+                <View style={[styles.confirmationIconContainer, { width: iconSize, height: iconSize }]}>
+                  <IconCheckCircle size={iconSize} color="#17723F" />
                 </View>
 
                 {/* Success Text */}
@@ -1225,9 +985,9 @@ const RescheduleAppointmentScreen: React.FC = () => {
                 </Text>
 
                 {/* Close Button */}
-                <TouchableOpacity
-                  style={styles.confirmationCloseButton}
-                  activeOpacity={0.8}
+                <CustomButton
+                  title="Fechar"
+                  variant="outline"
                   onPress={() => {
                     setShowConfirmationModal(false);
                     // Resetar campos antes de navegar
@@ -1236,15 +996,14 @@ const RescheduleAppointmentScreen: React.FC = () => {
                     setSelectedTime(null);
                     router.replace(`/(client)/appointments/${params.appointmentId}`);
                   }}
-                >
-                  <Text style={styles.confirmationCloseButtonText}>Fechar</Text>
-                </TouchableOpacity>
+                  style={{ borderRadius: 24, width: '90%', maxWidth: 256, alignSelf: 'center' }}
+                />
               </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </View>
+    </ScreenContainer>
   );
 };
 

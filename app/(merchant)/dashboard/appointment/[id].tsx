@@ -1,12 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Modal } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert, Modal } from 'react-native';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../../lib/supabase';
-import { IconCheckCircle, IconPix, IconCreditCard, IconCash } from '../../../../lib/icons';
-import { MerchantTopBar } from '../../../../components/MerchantTopBar';
+import { Icon } from '../../../../components/ui/Icon';
+import { MaterialSymbolIcon } from '../../../../components/ui/MaterialSymbolIcon';
+import AppHeader from '../../../../components/layout/AppHeader';
+import ScreenContainer from '../../../../components/layout/ScreenContainer';
+import { CustomButton } from '../../../../components/CustomButton';
 import { format, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { calculateAppointmentPrice } from '../../../../lib/utils';
+import { calculateAppointmentPrice, checkAppointmentConflicts, applyAcceptedReschedules } from '../../../../lib/utils';
+import { notifyRescheduleAccepted, notifyRescheduleRejected } from '../../../../lib/notifications';
+import { safeGoBack } from '../../../../lib/router-utils';
+import { handleError } from '../../../../lib/errorHandler';
 
 type AppointmentReschedule = {
   id: number;
@@ -31,7 +37,7 @@ type Appointment = {
   end_time: string;
   status: string;
   payment_method: string;
-  observations: string | null;
+  client_notes: string | null;
   service: {
     id: string;
     name: string;
@@ -52,6 +58,9 @@ type Appointment = {
     address: string | null;
   };
   pending_reschedules?: AppointmentReschedule[];
+  merchant_pending_reschedules?: AppointmentReschedule[];
+  accepted_reschedules?: AppointmentReschedule[];
+  rejected_reschedules?: AppointmentReschedule[];
 };
 
 const AppointmentDetailScreen: React.FC = () => {
@@ -61,39 +70,42 @@ const AppointmentDetailScreen: React.FC = () => {
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [updating, setUpdating] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingActiveRef = useRef(false);
 
-  useEffect(() => {
-    loadAppointment();
-  }, [params.id]);
-
-  const loadAppointment = async () => {
+  // Função para carregar agendamento - memoizada para evitar recriações desnecessárias
+  const loadAppointment = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
 
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
-        router.replace('/(auth)/login');
+        setLoading(false);
         return;
       }
 
       // Buscar business_profile do lojista
-      const { data: businessData } = await supabase
+      const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
         .select('id')
         .eq('owner_id', user.id)
         .single();
 
-      if (!businessData) {
-        console.error('Negócio não encontrado');
+      if (businessError || !businessData) {
+        if (businessError && businessError.code !== 'PGRST116') {
+          handleError(businessError, 'general');
+        }
         router.replace('/(merchant)/dashboard');
         return;
       }
 
-      // Buscar agendamento
+      // Buscar agendamento com dados atualizados
+      // O polling periódico garante que dados atualizados sejam buscados automaticamente
       const { data: appointmentData, error } = await supabase
         .from('appointments')
         .select(
@@ -109,34 +121,147 @@ const AppointmentDetailScreen: React.FC = () => {
         .single();
 
       if (error) {
-        console.error('Erro ao buscar agendamento:', error);
         if (error.code === 'PGRST116') {
           Alert.alert('Agendamento não encontrado', 'Este agendamento não existe ou foi removido.');
         } else {
-          Alert.alert('Erro', 'Não foi possível carregar o agendamento. Verifique sua conexão e tente novamente.');
+          const processed = handleError(error, 'appointment');
+          Alert.alert('Erro', processed.userMessage);
         }
         router.replace('/(merchant)/dashboard');
       } else if (appointmentData) {
-        // Buscar reagendamentos pendentes
-        const { data: pendingReschedules } = await supabase
-          .from('appointment_reschedules')
-          .select('*')
-          .eq('appointment_id', appointmentData.id)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });
-
-        setAppointment({
-          ...appointmentData,
-          pending_reschedules: pendingReschedules || [],
-        } as Appointment);
+        const appointmentsWithReschedules = await applyAcceptedReschedules([appointmentData]);
+        const appointmentWithAcceptedReschedule = appointmentsWithReschedules[0] || appointmentData;
+        
+        const [
+          { data: clientPendingReschedules },
+          { data: merchantPendingReschedules },
+          { data: acceptedReschedules },
+          { data: rejectedReschedules }
+        ] = await Promise.all([
+          supabase
+            .from('appointment_reschedules')
+            .select('*')
+            .eq('appointment_id', appointmentData.id)
+            .eq('status', 'pending')
+            .eq('requested_by_type', 'client')
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('appointment_reschedules')
+            .select('*')
+            .eq('appointment_id', appointmentData.id)
+            .eq('status', 'pending')
+            .eq('requested_by_type', 'merchant')
+            .order('created_at', { ascending: false })
+            .limit(1),
+          supabase
+            .from('appointment_reschedules')
+            .select('*')
+            .eq('appointment_id', appointmentData.id)
+            .eq('status', 'accepted')
+            .eq('requested_by_type', 'merchant')
+            .order('accepted_at', { ascending: false })
+            .limit(1),
+          supabase
+            .from('appointment_reschedules')
+            .select('*')
+            .eq('appointment_id', appointmentData.id)
+            .eq('status', 'rejected')
+            .order('rejected_at', { ascending: false })
+            .limit(1)
+        ]);
+        const updatedAppointment = {
+          ...appointmentWithAcceptedReschedule,
+          pending_reschedules: clientPendingReschedules || [],
+          merchant_pending_reschedules: merchantPendingReschedules || [],
+          accepted_reschedules: acceptedReschedules || [],
+          rejected_reschedules: rejectedReschedules || [],
+        } as Appointment & { 
+          merchant_pending_reschedules?: AppointmentReschedule[];
+          accepted_reschedules?: AppointmentReschedule[];
+          rejected_reschedules?: AppointmentReschedule[];
+        };
+        
+        setAppointment(updatedAppointment);
       }
     } catch (error) {
-      console.error('Erro ao carregar agendamento:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao carregar o agendamento.');
+      handleError(error, 'appointment');
+      if (showLoading) {
+        Alert.alert('Erro', 'Ocorreu um erro ao carregar o agendamento.');
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
-  };
+  }, [params.id, router]);
+
+  // Função para iniciar o polling
+  const startPolling = useCallback(() => {
+    // Limpar qualquer intervalo existente antes de criar um novo
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+    
+    isPollingActiveRef.current = true;
+    pollingIntervalRef.current = setInterval(() => {
+      // Usar ref para verificar se ainda há appointment (evita dependência circular)
+      // O loadAppointment vai verificar internamente se precisa atualizar
+      loadAppointment(false).catch(() => {
+        // Silenciosamente ignorar erros durante polling
+      });
+    }, 15000); // Verificar a cada 15 segundos para evitar sobrecarga
+  }, [loadAppointment]);
+
+  // Função para parar o polling
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    isPollingActiveRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    const initialize = async () => {
+      await loadAppointment(true);
+      
+      // Iniciar polling após um pequeno delay para garantir que o carregamento inicial terminou
+      if (isMounted && !isPollingActiveRef.current) {
+        setTimeout(() => {
+          if (isMounted && !isPollingActiveRef.current) {
+            startPolling();
+          }
+        }, 2000);
+      }
+    };
+    
+    initialize();
+    
+    return () => {
+      isMounted = false;
+      stopPolling();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id]);
+
+  // Recarregar dados quando a tela recebe foco (quando volta de outras telas)
+  // Isso garante que os dados sejam atualizados quando o cliente aceita um reagendamento
+  useFocusEffect(
+    useCallback(() => {
+      // Forçar recarregamento para garantir dados atualizados após reagendamento aceito
+      // Aguardar um pouco para garantir que qualquer atualização no banco foi processada
+      const timer = setTimeout(() => {
+        loadAppointment(true);
+      }, 100);
+      
+      return () => {
+        clearTimeout(timer);
+      };
+    }, [loadAppointment])
+  );
+
 
   const handleStatusUpdate = async (newStatus: string) => {
     if (!appointment) return;
@@ -150,16 +275,13 @@ const AppointmentDetailScreen: React.FC = () => {
         .eq('id', appointment.id);
 
       if (error) {
-        console.error('Erro ao atualizar status:', error);
-        Alert.alert(
-          'Erro',
-          'Não foi possível atualizar o status do agendamento. Verifique sua conexão e tente novamente.'
-        );
+        const processed = handleError(error, 'appointment');
+        Alert.alert('Erro', processed.userMessage);
       } else {
         loadAppointment();
       }
     } catch (error) {
-      console.error('Erro ao atualizar status:', error);
+      handleError(error, 'appointment');
       Alert.alert('Erro', 'Ocorreu um erro ao atualizar o status.');
     } finally {
       setUpdating(false);
@@ -177,21 +299,10 @@ const AppointmentDetailScreen: React.FC = () => {
     );
   };
 
-  const handleCancel = () => {
-    Alert.alert(
-      'Cancelar Agendamento',
-      'Deseja cancelar este agendamento? Esta ação não pode ser desfeita.',
-      [
-        { text: 'Não', style: 'cancel' },
-        { text: 'Sim, cancelar', style: 'destructive', onPress: () => handleStatusUpdate('cancelled') },
-      ],
-    );
-  };
-
   const handleReschedule = () => {
     if (!appointment) return;
     router.push({
-      pathname: '/(merchant)/dashboard/appointment/reschedule',
+      pathname: '/(merchant)/dashboard/appointment/confirm',
       params: {
         appointmentId: appointment.id,
       },
@@ -219,18 +330,40 @@ const AppointmentDetailScreen: React.FC = () => {
         return;
       }
 
+      // Verificar conflitos de horário antes de aceitar
+      const { hasConflict, error: conflictError } = await checkAppointmentConflicts(
+        appointment.business.id,
+        rescheduleData.new_start_time,
+        rescheduleData.new_end_time,
+        appointment.id
+      );
+
+      if (conflictError) {
+        handleError(conflictError, 'appointment');
+        Alert.alert('Erro', 'Não foi possível verificar disponibilidade do horário.');
+        return;
+      }
+
+      if (hasConflict) {
+        Alert.alert(
+          'Horário Indisponível',
+          'Este horário já está ocupado. O reagendamento não pode ser aceito.'
+        );
+        return;
+      }
+
       // Atualizar o agendamento com os novos horários
       const { error: updateError } = await supabase
         .from('appointments')
         .update({
           start_time: rescheduleData.new_start_time,
           end_time: rescheduleData.new_end_time,
-          status: 'confirmed', // Ou 'pending' dependendo do fluxo
+          status: 'confirmed',
         })
         .eq('id', appointment.id);
 
       if (updateError) {
-        console.error('Erro ao atualizar agendamento:', updateError);
+        handleError(updateError, 'appointment');
         Alert.alert('Erro', 'Não foi possível aceitar o reagendamento.');
         return;
       }
@@ -245,7 +378,9 @@ const AppointmentDetailScreen: React.FC = () => {
         .eq('id', rescheduleId);
 
       if (acceptError) {
-        console.error('Erro ao marcar reagendamento como aceito:', acceptError);
+        handleError(acceptError, 'appointment');
+        Alert.alert('Erro', 'Reagendamento atualizado, mas houve erro ao atualizar o status.');
+        return;
       }
 
       // Cancelar outros reagendamentos pendentes do mesmo agendamento
@@ -258,10 +393,24 @@ const AppointmentDetailScreen: React.FC = () => {
         .eq('status', 'pending')
         .neq('id', rescheduleId);
 
-      loadAppointment();
+      // Enviar notificação ao cliente
+      if (appointment.client?.id) {
+        await notifyRescheduleAccepted(
+          appointment.client.id,
+          parseInt(appointment.id),
+          rescheduleId,
+          rescheduleData.new_start_time,
+          appointment.business.business_name
+        );
+      }
+
+      await loadAppointment();
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       Alert.alert('Sucesso', 'Reagendamento aceito com sucesso.');
     } catch (error) {
-      console.error('Erro ao aceitar reagendamento:', error);
+      handleError(error, 'appointment');
       Alert.alert('Erro', 'Ocorreu um erro ao aceitar o reagendamento.');
     } finally {
       setUpdating(false);
@@ -274,6 +423,15 @@ const AppointmentDetailScreen: React.FC = () => {
     try {
       setUpdating(true);
 
+      // Buscar dados do reagendamento para obter o ID
+      const { data: rescheduleData } = await supabase
+        .from('appointment_reschedules')
+        .select('*')
+        .eq('id', rescheduleId)
+        .eq('appointment_id', appointment.id)
+        .eq('status', 'pending')
+        .single();
+
       const { error } = await supabase
         .from('appointment_reschedules')
         .update({
@@ -285,60 +443,39 @@ const AppointmentDetailScreen: React.FC = () => {
         .eq('appointment_id', appointment.id);
 
       if (error) {
-        console.error('Erro ao rejeitar reagendamento:', error);
+        handleError(error, 'appointment');
         Alert.alert('Erro', 'Não foi possível rejeitar o reagendamento.');
         return;
       }
 
-      loadAppointment();
+      // Enviar notificação ao cliente
+      if (appointment.client?.id && rescheduleData) {
+        await notifyRescheduleRejected(
+          appointment.client.id,
+          parseInt(appointment.id),
+          rescheduleId,
+          appointment.business.business_name,
+          reason || null
+        );
+      }
+
+      await loadAppointment();
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       Alert.alert('Sucesso', 'Reagendamento rejeitado.');
     } catch (error) {
-      console.error('Erro ao rejeitar reagendamento:', error);
+      handleError(error, 'appointment');
       Alert.alert('Erro', 'Ocorreu um erro ao rejeitar o reagendamento.');
     } finally {
       setUpdating(false);
     }
   };
 
-  // Gerar próximas datas disponíveis (próximos 30 dias)
-  const generateAvailableDates = () => {
-    const dates: Date[] = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let i = 1; i <= 30; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      dates.push(date);
-    }
-
-    return dates;
-  };
-
-  // Gerar horários disponíveis (8h às 18h, intervalos de 1 hora)
-  const generateAvailableTimes = () => {
-    const times: string[] = [];
-    for (let hour = 8; hour < 18; hour++) {
-      times.push(`${hour.toString().padStart(2, '0')}:00`);
-    }
-    return times;
-  };
-
-  const getStatusLabel = (status: string) => {
-    const statusMap: Record<string, string> = {
-      pending: 'Pendente',
-      confirmed: 'Confirmado',
-      cancelled: 'Cancelado',
-      completed: 'Concluído',
-      rescheduled: 'Reagendado',
-    };
-    return statusMap[status] || status;
-  };
-
   const getStatusColor = (status: string) => {
     const colorMap: Record<string, string> = {
       pending: '#FFA500',
-      confirmed: '#17723F',
+      confirmed: '#4CAF50',
       cancelled: '#E5102E',
       completed: '#474747',
       rescheduled: '#000E3D',
@@ -358,11 +495,11 @@ const AppointmentDetailScreen: React.FC = () => {
   const getPaymentMethodIcon = (method: string) => {
     switch (method) {
       case 'pix':
-        return <IconPix size={24} color="#000E3D" />;
+        return <Icon family="FontAwesome6" name="pix" size={24} color="#000E3D" />;
       case 'card':
-        return <IconCreditCard size={24} color="#000E3D" />;
+        return <Icon name="credit-card" size={24} color="#000E3D" />;
       case 'cash':
-        return <IconCash size={24} color="#000E3D" />;
+        return <Icon name="payments" size={24} color="#000E3D" />;
       default:
         return null;
     }
@@ -370,20 +507,32 @@ const AppointmentDetailScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
+      <ScreenContainer scroll={false} backgroundColor="#FAFAFA" hasTabBar={false}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      </ScreenContainer>
     );
   }
 
   if (!appointment) {
     return (
-      <View style={styles.container}>
-        <MerchantTopBar showBack onBackPress={() => router.back()} />
+      <ScreenContainer 
+        scroll={false} 
+        backgroundColor="#FAFAFA" 
+        hasHeader={true}
+        hasTabBar={false}
+        header={
+          <AppHeader 
+            showBackButton={true}
+            onPressBack={() => safeGoBack('/(merchant)/dashboard')}
+          />
+        }
+      >
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Agendamento não encontrado.</Text>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
@@ -400,8 +549,6 @@ const AppointmentDetailScreen: React.FC = () => {
       imagesArray = appointment.service.photos;
     }
   }
-  const firstImage = imagesArray.length > 0 ? imagesArray[0] : null;
-
   const appointmentDate = new Date(appointment.start_time);
   const isTodayDate = isToday(appointmentDate);
   const dateLabel = isTodayDate
@@ -410,13 +557,20 @@ const AppointmentDetailScreen: React.FC = () => {
   const timeLabel = format(appointmentDate, 'HH:mm');
 
   return (
-    <View style={styles.container}>
-      <MerchantTopBar showBack onBackPress={() => router.back()} />
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={true}
+      hasTabBar={false}
+      backgroundColor="#FAFAFA"
+      horizontalPadding={0}
+      contentContainerStyle={styles.scrollContent}
+      header={
+        <AppHeader 
+          showBackButton={true}
+          onPressBack={() => safeGoBack('/(merchant)/dashboard')}
+        />
+      }
+    >
         {/* Appointment Details Card */}
         <View style={styles.detailsCard}>
           {/* Header: Date and Time */}
@@ -466,12 +620,12 @@ const AppointmentDetailScreen: React.FC = () => {
           </View>
 
           {/* Observations */}
-          {appointment.observations && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Observações do cliente:</Text>
-              <Text style={styles.observations}>{appointment.observations}</Text>
-            </View>
-          )}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Observações do cliente:</Text>
+            <Text style={styles.observations}>
+              {appointment.client_notes || 'Nenhuma observação'}
+            </Text>
+          </View>
 
           {/* Pending Reschedules */}
           {appointment.pending_reschedules && appointment.pending_reschedules.length > 0 && (
@@ -562,31 +716,149 @@ const AppointmentDetailScreen: React.FC = () => {
               })}
             </View>
           )}
-        </View>
 
-        {/* Action Buttons */}
-        {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
-          <>
-            {appointment.status === 'pending' && (
-              <TouchableOpacity
-                style={styles.confirmButton}
-                onPress={handleConfirm}
+          {/* Merchant Pending Reschedules - Aguardando resposta do cliente */}
+          {appointment.merchant_pending_reschedules && appointment.merchant_pending_reschedules.length > 0 && (() => {
+            // Pegar apenas o último reagendamento (já vem ordenado do banco)
+            const reschedule = appointment.merchant_pending_reschedules[0];
+            const originalDate = new Date(reschedule.original_start_time);
+            const newDate = new Date(reschedule.new_start_time);
+            const originalTime = format(originalDate, 'HH:mm');
+            const newTime = format(newDate, 'HH:mm');
+            const originalEndTime = format(new Date(reschedule.original_end_time), 'HH:mm');
+            const newEndTime = format(new Date(reschedule.new_end_time), 'HH:mm');
+
+            return (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Reagendamento pendente:</Text>
+                <View style={styles.rescheduleCard}>
+                  <View style={styles.rescheduleHeader}>
+                    <Text style={styles.rescheduleTitle}>Reagendamento Sugerido</Text>
+                    <Text style={styles.rescheduleStatus}>Aguardando resposta do cliente</Text>
+                  </View>
+
+                  <View style={styles.rescheduleTimes}>
+                    <View style={styles.rescheduleTimeItem}>
+                      <Text style={styles.rescheduleTimeLabel}>Horário atual:</Text>
+                      <Text style={styles.rescheduleTimeValue}>
+                        {format(originalDate, 'dd/MM/yyyy', { locale: ptBR })} - {originalTime} às {originalEndTime}
+                      </Text>
+                    </View>
+                    <View style={styles.rescheduleTimeItem}>
+                      <Text style={styles.rescheduleTimeLabel}>Novo horário sugerido:</Text>
+                      <Text style={styles.rescheduleTimeValue}>
+                        {format(newDate, 'dd/MM/yyyy', { locale: ptBR })} - {newTime} às {newEndTime}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {reschedule.justification && (
+                    <View style={styles.rescheduleJustification}>
+                      <Text style={styles.rescheduleJustificationLabel}>Justificativa:</Text>
+                      <Text style={styles.rescheduleJustificationText}>{reschedule.justification}</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.pendingInfo}>
+                    <Text style={styles.pendingInfoText}>
+                      O cliente precisa aceitar este reagendamento para que os horários sejam atualizados.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* Rejected Reschedules - Mostrar reagendamentos rejeitados */}
+          {appointment.rejected_reschedules && 
+           appointment.rejected_reschedules.length > 0 && 
+           (!appointment.pending_reschedules || appointment.pending_reschedules.length === 0) &&
+           (!appointment.merchant_pending_reschedules || appointment.merchant_pending_reschedules.length === 0) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Reagendamento Rejeitado:</Text>
+              {appointment.rejected_reschedules.map((reschedule) => {
+                const originalDate = new Date(reschedule.original_start_time);
+                const newDate = new Date(reschedule.new_start_time);
+                const originalTime = format(originalDate, 'HH:mm');
+                const newTime = format(newDate, 'HH:mm');
+                const originalEndTime = format(new Date(reschedule.original_end_time), 'HH:mm');
+                const newEndTime = format(new Date(reschedule.new_end_time), 'HH:mm');
+
+                return (
+                  <View key={reschedule.id} style={[styles.rescheduleCard, styles.rejectedRescheduleCard]}>
+                    <View style={styles.rescheduleHeader}>
+                      <Text style={styles.rescheduleTitle}>Reagendamento Rejeitado</Text>
+                      <Text style={styles.rescheduleDate}>
+                        Rejeitado em {format(new Date(reschedule.rejected_at || reschedule.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </Text>
+                    </View>
+
+                    <View style={styles.rescheduleTimes}>
+                      <View style={styles.rescheduleTimeItem}>
+                        <Text style={styles.rescheduleTimeLabel}>Horário anterior:</Text>
+                        <Text style={styles.rescheduleTimeValue}>
+                          {format(originalDate, 'dd/MM/yyyy', { locale: ptBR })} - {originalTime} às {originalEndTime}
+                        </Text>
+                      </View>
+                      <View style={styles.rescheduleTimeItem}>
+                        <Text style={styles.rescheduleTimeLabel}>
+                          {reschedule.requested_by_type === 'merchant' ? 'Horário sugerido:' : 'Horário solicitado:'}
+                        </Text>
+                        <Text style={styles.rescheduleTimeValue}>
+                          {format(newDate, 'dd/MM/yyyy', { locale: ptBR })} - {newTime} às {newEndTime}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {reschedule.justification && (
+                      <View style={styles.rescheduleJustification}>
+                        <Text style={styles.rescheduleJustificationLabel}>
+                          {reschedule.requested_by_type === 'merchant' ? 'Sua justificativa:' : 'Justificativa do cliente:'}
+                        </Text>
+                        <Text style={styles.rescheduleJustificationText}>{reschedule.justification}</Text>
+                      </View>
+                    )}
+
+                    {reschedule.rejected_reason && (
+                      <View style={styles.rescheduleJustification}>
+                        <Text style={styles.rescheduleJustificationLabel}>Motivo da rejeição:</Text>
+                        <Text style={styles.rescheduleJustificationText}>{reschedule.rejected_reason}</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Action Buttons */}
+          {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
+            <View style={styles.actionButtonsContainer}>
+              {appointment.status === 'pending' && 
+               (!appointment.merchant_pending_reschedules || appointment.merchant_pending_reschedules.length === 0) &&
+               (!appointment.accepted_reschedules || appointment.accepted_reschedules.length === 0) && (
+                <CustomButton
+                  compact
+                  title="Confirmar agendamento"
+                  onPress={handleConfirm}
+                  disabled={updating}
+                  variant="outline"
+                  rightIcon={<MaterialSymbolIcon name="check_circle" size={24} color="#000E3D" />}
+                  style={{ marginBottom: 12 }}
+                />
+              )}
+              <CustomButton
+                compact
+                title="Sugerir novo agendamento"
+                onPress={handleReschedule}
                 disabled={updating}
-              >
-                <Text style={styles.confirmButtonText}>Confirmar agendamento</Text>
-                <IconCheckCircle size={24} color="#000E3D" />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.suggestButton}
-              onPress={handleReschedule}
-              disabled={updating}
-            >
-              <Text style={styles.suggestButtonText}>Sugerir novo agendamento</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </ScrollView>
+                variant="ghost"
+                textStyle={{ color: '#E5102E' }}
+                style={styles.rescheduleButton}
+              />
+            </View>
+          )}
+        </View>
 
       {/* Modal de Confirmação */}
       <Modal
@@ -595,29 +867,30 @@ const AppointmentDetailScreen: React.FC = () => {
         animationType="fade"
         onRequestClose={() => {
           setShowConfirmationModal(false);
-          router.back();
+          safeGoBack('/(merchant)/dashboard');
         }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.confirmationModalContent}>
-            <IconCheckCircle size={67} color="#17723F" />
+            <Icon name="check-circle" size={67} color="#17723F" />
             <Text style={styles.confirmationTitle}>Sugestão de novo horário enviada</Text>
             <Text style={styles.confirmationMessage}>
               Aguarde o seu cliente confirmar a sua sugestão
             </Text>
-            <TouchableOpacity
-              style={styles.closeButton}
+            <CustomButton
+              title="Fechar"
               onPress={() => {
                 setShowConfirmationModal(false);
-                router.back();
+                safeGoBack('/(merchant)/dashboard');
               }}
-            >
-              <Text style={styles.closeButtonText}>Fechar</Text>
-            </TouchableOpacity>
+              variant="primary"
+              style={{ borderRadius: 24, marginVertical: 0 }}
+              width="100%"
+            />
           </View>
         </View>
       </Modal>
-    </View>
+    </ScreenContainer>
   );
 };
 
@@ -626,7 +899,6 @@ export default AppointmentDetailScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   loadingContainer: {
     flex: 1,
@@ -634,19 +906,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  scrollView: {
-    flex: 1,
-    marginTop: 70,
-  },
   scrollContent: {
-    padding: 24,
-    paddingBottom: 100,
+    flexGrow: 1,
+    paddingTop: 0,
+    paddingBottom: 0,
+    paddingLeft: 0,
+    paddingRight: 0,
   },
   detailsCard: {
     backgroundColor: '#FEFEFE',
-    borderRadius: 24,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     padding: 24,
-    marginBottom: 16,
+    paddingBottom: 32,
+    marginBottom: 24,
+    width: '100%',
     shadowColor: '#1D1D1D',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.16,
@@ -724,8 +1000,10 @@ const styles = StyleSheet.create({
   observations: {
     fontSize: 16,
     fontFamily: 'Montserrat_500Medium',
+    fontWeight: '500',
     color: '#0F0F0F',
     lineHeight: 24,
+    flexWrap: 'wrap',
   },
   rescheduleCard: {
     backgroundColor: '#FEFEFE',
@@ -743,6 +1021,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#0F0F0F',
+  },
+  rescheduleStatus: {
+    fontSize: 14,
+    fontFamily: 'Montserrat_500Medium',
+    color: '#FFA500',
   },
   rescheduleDate: {
     fontSize: 12,
@@ -813,33 +1096,24 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_700Bold',
     color: '#FEFEFE',
   },
-  confirmButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#000E3D',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 8,
+  pendingInfo: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
+    marginTop: 8,
   },
-  confirmButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+  pendingInfoText: {
+    fontSize: 14,
+    fontFamily: 'Montserrat_400Regular',
+    color: '#666666',
+    lineHeight: 20,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
-  suggestButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  suggestButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+  rejectedRescheduleCard: {
+    borderColor: '#E5102E',
+    borderWidth: 2,
+    backgroundColor: '#FFF5F5',
   },
   emptyContainer: {
     flex: 1,
@@ -864,7 +1138,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 16,
     alignItems: 'center',
-    marginHorizontal: 24,
     gap: 16,
   },
   confirmationTitle: {
@@ -879,17 +1152,14 @@ const styles = StyleSheet.create({
     color: '#0F0F0F',
     textAlign: 'center',
   },
-  closeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 24,
-    width: 256,
-    alignItems: 'center',
+  actionButtonsContainer: {
+    marginTop: 8,
+    paddingTop: 16,
   },
-  closeButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+  rescheduleButton: {
+    borderWidth: 1,
+    borderColor: '#E5102E',
+    borderRadius: 24,
   },
 });
 

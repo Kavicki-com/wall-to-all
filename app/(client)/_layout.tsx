@@ -1,16 +1,18 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { CustomTabBar } from '../../components/CustomTabBar';
+import { ProfileProvider } from '../../context/ProfileContext';
 
 const ClientLayout: React.FC = () => {
   return (
-    <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-      }}
-    >
+    <ProfileProvider>
+      <Tabs
+        tabBar={(props) => <CustomTabBar {...props} />}
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: false,
+        }}
+      >
       {/* ========================================
           TABS VISÍVEIS (4 ícones conforme Figma)
           ======================================== */}
@@ -131,6 +133,7 @@ const ClientLayout: React.FC = () => {
         }}
       />
     </Tabs>
+    </ProfileProvider>
   );
 };
 

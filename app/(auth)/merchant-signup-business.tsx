@@ -5,31 +5,31 @@ import {
   Platform,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
-  ScrollView,
   Image,
   Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import Svg, { Defs, RadialGradient as SvgRadialGradient, Stop, Rect } from 'react-native-svg';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useSafeGoBack } from '../../lib/router-utils';
 import { supabase } from '../../lib/supabase';
-import { responsiveHeight } from '../../lib/responsive';
-import {
-  IconPix,
-} from '../../lib/assets';
 import {
   IconCheckbox,
   IconCheckboxOutline,
+  IconPix,
   IconCreditCard,
   IconCash,
-  IconAddPhoto,
 } from '../../lib/icons';
 import { fetchCategories, type Category } from '../../lib/categories';
+import { handleError } from '../../lib/errorHandler';
 import SelectDropdown from '../../components/ui/SelectDropdown';
+import { CustomInput } from '../../components/ui/CustomInput';
+import { Icon } from '../../components/ui/Icon';
+import ScreenContainer from '../../components/layout/ScreenContainer';
+import SignupHeaderMerchant from '../../components/auth/SignupHeaderMerchant';
+import { CustomButton } from '../../components/CustomButton';
 
 type BusinessTimeOption = {
   value: string;
@@ -44,12 +44,12 @@ const BUSINESS_TIME_OPTIONS: BusinessTimeOption[] = [
 ];
 
 // Intervalos de almoço de 1 hora
-const LUNCH_TIME_OPTIONS = [
+const LUNCH_TIME_OPTIONS: { start: string; end: string; label: string }[] = [
   { start: '11:00', end: '12:00', label: '11:00 a 12:00' },
   { start: '12:00', end: '13:00', label: '12:00 a 13:00' },
   { start: '13:00', end: '14:00', label: '13:00 a 14:00' },
   { start: '14:00', end: '15:00', label: '14:00 a 15:00' },
-] as const;
+];
 
 const WEEK_DAYS = [
   { key: 'monday', label: 'Segunda-feira' },
@@ -79,6 +79,7 @@ type WorkDaysState = {
 
 const MerchantSignupBusinessScreen: React.FC = () => {
   const router = useRouter();
+  const safeGoBack = useSafeGoBack('/(auth)/merchant-signup-address');
   const params = useLocalSearchParams<{ userId?: string; addressData?: string }>();
   const userId = params.userId as string | undefined;
   const addressData = params.addressData ? JSON.parse(params.addressData as string) : null;
@@ -95,10 +96,11 @@ const MerchantSignupBusinessScreen: React.FC = () => {
   const [cash, setCash] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bannerImage, setBannerImage] = useState<string | null>(null);
+  const [bannerUploading, setBannerUploading] = useState(false);
   const [logoImage, setLogoImage] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
   
-  // Carregar categorias do banco ao montar o componente
   useEffect(() => {
     loadCategories();
   }, []);
@@ -106,19 +108,13 @@ const MerchantSignupBusinessScreen: React.FC = () => {
   const loadCategories = async () => {
     try {
       const categoriesData = await fetchCategories();
-      console.log('[merchant-signup-business] Categorias carregadas:', categoriesData.length);
-      console.log('[merchant-signup-business] Lista de categorias:', categoriesData.map(c => c.name));
-      if (categoriesData.length === 0) {
-        console.warn('[merchant-signup-business] Nenhuma categoria encontrada no banco de dados!');
-      }
       setCategories(categoriesData);
     } catch (error) {
-      console.error('[merchant-signup-business] Erro ao carregar categorias:', error);
+      handleError(error, 'general');
       setCategories([]);
     }
   };
   
-  // Estado único para dias de funcionamento
   const [workDays, setWorkDays] = useState<WorkDaysState>({
     monday: { active: false, start: '07:00', end: '18:00' },
     tuesday: { active: false, start: '07:00', end: '18:00' },
@@ -129,16 +125,40 @@ const MerchantSignupBusinessScreen: React.FC = () => {
     sunday: { active: false, start: '07:00', end: '18:00' },
   });
 
+  // Resetar campos quando a tela é focada (quando volta de outras telas)
+  useFocusEffect(
+    React.useCallback(() => {
+      setBusinessName('');
+      setSelectedCategory(null);
+      setBusinessTime(null);
+      setHasLunchBreak(false);
+      setLunchTime(null);
+      setDescription('');
+      setPix(true);
+      setCard(true);
+      setCash(true);
+      setBannerImage(null);
+      setLogoImage(null);
+      setError(null);
+      setWorkDays({
+        monday: { active: false, start: '07:00', end: '18:00' },
+        tuesday: { active: false, start: '07:00', end: '18:00' },
+        wednesday: { active: false, start: '07:00', end: '18:00' },
+        thursday: { active: false, start: '07:00', end: '18:00' },
+        friday: { active: false, start: '07:00', end: '18:00' },
+        saturday: { active: false, start: '07:00', end: '18:00' },
+        sunday: { active: false, start: '07:00', end: '18:00' },
+      });
+    }, [])
+  );
+
   const handleContinue = async () => {
-    // Verificar se o usuário está autenticado
     const { data, error: userError } = await supabase.auth.getUser();
     const currentUser = data?.user;
     
     if (userError || !currentUser) {
-      // Tentar fazer login novamente se tiver userId
       if (userId) {
         setError('Sessão expirada. Por favor, faça login novamente.');
-        // Redirecionar para login após um tempo
         setTimeout(() => {
           router.replace('/(auth)/login');
         }, 2000);
@@ -159,8 +179,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Preparar work_days para salvar no Supabase (JSONB)
-      // Só salva os dias que estão ativos
       const workDaysJson: Record<string, { start: string; end: string }> = {};
       Object.entries(workDays).forEach(([dayKey, dayData]) => {
         if (dayData.active) {
@@ -171,20 +189,37 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         }
       });
 
-      // Preparar métodos de pagamento aceitos para salvar no Supabase (JSONB)
       const acceptedPaymentMethods = {
         pix: pix,
         card: card,
         cash: cash,
       };
 
-      // Fazer upload do logo se houver imagem selecionada
+      let bannerUrl: string | null = null;
+      if (bannerImage) {
+        bannerUrl = await uploadBannerToSupabase(userIdToUse);
+        if (bannerImage && !bannerUrl) {
+          const shouldContinue = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Erro no upload',
+              'Não foi possível fazer upload da foto de capa. Deseja continuar sem a foto de capa?',
+              [
+                { text: 'Cancelar', onPress: () => resolve(false), style: 'cancel' },
+                { text: 'Continuar', onPress: () => resolve(true) },
+              ]
+            );
+          });
+          if (!shouldContinue) {
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       let logoUrl: string | null = null;
       if (logoImage) {
-        // Passar userIdToUse para a função de upload
-        logoUrl = await uploadLogoToSupabase();
+        logoUrl = await uploadLogoToSupabase(userIdToUse);
         if (logoImage && !logoUrl) {
-          // Se o upload falhar mas houver imagem, perguntar se quer continuar
           const shouldContinue = await new Promise<boolean>((resolve) => {
             Alert.alert(
               'Erro no upload',
@@ -202,7 +237,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         }
       }
 
-      // Criar business_profiles com todos os dados (incluindo endereço da tela anterior)
       const { data, error: companyError } = await supabase
         .from('business_profiles')
         .insert({
@@ -211,6 +245,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
           category_id: selectedCategory?.id || null,
           description: description || null,
           address: addressData?.address || null,
+          banner_url: bannerUrl || null,
           logo_url: logoUrl || null,
           business_time: businessTime?.label || null,
           lunch_break_start: hasLunchBreak && lunchTime ? lunchTime.start : null,
@@ -232,9 +267,8 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         pathname: '/(auth)/merchant-signup-services',
         params: { userId: userIdToUse, companyId },
       });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Erro ao salvar dados do negócio.';
-      setError(message);
+    } catch (e: any) {
+      setError(e?.message ?? 'Erro ao salvar dados do negócio.');
     } finally {
       setLoading(false);
     }
@@ -243,25 +277,62 @@ const MerchantSignupBusinessScreen: React.FC = () => {
   const renderCheckbox = (checked: boolean) =>
     checked ? <IconCheckbox width={18} height={18} /> : <IconCheckboxOutline width={18} height={18} />;
 
-  const requestImagePermissions = async () => {
-    if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permissão necessária',
-          'Precisamos da permissão para acessar suas fotos!'
-        );
-        return false;
+  const handlePickBannerImage = async () => {
+    try {
+      // Solicitar permissão apenas quando necessário
+      if (Platform.OS !== 'web') {
+        try {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert(
+              'Permissão necessária',
+              'Precisamos da permissão para acessar suas fotos!'
+            );
+            return;
+          }
+        } catch (permissionError) {
+          handleError(permissionError, 'general');
+          Alert.alert('Erro', 'Não foi possível solicitar permissão para acessar suas fotos.');
+          return;
+        }
       }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setBannerImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      handleError(error, 'general');
+      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
     }
-    return true;
   };
 
   const handlePickImage = async () => {
-    const hasPermission = await requestImagePermissions();
-    if (!hasPermission) return;
-
     try {
+      // Solicitar permissão apenas quando necessário
+      if (Platform.OS !== 'web') {
+        try {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert(
+              'Permissão necessária',
+              'Precisamos da permissão para acessar suas fotos!'
+            );
+            return;
+          }
+        } catch (permissionError) {
+          handleError(permissionError, 'general');
+          Alert.alert('Erro', 'Não foi possível solicitar permissão para acessar suas fotos.');
+          return;
+        }
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -273,18 +344,17 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         setLogoImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
+      handleError(error, 'general');
       Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
     }
   };
 
-  const uploadLogoToSupabase = async (): Promise<string | null> => {
-    if (!logoImage) return null;
+  const uploadBannerToSupabase = async (_userIdParam?: string): Promise<string | null> => {
+    if (!bannerImage) return null;
 
     try {
-      setLogoUploading(true);
+      setBannerUploading(true);
 
-      // Verificar se o usuário está autenticado antes do upload
       const { data, error: authError } = await supabase.auth.getUser();
       const currentUser = data?.user;
       
@@ -292,20 +362,27 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         throw new Error('Usuário não autenticado. Faça login novamente.');
       }
 
-      // Usar o ID do usuário autenticado no nome do arquivo
       const authenticatedUserId = currentUser.id;
-      
-      // Criar um nome único para o arquivo
-      const fileExt = logoImage.split('.').pop() || 'jpg';
+      const fileExt = bannerImage.split('.').pop() || 'jpg';
       const fileName = `${authenticatedUserId}-${Date.now()}.${fileExt}`;
-      const filePath = `business-logos/${fileName}`;
+      const filePath = `business-banners/${fileName}`;
 
-      // Ler o arquivo como base64
-      const base64 = await FileSystem.readAsStringAsync(logoImage, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      // Verificar se o arquivo existe antes de ler
+      const fileInfo = await FileSystem.getInfoAsync(bannerImage);
+      if (!fileInfo.exists) {
+        throw new Error('Arquivo de imagem não encontrado. Por favor, selecione a imagem novamente.');
+      }
 
-      // Converter base64 para ArrayBuffer
+      let base64: string;
+      try {
+        base64 = await FileSystem.readAsStringAsync(bannerImage, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch (fileError) {
+        handleError(fileError, 'general');
+        throw new Error('Não foi possível ler o arquivo de imagem. Verifique se o arquivo não está corrompido.');
+      }
+
       const byteCharacters = atob(base64);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
@@ -313,7 +390,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       }
       const byteArray = new Uint8Array(byteNumbers);
 
-      // Fazer upload para Supabase Storage usando ArrayBuffer
       const { error: uploadError } = await supabase.storage
         .from('business-assets')
         .upload(filePath, byteArray, {
@@ -322,18 +398,84 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         });
 
       if (uploadError) {
-        console.error('Erro no upload:', uploadError);
+        handleError(uploadError, 'general');
         throw uploadError;
       }
 
-      // Obter URL pública da imagem
       const {
         data: { publicUrl },
       } = supabase.storage.from('business-assets').getPublicUrl(filePath);
 
       return publicUrl;
-    } catch (error) {
-      console.error('Erro ao fazer upload do logo:', error);
+    } catch (error: unknown) {
+      handleError(error, 'general');
+      Alert.alert('Erro', 'Não foi possível fazer upload da foto de capa.');
+      return null;
+    } finally {
+      setBannerUploading(false);
+    }
+  };
+
+  const uploadLogoToSupabase = async (_userIdParam?: string): Promise<string | null> => {
+    if (!logoImage) return null;
+
+    try {
+      setLogoUploading(true);
+
+      const { data, error: authError } = await supabase.auth.getUser();
+      const currentUser = data?.user;
+      
+      if (authError || !currentUser) {
+        throw new Error('Usuário não autenticado. Faça login novamente.');
+      }
+
+      const authenticatedUserId = currentUser.id;
+      const fileExt = logoImage.split('.').pop() || 'jpg';
+      const fileName = `${authenticatedUserId}-${Date.now()}.${fileExt}`;
+      const filePath = `business-logos/${fileName}`;
+
+      // Verificar se o arquivo existe antes de ler
+      const fileInfo = await FileSystem.getInfoAsync(logoImage);
+      if (!fileInfo.exists) {
+        throw new Error('Arquivo de imagem não encontrado. Por favor, selecione a imagem novamente.');
+      }
+
+      let base64: string;
+      try {
+        base64 = await FileSystem.readAsStringAsync(logoImage, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch (fileError) {
+        handleError(fileError, 'general');
+        throw new Error('Não foi possível ler o arquivo de imagem. Verifique se o arquivo não está corrompido.');
+      }
+
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+
+      const { error: uploadError } = await supabase.storage
+        .from('business-assets')
+        .upload(filePath, byteArray, {
+          contentType: `image/${fileExt}`,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        handleError(uploadError, 'general');
+        throw uploadError;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('business-assets').getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error: unknown) {
+      handleError(error, 'general');
       Alert.alert('Erro', 'Não foi possível fazer upload do logotipo.');
       return null;
     } finally {
@@ -341,7 +483,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
     }
   };
 
-  // Toggle de ativação de um dia
   const toggleWorkDay = (dayKey: keyof WorkDaysState) => {
     setWorkDays((prev) => ({
       ...prev,
@@ -352,7 +493,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
     }));
   };
 
-  // Atualizar horário de abertura
   const updateWorkDayStart = (dayKey: keyof WorkDaysState, time: string) => {
     setWorkDays((prev) => ({
       ...prev,
@@ -363,7 +503,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
     }));
   };
 
-  // Atualizar horário de fechamento
   const updateWorkDayEnd = (dayKey: keyof WorkDaysState, time: string) => {
     setWorkDays((prev) => ({
       ...prev,
@@ -374,11 +513,8 @@ const MerchantSignupBusinessScreen: React.FC = () => {
     }));
   };
 
-  // Formatar horário (HH:mm)
   const formatTime = (value: string): string => {
-    // Remove caracteres não numéricos
     const numbers = value.replace(/\D/g, '');
-    
     if (numbers.length === 0) return '';
     if (numbers.length <= 2) return numbers;
     if (numbers.length <= 4) {
@@ -388,82 +524,36 @@ const MerchantSignupBusinessScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.background}>
+    <ScreenContainer
+      scroll
+      backgroundColor="#FEFEFE"
+      contentContainerStyle={{ flexGrow: 1, paddingTop: 0, paddingBottom: 16 }}
+      header={
+        <SignupHeaderMerchant
+          title="Dados do negócio"
+          subtitle="Conte mais sobre o seu negócio"
+          steps={['Cadastro', 'Endereço', 'Negócio', 'Serviços']}
+          currentStepIndex={2}
+          showBackButton={true}
+          onPressBack={safeGoBack}
+        />
+      }
+    >
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header com o mesmo gradiente da seleção de tipo */}
-          <View style={styles.header}>
-            <View style={styles.headerBackground}>
-              {/* Fundo Sólido - Base Dark Navy */}
-              <View
-                style={[
-                  StyleSheet.absoluteFillObject,
-                  { backgroundColor: '#000E3D' },
-                ]}
-              />
-
-              {/* Svg Radial Gradient - Efeito Difuso */}
-              <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
-                <Defs>
-                  <SvgRadialGradient
-                    id="headerRadialGradient"
-                    cx="0.5"
-                    cy="0.3" 
-                    rx="100%" 
-                    ry="100%" 
-                    gradientUnits="objectBoundingBox"
-                  >
-                    {/* CORREÇÃO AQUI: 
-                      1. rx="100%" estica a luz horizontalmente para não formar uma "bola".
-                      2. cy="0.3" sobe um pouco a luz para vir de cima.
-                      3. Cor central muito mais escura e desaturada (rgba 50, 70, 140).
-                         Antes estava muito neon (74, 108, 255), o que causava o brilho excessivo.
-                    */}
-                    <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
-                    
-                    {/* As pontas fundem perfeitamente com o background */}
-                    <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
-                  </SvgRadialGradient>
-                </Defs>
-                <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
-              </Svg>
-            </View>
-
-            <View style={styles.headerContent}>
-              <Text style={styles.welcomeTitle}>Dados do negócio</Text>
-              <Text style={styles.welcomeSubtitle}>
-                Conte um pouco sobre o seu negócio
-              </Text>
-            </View>
-          </View>
-
-          {/* Step bar */}
-          <View style={styles.stepBar}>
-              <View style={[styles.stepSegment, styles.stepSegmentComplete]} />
-              <View style={[styles.stepSegment, styles.stepSegmentComplete]} />
-              <View style={[styles.stepSegment, styles.stepSegmentActive]} />
-              <View style={styles.stepSegment} />
-          </View>
 
           {/* Form */}
           <View style={styles.form}>
               {/* Nome do negócio */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nome do seu negócio</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Digite aqui o nome"
-                  placeholderTextColor="#0f0f0f"
-                  value={businessName}
-                  onChangeText={setBusinessName}
-                />
-              </View>
+              <CustomInput
+                label="Nome do seu negócio"
+                placeholder="Digite aqui o nome"
+                value={businessName}
+                onChangeText={setBusinessName}
+              />
 
               {/* Área de atuação */}
               <View style={styles.inputGroup}>
@@ -473,7 +563,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
                   labelKey="name"
                   valueKey="id"
                   onSelect={(category) => {
-                    console.log('[merchant-signup-business] Categoria selecionada:', category);
                     setSelectedCategory(category);
                   }}
                   selectedValue={selectedCategory}
@@ -487,7 +576,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
 
               {/* Tempo de negócio */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Tempo de Negócio</Text>
+                <Text style={styles.label}>Tempo de negócio</Text>
                 <SelectDropdown<BusinessTimeOption>
                   data={BUSINESS_TIME_OPTIONS}
                   labelKey="label"
@@ -495,7 +584,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
                   onSelect={(option) => setBusinessTime(option)}
                   selectedValue={businessTime}
                   placeholder="Selecione aqui"
-                  strong
                 />
               </View>
 
@@ -506,7 +594,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
                 onPress={() => {
                   setHasLunchBreak(!hasLunchBreak);
                   if (hasLunchBreak) {
-                    // Se desmarcar, limpa o horário selecionado
                     setLunchTime(null);
                   }
                 }}
@@ -518,7 +605,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
                 )}
                 <Text
                   style={[
-                    styles.checkboxLabel,
+                    styles.checkboxLabelText,
                     hasLunchBreak && styles.checkboxLabelSelected,
                   ]}
                 >
@@ -526,7 +613,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
                 </Text>
               </TouchableOpacity>
 
-              {/* Campo de horário de almoço - só aparece se a checkbox estiver marcada */}
+              {/* Campo de horário de almoço */}
               {hasLunchBreak && (
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Horário de almoço</Text>
@@ -537,7 +624,6 @@ const MerchantSignupBusinessScreen: React.FC = () => {
                     onSelect={(interval) => setLunchTime(interval)}
                     selectedValue={lunchTime}
                     placeholder="Selecione aqui"
-                    strong
                   />
                 </View>
               )}
@@ -614,52 +700,44 @@ const MerchantSignupBusinessScreen: React.FC = () => {
                         </Text>
                       </TouchableOpacity>
 
-                      {/* Inputs de horário (só aparece se o dia estiver ativo) */}
+                      {/* Inputs de horário */}
                       {dayData.active && (
                         <View style={styles.dayTimeInputs}>
                           {/* Hora de abertura */}
-                          <View style={styles.timeInputGroup}>
-                            <Text style={styles.timeInputLabel}>
-                              Hora de abertura
-                            </Text>
-                            <TextInput
-                              style={styles.timeInput}
-                              placeholder="07:00"
-                              placeholderTextColor="#0f0f0f"
-                              value={dayData.start}
-                              onChangeText={(text) => {
-                                const formatted = formatTime(text);
-                                updateWorkDayStart(
-                                  day.key as keyof WorkDaysState,
-                                  formatted,
-                                );
-                              }}
-                              keyboardType="numeric"
-                              maxLength={5}
-                            />
-                          </View>
+                          <CustomInput
+                            label="Hora de abertura"
+                            placeholder="07:00"
+                            value={dayData.start}
+                            onChangeText={(text) => {
+                              const formatted = formatTime(text);
+                              updateWorkDayStart(
+                                day.key as keyof WorkDaysState,
+                                formatted,
+                              );
+                            }}
+                            keyboardType="numeric"
+                            maxLength={5}
+                            containerStyle={styles.timeInputGroup}
+                            labelStyle={styles.timeInputLabel}
+                          />
 
                           {/* Hora de fechamento */}
-                          <View style={styles.timeInputGroup}>
-                            <Text style={styles.timeInputLabel}>
-                              Hora de fechamento
-                            </Text>
-                            <TextInput
-                              style={styles.timeInput}
-                              placeholder="18:00"
-                              placeholderTextColor="#0f0f0f"
-                              value={dayData.end}
-                              onChangeText={(text) => {
-                                const formatted = formatTime(text);
-                                updateWorkDayEnd(
-                                  day.key as keyof WorkDaysState,
-                                  formatted,
-                                );
-                              }}
-                              keyboardType="numeric"
-                              maxLength={5}
-                            />
-                          </View>
+                          <CustomInput
+                            label="Hora de fechamento"
+                            placeholder="18:00"
+                            value={dayData.end}
+                            onChangeText={(text) => {
+                              const formatted = formatTime(text);
+                              updateWorkDayEnd(
+                                day.key as keyof WorkDaysState,
+                                formatted,
+                              );
+                            }}
+                            keyboardType="numeric"
+                            maxLength={5}
+                            containerStyle={styles.timeInputGroup}
+                            labelStyle={styles.timeInputLabel}
+                          />
                         </View>
                       )}
                     </View>
@@ -668,17 +746,50 @@ const MerchantSignupBusinessScreen: React.FC = () => {
               </View>
 
               {/* Descrição geral */}
-              <View style={styles.textareaGroup}>
-                <Text style={styles.label}>O que você faz?</Text>
-                <TextInput
-                  style={styles.textarea}
-                  placeholder="Descreva seu negócio de maneira geral"
-                  placeholderTextColor="#0f0f0f"
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                  numberOfLines={4}
-                />
+              <CustomInput
+                label="O que você faz?"
+                placeholder="Descreva seu negócio de maneira geral"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+                containerStyle={styles.textareaGroup}
+              />
+
+              {/* Upload de banner */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Adicione uma foto de capa
+                </Text>
+                <TouchableOpacity
+                  style={styles.addBannerBox}
+                  onPress={handlePickBannerImage}
+                  activeOpacity={0.8}
+                  disabled={bannerUploading}
+                >
+                  {bannerImage ? (
+                    <Image
+                      source={{ uri: bannerImage }}
+                      style={styles.bannerPreview}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.addPhotoContent}>
+                      <View style={styles.circleButton}>
+                        <Icon name="add" size={24} color="#FFFFFF" />
+                      </View>
+                      {bannerUploading ? (
+                        <ActivityIndicator
+                          size="small"
+                          color="#474747"
+                          style={styles.uploadIndicator}
+                        />
+                      ) : (
+                        <Text style={styles.addPhotoText}>Adicionar foto de capa</Text>
+                      )}
+                    </View>
+                  )}
+                </TouchableOpacity>
               </View>
 
               {/* Upload de logo */}
@@ -700,7 +811,9 @@ const MerchantSignupBusinessScreen: React.FC = () => {
                     />
                   ) : (
                     <View style={styles.addPhotoContent}>
-                      <IconAddPhoto width={34} height={34} />
+                      <View style={styles.circleButton}>
+                        <Icon name="add" size={24} color="#FFFFFF" />
+                      </View>
                       {logoUploading ? (
                         <ActivityIndicator
                           size="small"
@@ -717,126 +830,43 @@ const MerchantSignupBusinessScreen: React.FC = () => {
           </View>
 
           {!!error && <Text style={styles.errorText}>{error}</Text>}
-        </ScrollView>
 
-        {/* Botão Continuar fixo embaixo */}
+        {/* Botão Continuar */}
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.buttonContained}
-            activeOpacity={0.8}
+          <CustomButton
+            title="Continuar"
             onPress={handleContinue}
+            isLoading={loading}
             disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FEFEFE" />
-            ) : (
-              <Text style={styles.buttonContainedText}>Continuar</Text>
-            )}
-          </TouchableOpacity>
+            variant="primary"
+            style={{ borderRadius: 24, marginVertical: 0 }}
+            width="100%"
+          />
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </ScreenContainer>
   );
 };
 
 export default MerchantSignupBusinessScreen;
 
-// Calcular altura responsiva do header ANTES do StyleSheet.create
-const headerHeight = responsiveHeight(129);
-
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
   container: {
     flex: 1,
   },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 0,
-    paddingBottom: 32,
-  },
-  header: {
-    height: headerHeight,
-    paddingVertical: 40,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    alignSelf: 'stretch',
-    overflow: 'hidden',
-    position: 'relative',
-    marginHorizontal: -24,
-  },
-  headerBackground: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-  },
-  headerContent: {
-    width: '90%',
-    maxWidth: 342,
-    height: 49,
-    gap: 4,
-    alignItems: 'flex-start',
-    zIndex: 1,
-    alignSelf: 'center',
-  },
-  welcomeTitle: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 20,
-    color: '#FEFEFE',
-  },
-  welcomeSubtitle: {
-    marginTop: 4,
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#FEFEFE',
-  },
-  stepBar: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 24,
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
-  },
-  stepSegment: {
-    flex: 1,
-    height: 8,
-    borderRadius: 24,
-    backgroundColor: '#DBDBDB',
-  },
-  stepSegmentComplete: {
-    backgroundColor: '#E5102E',
-  },
-  stepSegmentActive: {
-    backgroundColor: '#E5102E',
-  },
   form: {
     marginTop: 24,
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
+    width: '100%',
     gap: 16,
   },
   inputGroup: {
     width: '100%',
   },
   label: {
-    fontFamily: 'Montserrat_700Bold',
     fontSize: 12,
+    fontFamily: 'Montserrat_700Bold',
     color: '#000E3D',
     marginBottom: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
   },
   selectInput: {
     borderWidth: 1,
@@ -941,8 +971,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#474747',
   },
+  checkboxLabelText: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_700Bold',
+    color: '#000E3D',
+    marginBottom: 0,
+  },
   checkboxLabelSelected: {
-    color: '#0F0F0F',
+    color: '#000E3D',
   },
   paymentText: {
     fontFamily: 'Montserrat_400Regular',
@@ -976,27 +1012,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     width: '100%',
-    paddingLeft: 28, // Alinha com o texto do checkbox
+    paddingLeft: 28,
   },
   timeInputGroup: {
     flex: 1,
-    gap: 4,
   },
   timeInputLabel: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 12,
     color: '#000E3D',
-  },
-  timeInput: {
-    borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
-    backgroundColor: '#FEFEFE',
   },
   helperText: {
     fontFamily: 'Montserrat_400Regular',
@@ -1028,7 +1052,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
@@ -1055,7 +1078,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
@@ -1081,17 +1103,22 @@ const styles = StyleSheet.create({
   textareaGroup: {
     marginTop: 16,
   },
-  textarea: {
+  addBannerBox: {
+    marginTop: 8,
     borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    minHeight: 120,
-    textAlignVertical: 'top',
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
+    borderColor: '#000000',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    height: 180,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    backgroundColor: '#D9D9D9',
+  },
+  bannerPreview: {
+    width: '100%',
+    height: '100%',
   },
   addPhotoBox: {
     marginTop: 8,
@@ -1110,6 +1137,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  circleButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#383838',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoPreview: {
     width: '100%',
@@ -1131,29 +1166,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   actions: {
-    paddingHorizontal: 24,
     paddingBottom: 32,
-  },
-  buttonContained: {
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
-    backgroundColor: '#000E3D',
-    borderRadius: 24,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  buttonContainedText: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 16,
-    color: '#FEFEFE',
+    paddingTop: 8,
+    backgroundColor: '#FEFEFE',
   },
 });
-
-

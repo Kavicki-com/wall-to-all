@@ -4,12 +4,12 @@
     "slug": "wall-to-all",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/branding/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/icon.png",
+      "image": "./assets/branding/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FAFAFA"
     },
     "ios": {
       "supportsTablet": true,
@@ -22,6 +22,10 @@
     "android": {
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/branding/adaptive-icon-foreground.png",
+        "backgroundColor": "#FAFAFA"
+      },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -47,12 +51,12 @@
     ],
     "scheme": "walltoall",
     "extra": {
-      "supabaseUrl": "",
-      "supabaseAnonKey": "",
       "router": {},
       "eas": {
         "projectId": "dbc84d0e-1278-4eb0-869e-af6ebb163552"
-      }
+      },
+      "supabaseUrl": "https://SEU-PROJETO.supabase.co",
+      "supabaseAnonKey": "SEU_SUPABASE_ANON_KEY"
     }
   }
 }

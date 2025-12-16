@@ -2,37 +2,56 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { TabBarIconSearch, TabBarIconSchedule, TabBarIconAccount, TabBarIconSettings } from '../lib/tabbar-icons';
+import { Icon, IconFamily } from './ui/Icon';
 
 // Tipo correto para TabBar do Expo Router / React Navigation
 type TabBarProps = BottomTabBarProps;
 
 interface TabItem {
   route: string;
-  icon: React.FC<{ size?: number; color?: string }>;
+  iconName: string;
+  family: IconFamily;
   iconSize: number;
 }
 
 // Configuração das tabs para CLIENTE conforme design do Figma (node-id: 577:3622)
-// ✅ Usando componentes SVG customizados que aceitam mudança de cor
+// Usando MaterialSymbols e MaterialCommunityIcons
 const tabs: TabItem[] = [
-  { route: 'home/index', icon: TabBarIconSearch, iconSize: 26 },
-  { route: 'appointments/index', icon: TabBarIconSchedule, iconSize: 30 },
-  { route: 'profile/index', icon: TabBarIconAccount, iconSize: 30 },
-  { route: 'settings/index', icon: TabBarIconSettings, iconSize: 28 },
+  { route: 'home/index', iconName: 'search', family: 'MaterialSymbols', iconSize: 26 },
+  { route: 'appointments/index', iconName: 'calendar_clock', family: 'MaterialSymbols', iconSize: 30 },
+  { route: 'profile/index', iconName: 'account-circle-outline', family: 'MaterialCommunityIcons', iconSize: 30 },
+  { route: 'settings/index', iconName: 'settings', family: 'MaterialSymbols', iconSize: 28 },
 ];
 
 export const CustomTabBar: React.FC<TabBarProps> = (props) => {
   const { state, descriptors, navigation } = props;
   const insets = useSafeAreaInsets();
   
+  // Identifica a rota interna ativa dentro da aba atual
+  const focusedTab = state.routes[state.index];
+  const nestedState = focusedTab.state as any;
+  const nestedRouteName =
+    nestedState?.routes?.[nestedState.index ?? 0]?.name ?? focusedTab.name;
+  // Telas que não devem mostrar a tabbar
+  const hiddenScreens = ['search/index', 'home/share', 'store/[id]'];
+  // Opcional: log para descobrir o nome correto da rota
+  // console.log('Rota interna ativa:', nestedRouteName);
+  if (hiddenScreens.includes(nestedRouteName)) {
+    return null; // Não renderiza a tabbar nessa tela
+  }
+  
   // Filtrar apenas as rotas que devem aparecer na tabbar
   const visibleRoutes = state.routes.filter((route) => {
     return tabs.some((t) => t.route === route.name);
   });
 
+  const safeAreaBottom = Math.max(insets.bottom, 8);
+  
   return (
-    <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View style={[styles.tabBarContainer, { 
+      paddingBottom: safeAreaBottom,
+      height: 72 - 8 + safeAreaBottom // Altura total: conteúdo (72-8) + paddingBottom
+    }]}>
       {visibleRoutes.map((route) => {
         const routeIndex = state.routes.findIndex((r) => r.key === route.key);
         const { options } = descriptors[route.key];
@@ -53,7 +72,6 @@ export const CustomTabBar: React.FC<TabBarProps> = (props) => {
           }
         };
 
-        const Icon = tabItem.icon;
         // ✅ CORREÇÃO: TODOS os ícones ativos ficam brancos com fundo vermelho
         const iconColor = isFocused ? '#FEFEFE' : '#000E3D';
 
@@ -71,7 +89,12 @@ export const CustomTabBar: React.FC<TabBarProps> = (props) => {
             activeOpacity={0.8}
           >
             <View style={styles.tabIconWrapper}>
-              <Icon size={tabItem.iconSize} color={iconColor} />
+              <Icon 
+                name={tabItem.iconName} 
+                family={tabItem.family}
+                size={tabItem.iconSize} 
+                color={iconColor} 
+              />
             </View>
           </TouchableOpacity>
         );
@@ -83,7 +106,6 @@ export const CustomTabBar: React.FC<TabBarProps> = (props) => {
 const styles = StyleSheet.create({
   tabBarContainer: {
     flexDirection: 'row',
-    height: 72,
     paddingTop: 8,
     paddingHorizontal: 24,
     backgroundColor: '#FEFEFE',
@@ -106,7 +128,7 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1, // Cada botão ocupa espaço igual (conforme Figma: flex-[1_0_0])
-    height: '100%', // Altura completa do container (conforme Figma: h-full)
+    height: 56, // Altura fixa para os botões (não expandir com container)
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 24,
@@ -127,8 +149,6 @@ const styles = StyleSheet.create({
     marginTop: 2, // Deslocar ícones 2px para baixo
   },
   tabIconWrapper: {
-    width: 24, // Tamanho do container do ícone (conforme Figma: size-[24px])
-    height: 24, // Tamanho do container do ícone (conforme Figma: size-[24px])
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',

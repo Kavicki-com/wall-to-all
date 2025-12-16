@@ -3,22 +3,28 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  TextInput,
   Image,
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { IconBack, IconNotification, IconChevronDown, IconCheckbox, IconCheckboxOutline, IconDelete } from '../../../lib/icons';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { useBusinessProfile } from '../../../context/BusinessProfileContext';
+import { IconChevronDown, IconCheckbox, IconCheckboxOutline, IconDelete } from '../../../lib/icons';
+import { Icon } from '../../../components/ui/Icon';
 import { fetchCategories, type Category } from '../../../lib/categories';
-import { useResponsiveHeight } from '../../../lib/responsive';
+import { CustomInput } from '../../../components/ui/CustomInput';
+import AppHeader from '../../../components/layout/AppHeader';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import { safeGoBack } from '../../../lib/router-utils';
+import { CustomButton } from '../../../components/CustomButton';
+import { useToast } from '../../../components/ui/ToastProvider';
+import { handleError } from '../../../lib/errorHandler';
 
 const BUSINESS_TIME_OPTIONS = ['1 ano', '2 anos', '3 anos', '4 anos', '5+ anos'];
 
@@ -32,109 +38,92 @@ const DAYS_OF_WEEK = [
   { key: 'sunday', label: 'Domingo' },
 ];
 
-type BusinessProfile = {
-  id: string;
-  business_name: string;
-  description: string | null;
-  logo_url: string | null;
-  category_id: number | null;
-  categories?: {
-    id: number;
-    name: string;
-  };
-  address: string | null;
-  work_days: Record<string, { start: string; end: string }> | null;
-  accepted_payment_methods: {
-    pix?: boolean;
-    card?: boolean;
-    cash?: boolean;
-  } | null;
-};
-
 const EditBusinessProfileScreen: React.FC = () => {
   const router = useRouter();
+  const { showError, showSuccess } = useToast();
+  const { businessProfile: contextBusinessProfile, loading: profileLoading, refreshBusinessProfile } = useBusinessProfile();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [businessName, setBusinessName] = useState('');
   const [description, setDescription] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [businessTime, setBusinessTime] = useState<string | null>(null);
-  const [lunchTime, setLunchTime] = useState('');
   const [hasLunchTime, setHasLunchTime] = useState(false);
+  const [bannerUri, setBannerUri] = useState<string | null>(null);
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [workDays, setWorkDays] = useState<Record<string, { start: string; end: string }>>({});
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showBusinessTimePicker, setShowBusinessTimePicker] = useState(false);
-  const topBarHeight = useResponsiveHeight(56); // Altura responsiva do header SVG (viewBox="0 0 410 56")
 
   useEffect(() => {
     loadCategories();
-    loadBusinessProfile();
-    requestImagePermission();
   }, []);
+
+  // Carregar dados do perfil quando o contexto estiver disponível
+  useEffect(() => {
+    if (contextBusinessProfile && !profileLoading) {
+      setBusinessName(contextBusinessProfile.business_name);
+      setDescription(contextBusinessProfile.description || '');
+      setSelectedCategoryId(contextBusinessProfile.category_id || null);
+      setBannerUri(contextBusinessProfile.banner_url || null);
+      setLogoUri(contextBusinessProfile.logo_url || null);
+      setWorkDays(contextBusinessProfile.work_days || {});
+      setLoading(false);
+    } else if (!profileLoading && !contextBusinessProfile) {
+      Alert.alert('Erro', 'Perfil do negócio não encontrado.');
+      router.replace('/(merchant)/profile');
+    }
+  }, [contextBusinessProfile, profileLoading]);
 
   const loadCategories = async () => {
     const categoriesData = await fetchCategories();
     setCategories(categoriesData);
   };
 
-  const loadBusinessProfile = async () => {
+  const pickBanner = async () => {
     try {
-      setLoading(true);
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.replace('/(auth)/login');
-        return;
+      if (Platform.OS !== 'web') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+          return;
+        }
       }
 
-      const { data: businessData, error } = await supabase
-        .from('business_profiles')
-        .select(`
-          *,
-          categories:category_id (
-            id,
-            name
-          )
-        `)
-        .eq('owner_id', user.id)
-        .single();
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
 
-      if (error || !businessData) {
-        console.error('Erro ao buscar perfil:', error);
-        Alert.alert('Erro', 'Perfil do negócio não encontrado.');
-        router.replace('/(merchant)/profile');
-        return;
+      if (!result.canceled && result.assets[0]) {
+        setBannerUri(result.assets[0].uri);
       }
-
-      setBusinessProfile(businessData as BusinessProfile);
-      setBusinessName(businessData.business_name);
-      setDescription(businessData.description || '');
-      setSelectedCategoryId(businessData.category_id || null);
-      setLogoUri(businessData.logo_url);
-      setWorkDays(businessData.work_days || {});
     } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao carregar o perfil.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const requestImagePermission = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+      const processed = handleError(error, 'upload');
+      showError(processed.userMessage);
     }
   };
 
   const pickLogo = async () => {
     try {
+      // Solicitar permissão apenas quando necessário
+      if (Platform.OS !== 'web') {
+        try {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+            return;
+          }
+        } catch (permissionError) {
+          console.error('Erro ao solicitar permissão de imagem:', permissionError);
+          Alert.alert('Erro', 'Não foi possível solicitar permissão para acessar suas fotos.');
+          return;
+        }
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -146,8 +135,54 @@ const EditBusinessProfileScreen: React.FC = () => {
         setLogoUri(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
+      const processed = handleError(error, 'upload');
+      showError(processed.userMessage);
+    }
+  };
+
+  const uploadBanner = async (): Promise<string | null> => {
+    if (!bannerUri || bannerUri.startsWith('http')) {
+      return bannerUri;
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return null;
+
+      const fileExt = bannerUri.split('.').pop() || 'jpg';
+      const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+      const filePath = `business-banners/${fileName}`;
+
+      const response = await fetch(bannerUri);
+      if (!response.ok) {
+        console.error(`Erro ao ler arquivo do banner: HTTP ${response.status}`);
+        return null;
+      }
+      const blob = await response.blob();
+
+      const { error } = await supabase.storage
+        .from('business-assets')
+        .upload(filePath, blob, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+      if (error) {
+        console.error('Erro ao fazer upload do banner:', error);
+        return null;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('business-assets').getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Erro ao processar banner:', error);
+      return null;
     }
   };
 
@@ -167,9 +202,13 @@ const EditBusinessProfileScreen: React.FC = () => {
       const filePath = `business-logos/${fileName}`;
 
       const response = await fetch(logoUri);
+      if (!response.ok) {
+        console.error(`Erro ao ler arquivo do logo: HTTP ${response.status}`);
+        return null;
+      }
       const blob = await response.blob();
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('business-assets')
         .upload(filePath, blob, {
           contentType: 'image/jpeg',
@@ -217,7 +256,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       return;
     }
 
-    if (!businessProfile) {
+    if (!contextBusinessProfile) {
       Alert.alert('Erro', 'Perfil não encontrado.');
       return;
     }
@@ -225,6 +264,7 @@ const EditBusinessProfileScreen: React.FC = () => {
     try {
       setSaving(true);
 
+      const bannerUrl = await uploadBanner();
       const logoUrl = await uploadLogo();
 
       const { error } = await supabase
@@ -233,23 +273,27 @@ const EditBusinessProfileScreen: React.FC = () => {
           business_name: businessName.trim(),
           description: description.trim() || null,
           category_id: selectedCategoryId || null,
+          banner_url: bannerUrl,
           logo_url: logoUrl,
           work_days: Object.keys(workDays).length > 0 ? workDays : null,
         })
-        .eq('id', businessProfile.id);
+        .eq('id', contextBusinessProfile.id);
 
       if (error) {
-        console.error('Erro ao atualizar perfil:', error);
-        Alert.alert('Erro', 'Não foi possível atualizar o perfil.');
+        const processed = handleError(error, 'profile');
+        showError(processed.userMessage);
         return;
       }
 
+      showSuccess('Perfil atualizado com sucesso!');
+      // Atualizar o contexto do perfil antes de voltar
+      await refreshBusinessProfile();
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => safeGoBack('/(merchant)/profile') },
       ]);
     } catch (error) {
-      console.error('Erro ao salvar perfil:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao salvar o perfil.');
+      const processed = handleError(error, 'profile');
+      showError(processed.userMessage);
     } finally {
       setSaving(false);
     }
@@ -318,94 +362,87 @@ const EditBusinessProfileScreen: React.FC = () => {
     );
   };
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
+      <ScreenContainer 
+        scroll={false} 
+        backgroundColor="#FAFAFA" 
+        hasHeader={true}
+        hasTabBar={false}
+        header={
+          <AppHeader 
+            title="Editar perfil"
+            showBackButton={true}
+            onPressBack={() => safeGoBack('/(merchant)/profile')}
+          />
+        }
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      </ScreenContainer>
     );
   }
 
-  if (!businessProfile) {
+  if (!contextBusinessProfile) {
     return (
-      <View style={styles.container}>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Perfil não encontrado.</Text>
+      <ScreenContainer 
+        scroll={false} 
+        backgroundColor="#FAFAFA" 
+        hasHeader={true}
+        hasTabBar={false}
+        header={
+          <AppHeader 
+            title="Editar perfil"
+            showBackButton={true}
+            onPressBack={() => safeGoBack('/(merchant)/profile')}
+          />
+        }
+      >
+        <View style={styles.container}>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Perfil não encontrado.</Text>
+          </View>
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Top Bar with Gradient */}
-      <View style={styles.topBarContainer}>
-        <View style={styles.topBarDivider} />
-        <View style={styles.topBarContent}>
-          <View style={styles.topBarGradientContainer}>
-            <Svg style={[StyleSheet.absoluteFill, { height: topBarHeight }]} viewBox="0 0 410 56" preserveAspectRatio="none">
-              <Defs>
-                <RadialGradient
-                  id="topBarRadialGradient"
-                  cx="50%"
-                  cy="50%"
-                  r="50%"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <Stop offset="0%" stopColor="rgba(214,224,255,1)" />
-                  <Stop offset="25%" stopColor="rgba(161,172,207,1)" />
-                  <Stop offset="37.5%" stopColor="rgba(134,145,182,1)" />
-                  <Stop offset="50%" stopColor="rgba(107,119,158,1)" />
-                  <Stop offset="62.5%" stopColor="rgba(80,93,134,1)" />
-                  <Stop offset="75%" stopColor="rgba(54,67,110,1)" />
-                  <Stop offset="87.5%" stopColor="rgba(27,40,85,1)" />
-                  <Stop offset="93.75%" stopColor="rgba(13,27,73,1)" />
-                  <Stop offset="100%" stopColor="rgba(0,14,61,1)" />
-                </RadialGradient>
-              </Defs>
-              <Rect x="0" y="0" width="410" height="56" fill="url(#topBarRadialGradient)" opacity={0.2} />
-            </Svg>
-            <LinearGradient
-              colors={['rgba(0, 14, 61, 0.2)', 'rgba(214, 224, 255, 0.2)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <LinearGradient
-              colors={['rgba(0, 14, 61, 1)', 'rgba(0, 14, 61, 1)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View style={styles.topBarInner}>
-              <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                <IconBack size={24} color="#FEFEFE" />
-              </TouchableOpacity>
-              <Text style={styles.topBarTitle}>Editar perfil</Text>
-              <TouchableOpacity style={styles.notificationButton}>
-                <IconNotification size={24} color="#FEFEFE" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Business Name */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Nome do seu negócio</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Nome do seu negócio"
-            placeholderTextColor="#9E9E9E"
-            value={businessName}
-            onChangeText={setBusinessName}
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={true}
+      hasTabBar={false}
+      backgroundColor="#FAFAFA"
+      header={
+        <AppHeader 
+          title="Editar perfil"
+          showBackButton={true}
+          onPressBack={() => safeGoBack('/(merchant)/profile')}
+        />
+      }
+      footer={
+        <View style={styles.footerContainer}>
+          <CustomButton
+            title="Continuar"
+            onPress={handleSave}
+            isLoading={saving}
+            disabled={saving}
+            variant="primary"
+            style={{ borderRadius: 24, marginVertical: 0 }}
+            width="100%"
           />
         </View>
+      }
+    >
+        {/* Business Name */}
+        <CustomInput
+          label="Nome do seu negócio"
+          placeholder="Nome do seu negócio"
+          value={businessName}
+          onChangeText={setBusinessName}
+          containerStyle={styles.field}
+        />
 
         {/* Category (Área de atuação) */}
         <View style={styles.field}>
@@ -442,7 +479,7 @@ const EditBusinessProfileScreen: React.FC = () => {
           <View style={styles.field}>
             <Text style={styles.label}>Horário de almoço</Text>
             <TouchableOpacity style={[styles.input, styles.inputWithBorder]}>
-              <Text style={styles.inputText}>{lunchTime || '12:00'}</Text>
+              <Text style={styles.inputText}>12:00</Text>
               <IconChevronDown size={24} color="#0F0F0F" />
             </TouchableOpacity>
           </View>
@@ -488,23 +525,23 @@ const EditBusinessProfileScreen: React.FC = () => {
                 {isEnabled && daySchedule && (
                   <View style={styles.dayTimes}>
                     <View style={styles.timeInputContainer}>
-                      <Text style={styles.timeLabel}>Hora de abertura</Text>
-                      <TextInput
-                        style={styles.timeInput}
+                      <CustomInput
+                        label="Hora de abertura"
                         placeholder="07:00"
-                        placeholderTextColor="#0F0F0F"
                         value={daySchedule.start}
                         onChangeText={(value) => handleWorkDayTimeChange(day.key, 'start', value)}
+                        containerStyle={{ marginBottom: 0 }}
+                        inputContainerStyle={styles.timeInput}
                       />
                     </View>
                     <View style={styles.timeInputContainer}>
-                      <Text style={styles.timeLabel}>Hora de fechamento</Text>
-                      <TextInput
-                        style={styles.timeInput}
+                      <CustomInput
+                        label="Hora de fechamento"
                         placeholder="18:00"
-                        placeholderTextColor="#0F0F0F"
                         value={daySchedule.end}
                         onChangeText={(value) => handleWorkDayTimeChange(day.key, 'end', value)}
+                        containerStyle={{ marginBottom: 0 }}
+                        inputContainerStyle={styles.timeInput}
                       />
                     </View>
                   </View>
@@ -515,23 +552,21 @@ const EditBusinessProfileScreen: React.FC = () => {
         </View>
 
         {/* Description */}
-        <View style={styles.field}>
-          <Text style={styles.label}>O que você faz?</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Descreva seu negócio..."
-            placeholderTextColor="#9E9E9E"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={6}
-            textAlignVertical="top"
-          />
-        </View>
+        <CustomInput
+          label="O que você faz?"
+          placeholder="Descreva seu negócio..."
+          value={description}
+          onChangeText={setDescription}
+          multiline
+          numberOfLines={6}
+          textAlignVertical="top"
+          containerStyle={styles.field}
+          inputContainerStyle={StyleSheet.flatten([styles.input, styles.textArea])}
+        />
 
         {/* Logo Upload */}
         <View style={styles.field}>
-          <Text style={styles.label}>Adicione o logotipo do seu negócio</Text>
+          <Text style={styles.uploadLabel}>Adicione o logotipo do seu negócio</Text>
           <TouchableOpacity style={styles.logoUploadContainer} onPress={pickLogo}>
             {logoUri ? (
               <Image source={{ uri: logoUri }} style={styles.logoImage} />
@@ -543,26 +578,30 @@ const EditBusinessProfileScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Delete Account Button */}
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount}>
-          <Text style={styles.deleteButtonText}>Excluir conta</Text>
-        </TouchableOpacity>
-      </ScrollView>
+        {/* Banner Upload */}
+        <View style={styles.field}>
+          <Text style={styles.uploadLabel}>Adicione uma foto de capa</Text>
+          <TouchableOpacity style={styles.bannerUploadContainer} onPress={pickBanner} activeOpacity={0.8}>
+            {bannerUri ? (
+              <Image source={{ uri: bannerUri }} style={styles.bannerImage} />
+            ) : (
+              <View style={styles.bannerPlaceholder}>
+                <View style={styles.bannerCircleButton}>
+                  <Icon name="add" size={24} color="#FFFFFF" />
+                </View>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
 
-      {/* Continue Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.continueButton, saving && styles.continueButtonDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FEFEFE" />
-          ) : (
-            <Text style={styles.continueButtonText}>Continuar</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+        {/* Delete Account Button */}
+        <CustomButton
+          title="Excluir conta"
+          variant="danger"
+          onPress={handleDeleteAccount}
+          style={{ borderRadius: 24, marginTop: 8 }}
+          width="100%"
+        />
 
       {/* Category Picker Modal */}
       <Modal
@@ -596,12 +635,13 @@ const EditBusinessProfileScreen: React.FC = () => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
+            <CustomButton
+              title="Cancelar"
+              variant="ghost"
               onPress={() => setShowCategoryPicker(false)}
-            >
-              <Text style={styles.modalCloseButtonText}>Cancelar</Text>
-            </TouchableOpacity>
+              style={{ marginTop: 16 }}
+              width="100%"
+            />
           </View>
         </View>
       </Modal>
@@ -630,16 +670,17 @@ const EditBusinessProfileScreen: React.FC = () => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
+            <CustomButton
+              title="Cancelar"
+              variant="ghost"
               onPress={() => setShowBusinessTimePicker(false)}
-            >
-              <Text style={styles.modalCloseButtonText}>Cancelar</Text>
-            </TouchableOpacity>
+              style={{ marginTop: 16 }}
+              width="100%"
+            />
           </View>
         </View>
       </Modal>
-    </View>
+    </ScreenContainer>
   );
 };
 
@@ -648,7 +689,6 @@ export default EditBusinessProfileScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   loadingContainer: {
     flex: 1,
@@ -673,7 +713,6 @@ const styles = StyleSheet.create({
   topBarInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
     paddingVertical: 16,
     height: '100%',
   },
@@ -695,13 +734,6 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 120,
   },
   field: {
     marginBottom: 16,
@@ -794,9 +826,47 @@ const styles = StyleSheet.create({
     borderColor: '#474747',
     paddingHorizontal: 12,
     paddingVertical: 16,
-    fontSize: 16,
+    minHeight: 48,
+  },
+  bannerUploadContainer: {
+    width: '100%',
+    height: 180,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#000000',
+    backgroundColor: '#D9D9D9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  bannerPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  bannerCircleButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#383838',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bannerPlaceholderText: {
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    fontSize: 14,
+    color: '#474747',
+  },
+  uploadLabel: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_700Bold',
+    color: '#000E3D',
+    marginBottom: 8,
   },
   logoUploadContainer: {
     width: '100%',
@@ -818,44 +888,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(29, 29, 29, 0.32)',
   },
-  deleteButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 32,
-    left: 24,
-    right: 24,
-  },
-  continueButton: {
-    backgroundColor: '#000E3D',
-    borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  continueButtonDisabled: {
-    opacity: 0.6,
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+  footerContainer: {
+    paddingTop: 16,
+    backgroundColor: '#FAFAFA',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
   },
   emptyContainer: {
     flex: 1,
@@ -903,15 +940,5 @@ const styles = StyleSheet.create({
   modalOptionTextSelected: {
     fontFamily: 'Montserrat_700Bold',
     color: '#1976D2',
-  },
-  modalCloseButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  modalCloseButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
   },
 });

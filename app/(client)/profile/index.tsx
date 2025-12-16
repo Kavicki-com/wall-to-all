@@ -1,27 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
+  FlatList,
   Image,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
-import { formatWorkDays } from '../../../lib/workDaysUtils';
-import { IconPix, IconCreditCard, IconCash, IconRatingStar } from '../../../lib/icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useCardWidth } from '../../../lib/responsive';
-
-type Profile = {
-  id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  email?: string;
-  created_at?: string;
-};
+import { useProfile } from '../../../context/ProfileContext';
+import { IconPix, IconCreditCard, IconRatingStar } from '../../../lib/icons';
+import { useCardWidth, useResponsiveWidth } from '../../../lib/responsive';
+import { BusinessCard } from '../../../components/BusinessCard';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import ServiceCategoryCard from '../../../components/ServiceCategoryCard';
+import { applyAcceptedReschedules } from '../../../lib/utils';
 
 type Service = {
   id: string;
@@ -40,7 +35,7 @@ type Business = {
   id: string;
   business_name: string;
   logo_url: string | null;
-  hero_image_url: string | null;
+  banner_url: string | null;
   description: string | null;
   work_days: Record<string, { start: string; end: string }> | null;
   categories?: {
@@ -57,8 +52,8 @@ type Business = {
 
 type Appointment = {
   id: string;
-  appointment_date: string;
-  appointment_time: string;
+  start_time: string;
+  end_time: string;
   status: string;
   service: {
     name: string;
@@ -70,8 +65,8 @@ type Appointment = {
 
 const ClientProfileScreen: React.FC = () => {
   const router = useRouter();
+  const { profile, loading: profileLoading } = useProfile();
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -82,28 +77,27 @@ const ClientProfileScreen: React.FC = () => {
   const businessCardWidth = useCardWidth(1.5, 24, 10);
   const businessGap = 10; // Gap entre cards de negócios (marginRight)
 
-  // Estilos dinâmicos que dependem de businessCardWidth
-  const dynamicStyles = useMemo(() => StyleSheet.create({
-    businessCard: {
-      backgroundColor: '#FEFEFE',
-      borderRadius: 16,
-      overflow: 'hidden',
-      width: businessCardWidth,
-      marginRight: businessGap,
-      shadowColor: '#1D1D1D',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 16,
-      elevation: 4,
-    },
-  }), [businessCardWidth]);
+  // Card de serviços (~2 visíveis em scroll horizontal)
+  const serviceCardWidth = useCardWidth(2, 24, 14);
+  const serviceGap = 14;
 
-  // Recarregar perfil quando a tela receber foco (ex: ao voltar da edição)
-  useFocusEffect(
-    React.useCallback(() => {
-    loadProfile();
-    }, [])
-  );
+  // Dimensões responsivas
+  const avatarSize = useResponsiveWidth(88);
+
+  // Atualizar avatarKey quando o avatar_url mudar
+  React.useEffect(() => {
+    if (profile?.avatar_url) {
+      setAvatarKey(Date.now());
+    }
+  }, [profile?.avatar_url]);
+
+  // Carregar dados quando o perfil estiver disponível
+  React.useEffect(() => {
+    if (profile && !profileLoading) {
+      loadProfile();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id, profileLoading]); // Carregar quando o perfil estiver disponível
 
   const loadProfile = async () => {
     try {
@@ -119,25 +113,8 @@ const ClientProfileScreen: React.FC = () => {
         return;
       }
 
-      // Buscar perfil
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) {
-        console.error('Erro ao buscar perfil:', profileError);
-      } else if (profileData) {
-        setProfile(profileData as Profile);
-        // Atualizar key para forçar recarregamento da imagem
-        if (profileData.avatar_url) {
-          setAvatarKey(Date.now());
-        }
-      }
-
       // Buscar agendamentos
-      const { data: appointmentsData } = await supabase
+      const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
         .select(
           `*,
@@ -147,11 +124,20 @@ const ClientProfileScreen: React.FC = () => {
         .eq('client_id', user.id)
         .limit(10);
 
-      if (appointmentsData) {
-        setAppointments(appointmentsData as Appointment[]);
+      if (appointmentsError) {
+        console.error('Erro ao buscar agendamentos:', appointmentsError);
+      } else if (appointmentsData) {
+        // Aplicar reagendamentos aceitos aos agendamentos
+        const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
+        setAppointments(appointmentsWithReschedules as Appointment[]);
       }
 
-      const { data: servicesData } = await supabase
+      const serviceIds =
+        appointmentsData
+          ?.map((a: { service_id: string | null }) => a.service_id)
+          .filter(Boolean) || [];
+
+      const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select(`
           *,
@@ -160,35 +146,47 @@ const ClientProfileScreen: React.FC = () => {
             name
           )
         `)
-        .in(
-          'id',
-          appointmentsData?.map((a: { service_id: string | null }) => a.service_id).filter(Boolean) || []
-        )
-        .limit(10);
+        .in('id', serviceIds)
+        .range(0, 9);
 
-      if (servicesData) {
-        // Buscar ratings para serviços
-        const servicesWithRatings = await Promise.all(
-          (servicesData as Service[]).map(async (service) => {
-            const { data: reviews } = await supabase
-              .from('reviews')
-              .select('rating')
-              .eq('service_id', service.id);
+      if (servicesError) {
+        console.error('Erro ao buscar serviços:', servicesError);
+      } else if (servicesData) {
+        let ratingsMap: Record<string, { sum: number; count: number }> = {};
 
-            const rating =
-              reviews && reviews.length > 0
-                ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length
-                : undefined;
-            const reviewCount = reviews?.length || undefined;
+        if (serviceIds.length > 0) {
+          const { data: reviewsData, error: reviewsError } = await supabase
+            .from('reviews')
+            .select('service_id, rating')
+            .in('service_id', serviceIds);
 
-            return {
-              ...service,
-              rating,
-              review_count: reviewCount,
-            };
-          })
-        );
-        setServices(servicesWithRatings.slice(0, 2));
+          if (!reviewsError && reviewsData) {
+            ratingsMap = reviewsData.reduce((acc, review) => {
+              if (!review.service_id) return acc;
+              if (!acc[review.service_id]) {
+                acc[review.service_id] = { sum: 0, count: 0 };
+              }
+              acc[review.service_id].sum += review.rating || 0;
+              acc[review.service_id].count += 1;
+              return acc;
+            }, {} as Record<string, { sum: number; count: number }>);
+          } else if (reviewsError) {
+            console.error('Erro ao buscar avaliações dos serviços:', reviewsError);
+          }
+        }
+
+        const servicesWithRatings = (servicesData as Service[]).map((service) => {
+          const stats = ratingsMap[service.id];
+          const count = stats?.count || 0;
+          const rating = count > 0 ? stats!.sum / count : undefined;
+
+          return {
+            ...service,
+            rating,
+            review_count: count || undefined,
+          };
+        });
+        setServices(servicesWithRatings.slice(0, 10));
       }
 
       // Buscar profissionais mais contratados
@@ -242,33 +240,40 @@ const ClientProfileScreen: React.FC = () => {
     return year.toString();
   };
 
+  const renderServiceCard = ({ item }: { item: Service }) => (
+    <ServiceCategoryCard
+      id={item.id}
+      name={item.name}
+      price={item.price}
+      photos={item.photos}
+      rating={item.rating}
+      reviewCount={item.review_count}
+      category={item.categories?.name || null}
+    />
+  );
 
-  const getPriceRange = (services: Array<{ price: number }>) => {
-    if (services.length === 0) return '$$$$$';
-    const prices = services.map((s) => s.price).filter((p) => p > 0);
-    if (prices.length === 0) return '$$$$$';
-    const avg = prices.reduce((sum, p) => sum + p, 0) / prices.length;
-    if (avg < 30) return '$$$$$';
-    if (avg < 50) return '$$$$$';
-    if (avg < 100) return '$$$$$';
-    return '$$$$$';
-  };
 
-  if (loading) {
+
+  if (loading || profileLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
+      <ScreenContainer 
+        style={{ backgroundColor: '#FAFAFA' }} 
+        hasHeader={false}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={false}
+      backgroundColor="#FAFAFA"
+      contentContainerStyle={styles.scrollContent}
+    >
         {/* Profile Container */}
         <View style={styles.profileContainer}>
           <View style={styles.profileAvatarContainer}>
@@ -277,11 +282,11 @@ const ClientProfileScreen: React.FC = () => {
                 source={{
                   uri: profile.avatar_url + (profile.avatar_url.includes('?') ? '&' : '?') + `_t=${avatarKey}`,
                 }}
-                style={styles.avatar}
+                style={[styles.avatar, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}
                 key={`${profile.avatar_url}-${avatarKey}`} // Force re-render quando URL ou key mudar
               />
             ) : (
-              <View style={[styles.avatar, styles.placeholderAvatar]} />
+              <View style={[styles.avatar, styles.placeholderAvatar, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]} />
             )}
           </View>
           <View style={styles.profileInfo}>
@@ -326,61 +331,23 @@ const ClientProfileScreen: React.FC = () => {
         {services.length > 0 && (
           <View style={styles.servicesSection}>
             <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
-            <View style={styles.servicesList}>
-              {services.map((service) => {
-                let imagesArray: string[] = [];
-                if (service.photos) {
-                  if (typeof service.photos === 'string') {
-                    try {
-                      imagesArray = JSON.parse(service.photos);
-                    } catch {
-                      imagesArray = [service.photos];
-                    }
-                  } else if (Array.isArray(service.photos)) {
-                    imagesArray = service.photos;
-                  }
-                }
-                const firstImage = imagesArray.length > 0 ? imagesArray[0] : null;
-
-                return (
-                  <View key={service.id} style={styles.serviceCard}>
-                    <View style={styles.serviceImageContainer}>
-                      {firstImage ? (
-                        <Image
-                          source={{ uri: firstImage }}
-                          style={styles.serviceImage}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={[styles.serviceImage, styles.placeholderImage]} />
-                      )}
-                      {service.categories?.name && (
-                        <View style={styles.serviceCategoryBadge}>
-                          <Text style={styles.serviceCategoryText}>{service.categories.name}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.serviceInfo}>
-                      <Text style={styles.serviceName}>{service.name}</Text>
-                      <View style={styles.serviceRatingContainer}>
-                        <Text style={styles.serviceRatingValue}>
-                          {service.rating?.toFixed(1) || '4.9'}
-                        </Text>
-                        {[...Array(5)].map((_, i) => (
-                          <IconRatingStar key={i} size={24} color="#FFD700" />
-                        ))}
-                        <Text style={styles.serviceReviewCount}>
-                          ({service.review_count || 30})
-                        </Text>
-                      </View>
-                      <Text style={styles.servicePrice}>
-                        R$ {service.price.toFixed(2).replace('.', ',')}
-                      </Text>
-                    </View>
-                  </View>
-                );
+            <FlatList
+              data={services}
+              renderItem={renderServiceCard}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.servicesList}
+              initialNumToRender={3}
+              maxToRenderPerBatch={5}
+              windowSize={5}
+              removeClippedSubviews={true}
+              getItemLayout={(data, index) => ({
+                length: serviceCardWidth + serviceGap,
+                offset: (serviceCardWidth + serviceGap) * index,
+                index,
               })}
-            </View>
+            />
           </View>
         )}
 
@@ -395,134 +362,44 @@ const ClientProfileScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.businessesList}
             >
-              {businesses.map((business) => {
-                const businessServices = business.services || [];
-                const priceRange = getPriceRange(businessServices);
-
-                return (
-                  <TouchableOpacity
-                    key={business.id}
-                    style={dynamicStyles.businessCard}
-                    onPress={() => router.push(`/(client)/store/${business.id}`)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.businessHeroContainer}>
-                      <View style={styles.businessImageContainer}>
-                        {business.hero_image_url ? (
-                          <Image
-                            source={{ uri: business.hero_image_url }}
-                            style={styles.businessHeroImage}
-                            resizeMode="cover"
-                          />
-                        ) : business.logo_url ? (
-                          <Image
-                            source={{ uri: business.logo_url }}
-                            style={styles.businessHeroImage}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <View style={[styles.businessHeroImage, styles.placeholderImage]} />
-                        )}
-                        <LinearGradient
-                          colors={['transparent', 'rgba(0,14,61,0.5)']}
-                          style={styles.businessGradient}
-                        />
-                        <View style={styles.businessProfileContainer}>
-                          <View style={styles.businessAvatarContainer}>
-                            {business.logo_url ? (
-                              <Image
-                                source={{ uri: business.logo_url }}
-                                style={styles.businessAvatar}
-                              />
-                            ) : (
-                              <View style={[styles.businessAvatar, styles.placeholderAvatar]} />
-                            )}
-                          </View>
-                          <View style={styles.businessInfo}>
-                            <Text style={styles.businessName}>{business.business_name}</Text>
-                            <Text style={styles.businessCategory}>
-                              {business.categories?.name || 'Serviços profissionais'}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-                    <View style={styles.priceRangeContainer}>
-                      <Text style={styles.priceRangeLabel}>Preço médio</Text>
-                      <Text style={styles.priceRangeValue}>
-                        {priceRange.slice(0, 3)}
-                        <Text style={styles.priceRangeInactive}>{priceRange.slice(3)}</Text>
-                      </Text>
-                    </View>
-                    {businessServices.length > 0 && (
-                      <View style={styles.servicePillsContainer}>
-                        {businessServices.slice(0, 4).map((service) => (
-                          <View key={service.id} style={styles.servicePill}>
-                            <Text style={styles.servicePillText}>{service.name}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                    <View style={styles.operatingHours}>
-                      <Text style={styles.operatingHoursTitle}>Horário de funcionamento</Text>
-                      <Text style={styles.operatingHoursText}>
-                        {formatWorkDays(business.work_days)}
-                      </Text>
-                    </View>
-                    <View style={styles.paymentMethods}>
-                      <Text style={styles.paymentMethodsTitle}>Pagamentos aceitos</Text>
-                      <View style={styles.paymentMethodsRow}>
-                        {business.accepted_payment_methods?.pix && (
-                          <View style={styles.paymentMethodItem}>
-                            <IconPix width={16} height={16} />
-                            <Text style={styles.paymentMethodText}>PIX</Text>
-                          </View>
-                        )}
-                        {business.accepted_payment_methods?.card && (
-                          <View style={styles.paymentMethodItem}>
-                            <IconCreditCard width={16} height={16} />
-                            <Text style={styles.paymentMethodText}>Cartão</Text>
-                          </View>
-                        )}
-                        {business.accepted_payment_methods?.cash && (
-                          <View style={styles.paymentMethodItem}>
-                            <IconCash width={16} height={16} />
-                            <Text style={styles.paymentMethodText}>Dinheiro</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+              {businesses.map((business) => (
+                <View key={business.id} style={{ marginRight: businessGap }}>
+                  <BusinessCard
+                    id={business.id}
+                    business_name={business.business_name}
+                    logo_url={business.logo_url}
+                    banner_url={business.banner_url}
+                    description={business.description}
+                    category={business.categories?.name || null}
+                    accepted_payment_methods={business.accepted_payment_methods}
+                    work_days={business.work_days}
+                    services={business.services}
+                    categories={business.categories}
+                    width={businessCardWidth}
+                    onPress={(id) => router.push(`/(client)/store/${id}`)}
+                  />
+                </View>
+              ))}
             </ScrollView>
           </View>
         )}
-      </ScrollView>
-    </View>
+    </ScreenContainer>
   );
 };
 
 export default ClientProfileScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    paddingTop: 32,
-    paddingBottom: 100,
-    alignItems: 'center',
+    flexGrow: 1,
+    paddingBottom: 24,
+    paddingTop: 16,
   },
   profileContainer: {
     alignItems: 'center',
@@ -533,9 +410,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    // Dimensões serão aplicadas dinamicamente via style prop
   },
   placeholderAvatar: {
     backgroundColor: '#E0E0E0',
@@ -615,7 +490,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
     color: '#0F0F0F',
-    width: 305,
+    flex: 1,
+    minWidth: 0,
   },
   paymentMethodsRow: {
     flexDirection: 'row',
@@ -645,72 +521,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   servicesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  serviceCard: {
-    gap: 8,
-    flexBasis: '48%',
-    maxWidth: '48%',
-  },
-  serviceImageContainer: {
-    width: '100%',
-    height: 94,
-    borderRadius: 8,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  serviceImage: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholderImage: {
-    backgroundColor: '#E0E0E0',
-  },
-  serviceCategoryBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#FEFEFE',
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-  },
-  serviceCategoryText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#000E3D',
-  },
-  serviceInfo: {
-    gap: 7,
-  },
-  serviceName: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-    minHeight: 40,
-  },
-  serviceRatingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  serviceRatingValue: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-  },
-  serviceReviewCount: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#474747',
-  },
-  servicePrice: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#17723F',
+    paddingRight: 24,
   },
   businessesSection: {
     width: '90%',
@@ -720,127 +531,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   businessesList: {
-    gap: 10,
-    paddingHorizontal: 16,
     paddingVertical: 4, // espaço para sombras não serem cortadas
-  },
-  businessHeroContainer: {
-    width: '100%',
-  },
-  businessImageContainer: {
-    width: '100%',
-    height: 122,
-    position: 'relative',
-    overflow: 'visible',
-  },
-  businessHeroImage: {
-    width: '100%',
-    height: '100%',
-  },
-  businessGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '60%',
-  },
-  businessProfileContainer: {
-    position: 'absolute',
-    bottom: -72,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingLeft: 16,
-    paddingBottom: 8,
-    gap: 8,
-  },
-  businessAvatarContainer: {
-    marginBottom: 0,
-  },
-  businessAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2,
-    borderColor: '#FEFEFE',
-  },
-  businessInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  businessName: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
-  },
-  businessCategory: {
-    fontSize: 8,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#FEFEFE',
-  },
-  priceRangeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 80,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  priceRangeLabel: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-  },
-  priceRangeValue: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-  },
-  priceRangeInactive: {
-    color: '#DBDBDB',
-  },
-  servicePillsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  servicePill: {
-    borderWidth: 1,
-    borderColor: '#000E3D',
-    borderRadius: 32,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  servicePillText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#000E3D',
-  },
-  operatingHours: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    gap: 8,
-  },
-  operatingHoursTitle: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  operatingHoursText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
-  },
-  paymentMethods: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 16,
   },
 });

@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { CustomInput } from '../../components/ui/CustomInput';
+import ScreenContainer from '../../components/layout/ScreenContainer';
+import { CustomButton } from '../../components/CustomButton';
+import { validateEmail } from '../../lib/validations';
 
 const SignupScreen: React.FC = () => {
   const router = useRouter();
@@ -26,11 +27,26 @@ const SignupScreen: React.FC = () => {
     console.log('SignupScreen mounted');
   }, []);
 
+  // Resetar campos quando a tela é focada (quando volta de outras telas)
+  useFocusEffect(
+    React.useCallback(() => {
+      setEmail('');
+      setPassword('');
+      setConfirm('');
+      setError(null);
+    }, [])
+  );
+
   const handleSignup = async () => {
     setError(null);
 
     if (!email || !password || !confirm) {
       setError('Preencha todos os campos.');
+      return;
+    }
+
+    if (!validateEmail(email.trim())) {
+      setError('Informe um e-mail válido.');
       return;
     }
 
@@ -69,7 +85,7 @@ const SignupScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer scroll backgroundColor="#020617">
       <KeyboardAvoidingView
         style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -78,70 +94,58 @@ const SignupScreen: React.FC = () => {
         <Text style={styles.subtitle}>Crie sua conta Wall to All</Text>
 
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
+          <CustomInput
             placeholder="E-mail"
-            placeholderTextColor="#6b7280"
             keyboardType="email-address"
             autoCapitalize="none"
             value={email}
             onChangeText={setEmail}
+            containerStyle={styles.inputGroup}
           />
 
-          <TextInput
-            style={styles.input}
+          <CustomInput
             placeholder="Senha"
-            placeholderTextColor="#6b7280"
-            secureTextEntry
+            isPassword
             value={password}
             onChangeText={setPassword}
+            containerStyle={styles.inputGroup}
           />
 
-          <TextInput
-            style={styles.input}
+          <CustomInput
             placeholder="Confirmar senha"
-            placeholderTextColor="#6b7280"
-            secureTextEntry
+            isPassword
             value={confirm}
             onChangeText={setConfirm}
+            containerStyle={styles.inputGroup}
+            error={error || undefined}
           />
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
-
-          <TouchableOpacity
-            style={styles.button}
+          <CustomButton
+            title="Registrar"
             onPress={handleSignup}
+            isLoading={loading}
             disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.buttonText}>Registrar</Text>
-            )}
-          </TouchableOpacity>
+            variant="red"
+            style={{ borderRadius: 24, marginTop: 8 }}
+          />
 
-          <TouchableOpacity
-            style={styles.linkWrapper}
+          <CustomButton
+            title="Já tem conta? Fazer login"
+            variant="ghost"
             onPress={handleGoToLogin}
-          >
-            <Text style={styles.linkText}>Já tem conta? Fazer login</Text>
-          </TouchableOpacity>
+            style={{ marginTop: 12, marginVertical: 0 }}
+          />
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </ScreenContainer>
   );
 };
 
 export default SignupScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#020617',
-  },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
     justifyContent: 'center',
   },
   title: {
@@ -160,40 +164,8 @@ const styles = StyleSheet.create({
   form: {
     gap: 12,
   },
-  input: {
-    backgroundColor: '#0b1120',
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    color: '#e5e7eb',
-    fontSize: 16,
-  },
-  errorText: {
-    color: '#f87171',
-    fontSize: 14,
-  },
-  button: {
-    marginTop: 8,
-    backgroundColor: '#e5102e',
-    borderRadius: 24,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: {
-    color: '#f9fafb',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  linkWrapper: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  linkText: {
-    color: '#9ca3af',
-    fontSize: 14,
+  inputGroup: {
+    marginBottom: 0,
   },
 });
 

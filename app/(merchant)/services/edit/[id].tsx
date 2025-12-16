@@ -1,25 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import Svg, { Defs, RadialGradient as SvgRadialGradient, Rect, Stop } from 'react-native-svg';
-import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../../../lib/supabase';
+import { useToast } from '../../../../components/ui/ToastProvider';
+import { handleError } from '../../../../lib/errorHandler';
 import { responsiveHeight } from '../../../../lib/responsive';
-import { IconAddPhoto } from '../../../../lib/icons';
 import SelectDropdown from '../../../../components/ui/SelectDropdown';
+import ServiceImagePicker from '../../../../components/ui/ServiceImagePicker';
+import { CustomInput } from '../../../../components/ui/CustomInput';
+import AppHeader from '../../../../components/layout/AppHeader';
+import ScreenContainer from '../../../../components/layout/ScreenContainer';
+import { safeGoBack } from '../../../../lib/router-utils';
+import { CustomButton } from '../../../../components/CustomButton';
+import { RadioGroup } from '../../../../components/ui/RadioGroup';
+import { Chip } from '../../../../components/ui/Chip';
 
 type AvailabilityOption = {
   value: 'available' | 'unavailable';
@@ -45,6 +46,7 @@ const AVAILABILITY_OPTIONS: AvailabilityOption[] = [
 
 const EditServiceScreen: React.FC = () => {
   const router = useRouter();
+  const { showError } = useToast();
   const params = useLocalSearchParams<{ id: string }>();
 
   const [loading, setLoading] = useState(true);
@@ -64,22 +66,6 @@ const EditServiceScreen: React.FC = () => {
   const [serviceImages, setServiceImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    requestImagePermissions();
-    loadService();
-  }, [params.id]);
-
-  const requestImagePermissions = async () => {
-    if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos!');
-        return false;
-      }
-    }
-    return true;
-  };
-
   const formatCurrency = (value: string): string => {
     const numbers = value.replace(/\D/g, '');
     if (!numbers) return '';
@@ -97,23 +83,45 @@ const EditServiceScreen: React.FC = () => {
   };
 
   const parseDurationToMinutes = (durationText: string): number => {
-    if (!durationText) return 60;
+    if (!durationText) return 60; // Default 1 hora
+    
+    // Remove espaços e converte para lowercase
     const cleaned = durationText.trim().toLowerCase();
+    
+    // Tenta extrair horas e minutos
     const hourMatch = cleaned.match(/(\d+)\s*h/);
     const minuteMatch = cleaned.match(/(\d+)\s*m/);
-
+    
     let hours = 0;
     let minutes = 0;
-
-    if (hourMatch) hours = parseInt(hourMatch[1], 10);
-    if (minuteMatch) minutes = parseInt(minuteMatch[1], 10);
-
+    
+    if (hourMatch) {
+      hours = parseInt(hourMatch[1], 10);
+    }
+    if (minuteMatch) {
+      minutes = parseInt(minuteMatch[1], 10);
+    }
+    
+    // Se não encontrou horas nem minutos, tenta interpretar como número puro
+    // Para evitar ambiguidade, assumimos que números pequenos (<= 8) são horas
+    // e números maiores são minutos (mais comum para serviços)
     if (!hourMatch && !minuteMatch) {
       const numberMatch = cleaned.match(/(\d+)/);
-      if (numberMatch) hours = parseInt(numberMatch[1], 10);
+      if (numberMatch) {
+        const number = parseInt(numberMatch[1], 10);
+        // Se o número for <= 8, assume horas (ex: "1" = 1h, "2" = 2h)
+        // Se for > 8, assume minutos (ex: "30" = 30min, "60" = 60min)
+        // Isso evita que "10" seja interpretado como 10 horas (600 min)
+        if (number <= 8) {
+          hours = number;
+        } else {
+          minutes = number;
+        }
+      }
     }
-
-    return hours * 60 + minutes || 60;
+    
+    const totalMinutes = hours * 60 + minutes;
+    return totalMinutes > 0 ? totalMinutes : 60; // Default 60 minutos se não conseguir converter
   };
 
   const formatPriceFromNumber = (value: number | null | undefined) => {
@@ -125,7 +133,7 @@ const EditServiceScreen: React.FC = () => {
     }).format(value);
   };
 
-  const loadService = async () => {
+  const loadService = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -146,7 +154,7 @@ const EditServiceScreen: React.FC = () => {
 
       if (businessError || !businessData) {
         Alert.alert('Erro', 'Negócio não encontrado.');
-        router.back();
+        safeGoBack('/(merchant)/services');
         return;
       }
 
@@ -161,7 +169,7 @@ const EditServiceScreen: React.FC = () => {
 
       if (serviceError || !serviceData) {
         Alert.alert('Erro', 'Serviço não encontrado.');
-        router.back();
+        safeGoBack('/(merchant)/services');
         return;
       }
 
@@ -182,13 +190,18 @@ const EditServiceScreen: React.FC = () => {
       );
       setChargeType(serviceData.price_type === 'hourly' ? 'hourly' : 'fixed');
       setServiceImages(normalizedPhotos);
-    } catch (err: any) {
-      console.error('Erro ao carregar serviço:', err);
-      setError('Ocorreu um erro ao carregar o serviço.');
+    } catch (err: unknown) {
+      const processed = handleError(err, 'service');
+      setError(processed.userMessage);
+      showError(processed.userMessage);
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id, router, showError]);
+
+  useEffect(() => {
+    loadService();
+  }, [loadService]);
 
   const normalizePhotos = (photos: ServiceRecord['photos']): string[] => {
     if (!photos) return [];
@@ -202,36 +215,6 @@ const EditServiceScreen: React.FC = () => {
     }
   };
 
-  const handlePickImage = async () => {
-    if (serviceImages.length >= 4) {
-      Alert.alert('Limite atingido', 'Você pode adicionar no máximo 4 fotos.');
-      return;
-    }
-
-    const hasPermission = await requestImagePermissions();
-    if (hasPermission === false) return;
-
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const newImage = result.assets[0].uri;
-        setServiceImages((prev) => [...prev, newImage]);
-      }
-    } catch (err) {
-      console.error('Erro ao selecionar imagem:', err);
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
-    }
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setServiceImages((prev) => prev.filter((_, i) => i !== index));
-  };
 
   const uploadImagesToSupabase = async (): Promise<string[]> => {
     if (serviceImages.length === 0) return [];
@@ -261,9 +244,21 @@ const EditServiceScreen: React.FC = () => {
         const fileName = `${authenticatedUserId}-${Date.now()}-${index}.${fileExt}`;
         const filePath = `service-images/${fileName}`;
 
-        const base64 = await FileSystem.readAsStringAsync(imageUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        // Verificar se o arquivo existe antes de ler
+        const fileInfo = await FileSystem.getInfoAsync(imageUri);
+        if (!fileInfo.exists) {
+          throw new Error(`Arquivo de imagem ${index + 1} não encontrado. Por favor, selecione a imagem novamente.`);
+        }
+
+        let base64: string;
+        try {
+          base64 = await FileSystem.readAsStringAsync(imageUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        } catch (fileError) {
+          console.error(`Erro ao ler arquivo da imagem ${index + 1}:`, fileError);
+          throw new Error(`Não foi possível ler o arquivo de imagem ${index + 1}. Verifique se o arquivo não está corrompido.`);
+        }
 
         const byteCharacters = atob(base64);
         const byteNumbers = new Array(byteCharacters.length);
@@ -293,9 +288,10 @@ const EditServiceScreen: React.FC = () => {
 
       const uploadedUrls = await Promise.all(uploadPromises);
       return [...existingImages, ...uploadedUrls];
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       console.error('Erro ao fazer upload das imagens:', err);
-      throw new Error(`Erro ao fazer upload das imagens: ${err.message}`);
+      throw new Error(`Erro ao fazer upload das imagens: ${errorMessage}`);
     } finally {
       setImagesUploading(false);
     }
@@ -344,17 +340,19 @@ const EditServiceScreen: React.FC = () => {
         .eq('business_id', businessId);
 
       if (updateError) {
-        console.error('Erro ao atualizar serviço:', updateError);
-        setError(updateError.message);
+        const processed = handleError(updateError, 'service');
+        setError(processed.userMessage);
+        showError(processed.userMessage);
         return;
       }
 
       Alert.alert('Sucesso', 'Serviço atualizado com sucesso!', [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => safeGoBack('/(merchant)/services') },
       ]);
-    } catch (err: any) {
-      console.error('Erro ao salvar serviço:', err);
-      setError(err?.message ?? 'Erro ao salvar serviço.');
+    } catch (err: unknown) {
+      const processed = handleError(err, 'service');
+      setError(processed.userMessage);
+      showError(processed.userMessage);
     } finally {
       setSaving(false);
     }
@@ -386,7 +384,7 @@ const EditServiceScreen: React.FC = () => {
               }
 
               Alert.alert('Sucesso', 'Serviço excluído com sucesso!', [
-                { text: 'OK', onPress: () => router.back() },
+                { text: 'OK', onPress: () => safeGoBack('/(merchant)/services') },
               ]);
             } catch (err) {
               console.error('Erro ao excluir serviço:', err);
@@ -402,200 +400,141 @@ const EditServiceScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
+      <ScreenContainer scroll={false} backgroundColor="#FAFAFA" hasTabBar={false}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      </ScreenContainer>
     );
   }
 
   if (!service) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.emptyText}>Serviço não encontrado.</Text>
-      </View>
+      <ScreenContainer 
+        scroll={false} 
+        backgroundColor="#FAFAFA" 
+        hasHeader={true}
+        hasTabBar={false}
+        header={
+          <AppHeader 
+            title="Editar serviço"
+            showBackButton={true}
+            onPressBack={() => safeGoBack('/(merchant)/services')}
+          />
+        }
+      >
+        <View style={styles.loadingContainer}>
+          <Text style={styles.emptyText}>Serviço não encontrado.</Text>
+        </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.background}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.header}>
-            <View style={styles.headerBackground}>
-              <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000E3D' }]} />
-              <Svg style={StyleSheet.absoluteFill} viewBox="0 0 390 129" preserveAspectRatio="none">
-                <Defs>
-                  <SvgRadialGradient
-                    id="headerRadialGradient"
-                    cx="0.5"
-                    cy="0.3"
-                    rx="100%"
-                    ry="100%"
-                    gradientUnits="objectBoundingBox"
-                  >
-                    <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
-                    <Stop offset="100%" stopColor="#000E3D" stopOpacity="1" />
-                  </SvgRadialGradient>
-                </Defs>
-                <Rect x="0" y="0" width="390" height="129" fill="url(#headerRadialGradient)" />
-              </Svg>
-            </View>
-
-            <View style={styles.headerContent}>
-              <Text style={styles.welcomeTitle}>Editar serviços</Text>
-              <Text style={styles.welcomeSubtitle}>
-                Atualize os detalhes do seu serviço
-              </Text>
-            </View>
-          </View>
-
+    <ScreenContainer 
+      scroll={true}
+      hasHeader={true}
+      hasTabBar={false}
+      backgroundColor="#FAFAFA"
+      header={
+        <AppHeader 
+          title="Editar serviço"
+          showBackButton={true}
+          onPressBack={() => safeGoBack('/(merchant)/services')}
+        />
+      }
+      footer={
+        <View style={styles.footerContainer}>
+          <CustomButton
+            compact
+            title="Excluir Serviço"
+            variant="danger"
+            onPress={handleDelete}
+            isLoading={saving && !imagesUploading}
+            disabled={saving || imagesUploading}
+            style={{ marginBottom: 12 }}
+          />
+          <CustomButton
+            compact
+            title="Salvar alterações"
+            variant="primary"
+            onPress={handleSave}
+            isLoading={saving || imagesUploading}
+            disabled={saving || imagesUploading}
+          />
+        </View>
+      }
+    >
           <View style={styles.form}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nome do Serviço</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Nome do Serviço"
-                placeholderTextColor="#0f0f0f"
-                value={serviceName}
-                onChangeText={setServiceName}
-              />
-            </View>
+            <CustomInput
+              label="Nome do Serviço"
+              placeholder="Nome do Serviço"
+              value={serviceName}
+              onChangeText={setServiceName}
+              containerStyle={styles.inputGroup}
+            />
 
             <View style={styles.radioGroup}>
               <Text style={styles.label}>Forma de cobrança</Text>
-              <View style={styles.radioRow}>
-                <TouchableOpacity
-                  style={styles.radioOption}
-                  onPress={() => setChargeType('fixed')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.radioIconOuter}>
-                    {chargeType === 'fixed' && <View style={styles.radioIconInner} />}
-                  </View>
-                  <Text style={styles.radioText}>Valor Fixo</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.radioOption}
-                  onPress={() => setChargeType('hourly')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.radioIconOuter}>
-                    {chargeType === 'hourly' && <View style={styles.radioIconInner} />}
-                  </View>
-                  <Text style={styles.radioText}>Valor por hora</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Preço</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="R$ 100,00"
-                placeholderTextColor="#0f0f0f"
-                keyboardType="numeric"
-                value={price}
-                onChangeText={handlePriceChange}
+              <RadioGroup
+                options={[
+                  { label: 'Valor Fixo', value: 'fixed' },
+                  { label: 'Valor por hora', value: 'hourly' },
+                ]}
+                value={chargeType}
+                onValueChange={(value) => setChargeType(value as 'fixed' | 'hourly')}
+                direction="row"
+                gap={12}
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Duração</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="1h"
-                placeholderTextColor="#0f0f0f"
-                value={duration}
-                onChangeText={setDuration}
-              />
-            </View>
+            <CustomInput
+              label="Preço"
+              placeholder="R$ 100,00"
+              keyboardType="numeric"
+              value={price}
+              onChangeText={handlePriceChange}
+              containerStyle={styles.inputGroup}
+            />
+
+            <CustomInput
+              label="Duração"
+              placeholder="1h"
+              value={duration}
+              onChangeText={setDuration}
+              containerStyle={styles.inputGroup}
+            />
 
             <View style={styles.radioGroup}>
               <Text style={styles.label}>Categoria do Serviço</Text>
               <View style={styles.chipRow}>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[
-                      category === 'local' ? styles.chip : styles.chipOutline,
-                      category === 'local' && styles.chipActive,
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => setCategory('local')}
-                  >
-                    <Text
-                      style={[
-                        category === 'local' ? styles.chipText : styles.chipTextOutline,
-                        category === 'local' && styles.chipTextActive,
-                      ]}
-                    >
-                      No meu local
-                    </Text>
-                    {category === 'local' && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setCategory('home');
-                        }}
-                        style={styles.chipCloseButton}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Text style={styles.chipCloseIcon}>×</Text>
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[
-                      category === 'home' ? styles.chip : styles.chipOutline,
-                      category === 'home' && styles.chipActive,
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => setCategory('home')}
-                  >
-                    <Text
-                      style={[
-                        category === 'home' ? styles.chipText : styles.chipTextOutline,
-                        category === 'home' && styles.chipTextActive,
-                      ]}
-                    >
-                      À domicílio
-                    </Text>
-                    {category === 'home' && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setCategory('local');
-                        }}
-                        style={styles.chipCloseButton}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Text style={styles.chipCloseIcon}>×</Text>
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                <Chip
+                  label="No meu local"
+                  selected={category === 'local'}
+                  variant={category === 'local' ? 'filled' : 'outline'}
+                  onPress={() => setCategory('local')}
+                  onClose={category === 'local' ? () => setCategory('home') : undefined}
+                />
+                <Chip
+                  label="À domicílio"
+                  selected={category === 'home'}
+                  variant={category === 'home' ? 'filled' : 'outline'}
+                  onPress={() => setCategory('home')}
+                  onClose={category === 'home' ? () => setCategory('local') : undefined}
+                />
               </View>
             </View>
 
-            <View style={styles.textareaGroup}>
-              <Text style={styles.label}>Descrição do Serviço</Text>
-              <TextInput
-                style={styles.textarea}
-                placeholder="Conte mais sobre o serviço."
-                placeholderTextColor="#0f0f0f"
-                multiline
-                numberOfLines={4}
-                value={description}
-                onChangeText={setDescription}
-              />
-            </View>
+            <CustomInput
+              label="Descrição do Serviço"
+              placeholder="Conte mais sobre o serviço."
+              multiline
+              numberOfLines={4}
+              value={description}
+              onChangeText={setDescription}
+              containerStyle={styles.textareaGroup}
+              inputContainerStyle={styles.textarea}
+            />
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Disponibilidade</Text>
@@ -609,80 +548,16 @@ const EditServiceScreen: React.FC = () => {
               />
             </View>
 
-            <View style={styles.photoGroup}>
-              <Text style={styles.label}>Adicione fotos do seu serviço</Text>
-              <View style={styles.photoRow}>
-                {Array.from({ length: 4 }).map((_, index) => {
-                  const imageUri = serviceImages[index];
-                  return imageUri ? (
-                    <View key={index} style={styles.photoBoxContainer}>
-                      <Image
-                        source={{ uri: imageUri }}
-                        style={styles.photoPreview}
-                        resizeMode="cover"
-                      />
-                      <TouchableOpacity
-                        style={styles.removePhotoButton}
-                        onPress={() => handleRemoveImage(index)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.removePhotoBadge}>
-                          <Text style={styles.removePhotoText}>×</Text>
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.photoBox}
-                      onPress={handlePickImage}
-                      activeOpacity={0.7}
-                      disabled={imagesUploading || serviceImages.length >= 4}
-                    >
-                      {imagesUploading ? (
-                        <ActivityIndicator color="#474747" />
-                      ) : (
-                        <IconAddPhoto width={34} height={34} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+            <ServiceImagePicker
+              images={serviceImages}
+              onImagesChange={setServiceImages}
+              uploading={imagesUploading}
+              maxImages={4}
+            />
           </View>
 
           {!!error && <Text style={styles.errorText}>{error}</Text>}
-        </ScrollView>
-
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.buttonOutlined}
-            activeOpacity={0.8}
-            onPress={handleDelete}
-            disabled={saving || imagesUploading}
-          >
-            {saving ? (
-              <ActivityIndicator color="#E5102E" />
-            ) : (
-              <Text style={styles.buttonOutlinedText}>Excluir Serviço</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.buttonContained}
-            activeOpacity={0.8}
-            onPress={handleSave}
-            disabled={saving || imagesUploading}
-          >
-            {saving || imagesUploading ? (
-              <ActivityIndicator color="#FEFEFE" />
-            ) : (
-              <Text style={styles.buttonContainedText}>Salvar Alterações</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </View>
+    </ScreenContainer>
   );
 };
 
@@ -691,37 +566,28 @@ export default EditServiceScreen;
 const headerHeight = responsiveHeight(129);
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
-  container: {
-    flex: 1,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 0,
-    paddingBottom: 32,
-  },
   header: {
     height: headerHeight,
     paddingVertical: 40,
-    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'flex-start',
     alignSelf: 'stretch',
     overflow: 'hidden',
     position: 'relative',
-    marginHorizontal: -24,
+    marginHorizontal: -16, // Full-bleed header: compensa o padding padrão de 16px
   },
   headerBackground: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
     zIndex: 0,
   },
   headerContent: {
@@ -774,6 +640,7 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     width: '100%',
+    marginBottom: 16,
   },
   label: {
     fontFamily: 'Montserrat_700Bold',
@@ -781,50 +648,8 @@ const styles = StyleSheet.create({
     color: '#000E3D',
     marginBottom: 4,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
-  },
   radioGroup: {
     width: '100%',
-  },
-  radioRow: {
-    flexDirection: 'row',
-    marginTop: 8,
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  radioOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  radioIconOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#000E3D',
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioIconInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#000E3D',
-  },
-  radioText: {
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
   },
   chipRow: {
     flexDirection: 'row',
@@ -832,59 +657,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     flexWrap: 'wrap',
   },
-  chipContainer: {
-    flexDirection: 'row',
-  },
-  chip: {
-    backgroundColor: '#000E3D',
-    borderRadius: 32,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  chipText: {
-    fontFamily: 'Montserrat_500Medium',
-    fontSize: 12,
-    color: '#FEFEFE',
-  },
-  chipOutline: {
-    borderWidth: 1,
-    borderColor: '#000E3D',
-    borderRadius: 32,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  chipTextOutline: {
-    fontFamily: 'Montserrat_500Medium',
-    fontSize: 12,
-    color: '#000E3D',
-  },
-  chipActive: {
-    backgroundColor: '#000E3D',
-  },
-  chipTextActive: {
-    color: '#FEFEFE',
-  },
-  chipCloseButton: {
-    marginLeft: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chipCloseIcon: {
-    color: '#FEFEFE',
-    fontSize: 20,
-    fontFamily: 'Montserrat_700Bold',
-    lineHeight: 22,
-  },
   textareaGroup: {
     marginTop: 16,
+    marginBottom: 16,
   },
   textarea: {
     borderWidth: 1,
@@ -894,64 +669,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     minHeight: 120,
     textAlignVertical: 'top',
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 16,
-    color: '#0F0F0F',
-  },
-  photoGroup: {
-    marginTop: 16,
-  },
-  photoRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  photoBox: {
-    width: '48%',
-    aspectRatio: 1,
-    borderWidth: 1,
-    borderColor: '#000000',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#D9D9D9',
-    marginBottom: 12,
-  },
-  photoBoxContainer: {
-    width: '48%',
-    aspectRatio: 1,
-    position: 'relative',
-    marginBottom: 12,
-  },
-  photoPreview: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 8,
-  },
-  removePhotoButton: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removePhotoBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#E5102E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removePhotoText: {
-    color: '#FEFEFE',
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    lineHeight: 20,
   },
   errorText: {
     marginTop: 16,
@@ -960,47 +677,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
   },
-  actions: {
-    paddingHorizontal: 24,
-    paddingBottom: 32,
+  footerContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     gap: 12,
   },
-  buttonContained: {
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
-    backgroundColor: '#000E3D',
-    borderRadius: 24,
-    paddingVertical: 12,
+  actions: {
+    paddingBottom: 32,
+    gap: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  buttonContainedText: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 16,
-    color: '#FEFEFE',
-  },
-  buttonOutlined: {
-    width: '90%',
-    maxWidth: 342,
-    alignSelf: 'center',
-    backgroundColor: '#FEFEFE',
-    borderRadius: 24,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#000E3D',
-  },
-  buttonOutlinedText: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 16,
-    color: '#000E3D',
   },
   emptyText: {
     fontSize: 16,

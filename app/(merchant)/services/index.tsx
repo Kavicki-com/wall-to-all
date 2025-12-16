@@ -1,22 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
-  Image,
   ActivityIndicator,
   TextInput,
   RefreshControl,
   Alert,
-  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../lib/supabase';
-import { IconSearch, IconRatingStar } from '../../../lib/icons';
-import { MerchantTopBar } from '../../../components/MerchantTopBar';
+import { IconSearch } from '../../../lib/icons';
+import AppHeader from '../../../components/layout/AppHeader';
+import { safeGoBack } from '../../../lib/router-utils';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import ServiceCard from '../../../components/ServiceCard';
+import { CustomButton } from '../../../components/CustomButton';
 
 // --- TIPOS ---
 type Service = {
@@ -33,19 +33,12 @@ type Service = {
 
 const MerchantServicesScreen: React.FC = () => {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [businessId, setBusinessId] = useState<string | null>(null);
 
-  // --- EFEITOS E CARREGAMENTO DE DADOS ---
-  useEffect(() => {
-    loadBusinessAndServices();
-  }, []);
-
-  const loadBusinessAndServices = async () => {
+  const loadBusinessAndServices = useCallback(async () => {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -73,7 +66,6 @@ const MerchantServicesScreen: React.FC = () => {
         return;
       }
 
-      setBusinessId(businessData.id);
 
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
@@ -96,7 +88,7 @@ const MerchantServicesScreen: React.FC = () => {
               ? ratings.reduce((sum: number, r: { rating?: number }) => sum + (r?.rating || 0), 0) /
                 ratings.length
               : undefined;
-          const { reviews, categories, ...rest } = service;
+          const { reviews: _reviews, categories, ...rest } = service;
           const categoryName = categories?.name ?? null;
           return { ...rest, category: categoryName, rating, review_count: reviewCount };
         });
@@ -108,7 +100,12 @@ const MerchantServicesScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [router]);
+
+  // --- EFEITOS E CARREGAMENTO DE DADOS ---
+  useEffect(() => {
+    loadBusinessAndServices();
+  }, [loadBusinessAndServices]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -136,70 +133,54 @@ const MerchantServicesScreen: React.FC = () => {
 
   // --- RENDERIZAÇÃO DO CARD ---
   const renderServiceCard = ({ item }: { item: Service }) => {
-    const imagesArray: string[] = [];
-    if (item.photos) {
-      if (typeof item.photos === 'string') {
-        try {
-          imagesArray.push(...JSON.parse(item.photos));
-        } catch {
-          imagesArray.push(item.photos);
-        }
-      } else if (Array.isArray(item.photos)) {
-        imagesArray.push(...item.photos);
-      }
-    }
-    const firstImage = imagesArray.length > 0 ? imagesArray[0] : null;
-
     return (
-      <TouchableOpacity
-        style={styles.serviceCard}
-        activeOpacity={0.8}
+      <ServiceCard
+        name={item.name}
+        price={item.price}
+        photos={item.photos}
+        rating={item.rating}
+        reviewCount={item.review_count}
+        categoryName={item.category}
+        containerStyle={{ width: '100%' }}
         onPress={() => handleServicePress(item.id)}
-      >
-        <Image 
-            source={firstImage ? { uri: firstImage } : undefined} 
-            style={[styles.serviceImage, !firstImage && styles.placeholderImage]} 
-            resizeMode="cover" 
-        />
-       
-        <View style={styles.serviceInfo}>
-          <Text style={styles.serviceName} numberOfLines={2}>{item.name}</Text>
-          
-          <View style={styles.serviceDetailsRow}>
-            <View style={styles.ratingBadge}>
-              <Text style={styles.ratingValue}>{item.rating?.toFixed(1) || '4.8'}</Text>
-              <IconRatingStar size={14} color="#FFCE31" />
-              <Text style={styles.reviewCount}>({item.review_count || 25})</Text>
-            </View>
-            
-            {item.category && (
-              <Text style={styles.categoryText} numberOfLines={1}>
-                {item.category}
-              </Text>
-            )}
-          </View>
-
-          <Text style={styles.servicePrice}>
-            R$ {item.price.toFixed(2).replace('.', ',')}
-          </Text>
-        </View>
-      </TouchableOpacity>
+      />
     );
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
+      <ScreenContainer scroll={false} backgroundColor="#FAFAFA" hasHeader={true}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      </ScreenContainer>
     );
   }
 
   // --- RENDERIZAÇÃO DA TELA ---
   return (
-    <View style={styles.container}>
-      <MerchantTopBar showBack={true} />
-      
+    <ScreenContainer 
+      scroll={false} 
+      backgroundColor="#FAFAFA" 
+      hasHeader={true}
+      header={
+        <AppHeader 
+          showBackButton={true}
+          onPressBack={() => safeGoBack('/(merchant)/home')}
+        />
+      }
+      footer={
+        <View style={styles.footerContainer}>
+          <CustomButton
+            title="Cadastrar novo serviço"
+            variant="outline"
+            onPress={handleAddService}
+            style={{ borderRadius: 24, height: 48 }}
+            width="100%"
+          />
+        </View>
+      }
+    >
       <View style={styles.mainContent}>
         {/* 1. TOPO: Título e Busca */}
         <View style={styles.headerSection}>
@@ -237,19 +218,8 @@ const MerchantServicesScreen: React.FC = () => {
             }
           />
         </View>
-
-        {/* 3. FUNDO: Botão Fixo */}
-        {/* Ajustei o paddingBottom para aproximar o botão da barra de navegação */}
-        <View style={[styles.footerSection, { paddingBottom: Math.max(insets.bottom, 20) + 20 }]}>
-          <TouchableOpacity
-            style={styles.addServiceButton}
-            onPress={handleAddService}
-          >
-            <Text style={styles.addServiceButtonText}>Cadastrar novo serviço</Text>
-          </TouchableOpacity>
-        </View>
       </View>
-    </View>
+    </ScreenContainer>
   );
 };
 
@@ -259,13 +229,11 @@ export default MerchantServicesScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
   },
   mainContent: {
     flex: 1,
@@ -273,14 +241,14 @@ const styles = StyleSheet.create({
   
   // --- HEADER (Ajustado posicionamento e tamanho da busca) ---
   headerSection: {
-    paddingHorizontal: 24,
-    paddingTop: 20, // Espaço entre header e título
-    paddingBottom: 24,
+    paddingTop: 0, // Conteúdo começa imediatamente após o header
+    paddingBottom: 16, // Reduzido para aproximar os cards da barra de busca
   },
   title: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#E5102E',
+    marginTop: 24, // Espaço consistente após o header
     marginBottom: 16,
   },
   searchBarContainer: {
@@ -309,72 +277,8 @@ const styles = StyleSheet.create({
     flex: 1, // Ocupa o espaço central
   },
   listContent: {
-    paddingHorizontal: 24,
     paddingBottom: 20,
     gap: 16,
-  },
-
-  // --- CARD DO SERVIÇO ---
-  serviceCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#474747',
-    overflow: 'hidden',
-    height: 104,
-  },
-  serviceImage: {
-    width: 85,
-    height: '100%',
-    backgroundColor: '#E0E0E0',
-  },
-  placeholderImage: {
-    backgroundColor: '#E0E0E0',
-  },
-  serviceInfo: {
-    flex: 1,
-    padding: 16,
-    justifyContent: 'space-between',
-  },
-  serviceName: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
-    marginBottom: 4,
-  },
-  serviceDetailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  ratingValue: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-    marginRight: 4,
-  },
-  reviewCount: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#474747',
-    marginLeft: 2,
-  },
-  categoryText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_300Light',
-    color: '#0F0F0F',
-    flex: 1,
-  },
-  servicePrice: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#17723F',
   },
 
   // --- EMPTY STATE ---
@@ -389,26 +293,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // --- FOOTER (Ajustado posicionamento do botão) ---
-  footerSection: {
-    paddingHorizontal: 24,
+  // --- FOOTER ---
+  footerContainer: {
+    paddingTop: 16,
     backgroundColor: '#FAFAFA',
-    paddingTop: 16, // Um pouco mais de respiro acima do botão
-    // paddingBottom é definido dinamicamente no JSX
-  },
-  addServiceButton: {
-    borderWidth: 1,
-    borderColor: '#000E3D',
-    borderRadius: 24,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-    width: '100%',
-  },
-  addServiceButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
   },
 });

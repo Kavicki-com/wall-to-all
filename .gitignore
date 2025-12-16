@@ -13,6 +13,7 @@ yarn-error.log*
 # Env files (template env.example deve ser versionado)
 .env
 .env.local
+.env.test
 .env.*.local
 env.local
 env.*.local
