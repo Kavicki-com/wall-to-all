@@ -124,14 +124,6 @@ const ClientHomeScreen: React.FC = () => {
         return;
       }
 
-      // Calcular início e fim do dia atual
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStart = today.toISOString();
-      const todayEnd = new Date(today);
-      todayEnd.setHours(23, 59, 59, 999);
-      const todayEndISO = todayEnd.toISOString();
-
       const [
         { data: appointmentsData, error: appointmentsError },
         { data: businessesData, error: businessesError },
@@ -143,8 +135,7 @@ const ClientHomeScreen: React.FC = () => {
           .select('*, service:services(id, name), business:business_profiles(business_name, logo_url)')
           .eq('client_id', user.id)
           .order('start_time', { ascending: true })
-          .gte('start_time', todayStart)
-          .lte('start_time', todayEndISO),
+          .gte('start_time', new Date().toISOString()),
         supabase
           .from('business_profiles')
           .select(`
@@ -184,19 +175,7 @@ const ClientHomeScreen: React.FC = () => {
       } else if (appointmentsData) {
         // Aplicar reagendamentos aceitos aos agendamentos
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
-        
-        // Filtrar apenas agendamentos do dia atual (após aplicar reagendamentos)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayEnd = new Date(today);
-        todayEnd.setHours(23, 59, 59, 999);
-        
-        const todayAppointments = appointmentsWithReschedules.filter((apt) => {
-          const aptDate = new Date(apt.start_time);
-          return aptDate >= today && aptDate <= todayEnd;
-        });
-        
-        setAppointments(todayAppointments as Appointment[]);
+        setAppointments(appointmentsWithReschedules as Appointment[]);
       }
 
       if (businessesError) {
@@ -398,21 +377,6 @@ const ClientHomeScreen: React.FC = () => {
     textAlign: 'center',
     marginTop: 16,
   },
-  emptyAppointmentsContainer: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#C4C4C4',
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  emptyAppointmentsText: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
-    lineHeight: 20,
-  },
   headerArea: {
     paddingTop: 10,
     paddingBottom: 10,
@@ -485,9 +449,9 @@ const ClientHomeScreen: React.FC = () => {
         </ScrollView>
 
         {/* Meus Agendamentos */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
-          {appointments.length > 0 ? (
+        {appointments.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
             <ScrollView
               nestedScrollEnabled
               scrollEnabled
@@ -521,14 +485,8 @@ const ClientHomeScreen: React.FC = () => {
                 );
               })}
             </ScrollView>
-          ) : (
-            <View style={styles.emptyAppointmentsContainer}>
-              <Text style={styles.emptyAppointmentsText}>
-                Você ainda não tem nenhum{'\n'}agendamento hoje, agende um serviço{'\n'}para visualizar eles aqui:
-              </Text>
-            </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* Lojas em destaque */}
         <View style={styles.section}>

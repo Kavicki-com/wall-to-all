@@ -18,7 +18,6 @@ export const useSafeGoBack = (fallbackRoute: string = '/(client)/home') => {
     
     if (canGoBack) {
       // Tenta navegar para trás
-      // O React Navigation vai logar um warning se não houver tela, mas não vai quebrar
       router.back();
     } else {
       // Se não há histórico, redireciona para a rota de fallback
@@ -31,29 +30,18 @@ export const useSafeGoBack = (fallbackRoute: string = '/(client)/home') => {
  * Navega para trás de forma segura, evitando erros quando não há histórico.
  * 
  * NOTA: Esta função não pode verificar o histórico diretamente sem hooks.
- * Para uma verificação mais robusta, use o hook useSafeGoBack() dentro de componentes.
+ * Para evitar o erro "GO_BACK was not handled", sempre redireciona para o fallback.
  * 
- * Esta função tenta usar router.back() mas se houver erro (que será logado como warning),
- * você deve usar useSafeGoBack() em vez disso para uma verificação adequada.
+ * Para uma verificação mais robusta que tenta voltar quando há histórico,
+ * use o hook useSafeGoBack() dentro de componentes React.
  * 
  * @param fallbackRoute - Rota para redirecionar se não houver histórico (padrão: '/(client)/home')
  */
 export const safeGoBack = (fallbackRoute: string = '/(client)/home') => {
-  // Como não temos acesso ao navigation sem hooks, vamos tentar uma abordagem diferente:
-  // Verificar se estamos na rota raiz ou em uma rota que não deveria ter histórico
-  // Se sim, redireciona para o fallback em vez de tentar voltar
-  
-  // Tenta navegar para trás
-  // O React Navigation vai logar um warning em desenvolvimento se não houver histórico,
-  // mas não vai quebrar a aplicação. Em produção, o warning não aparece.
-  // 
-  // Para evitar o warning em desenvolvimento, use useSafeGoBack() em componentes React.
-  try {
-    router.back();
-  } catch (error) {
-    // Se houver uma exceção (improvável, mas possível), redireciona para o fallback
-    console.warn('Erro ao voltar, redirecionando para:', fallbackRoute);
-    router.replace(fallbackRoute as never);
-  }
+  // Como não temos acesso ao navigation state sem hooks, sempre redirecionamos
+  // para o fallback para evitar o erro "GO_BACK was not handled".
+  // Isso garante que não haverá warning em desenvolvimento.
+  // Se você precisar do comportamento de voltar quando houver histórico, use useSafeGoBack().
+  router.replace(fallbackRoute as never);
 };
 

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   TextInput,
   RefreshControl,
@@ -17,6 +16,7 @@ import AppHeader from '../../../components/layout/AppHeader';
 import { safeGoBack } from '../../../lib/router-utils';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import ServiceCard from '../../../components/ServiceCard';
+import { CustomButton } from '../../../components/CustomButton';
 
 // --- TIPOS ---
 type Service = {
@@ -163,21 +163,22 @@ const MerchantServicesScreen: React.FC = () => {
       scroll={false} 
       backgroundColor="#FAFAFA" 
       hasHeader={true}
-      footer={
-        <View style={styles.footerSection}>
-          <TouchableOpacity
-            style={styles.addServiceButton}
-            onPress={handleAddService}
-          >
-            <Text style={styles.addServiceButtonText}>Cadastrar novo serviço</Text>
-          </TouchableOpacity>
-        </View>
-      }
       header={
         <AppHeader 
           showBackButton={true}
           onPressBack={() => safeGoBack('/(merchant)/home')}
         />
+      }
+      footer={
+        <View style={styles.footerContainer}>
+          <CustomButton
+            title="Cadastrar novo serviço"
+            variant="outline"
+            onPress={handleAddService}
+            style={{ borderRadius: 24, height: 48 }}
+            width="100%"
+          />
+        </View>
       }
     >
       <View style={styles.mainContent}>
@@ -293,23 +294,10 @@ const styles = StyleSheet.create({
   },
 
   // --- FOOTER ---
-  footerSection: {
-    backgroundColor: '#FAFAFA',
+  footerContainer: {
     paddingTop: 16,
-  },
-  addServiceButton: {
-    borderWidth: 1,
-    borderColor: '#000E3D',
-    borderRadius: 24,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-    width: '100%',
-  },
-  addServiceButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    backgroundColor: '#FAFAFA',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
   },
 });

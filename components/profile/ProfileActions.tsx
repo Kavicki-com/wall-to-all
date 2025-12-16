@@ -47,7 +47,7 @@ const ProfileActions: React.FC<ProfileActionsProps> = ({ onShare, onReview }) =>
 const styles = StyleSheet.create({
   container: {
     marginHorizontal: 24,
-    marginBottom: 40,
+    marginBottom: 9,
     gap: 9,
   },
   primaryButton: {

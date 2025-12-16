@@ -226,10 +226,8 @@ const ShareProfileScreen: React.FC = () => {
   const paymentMethods = businessProfile.accepted_payment_methods || {};
   const priceRange = getPriceRange(services);
 
-  // Calcula o paddingBottom: apenas altura da tabbar + safe area
-  // O marginBottom de 40px do ProfileActions já cria o espaçamento visual
-  const tabBarHeight = 72;
-  const paddingBottom = tabBarHeight + Math.max(insets.bottom, 8);
+  // Calcula o paddingBottom: safe area bottom + 9px para os botões ficarem a 9px da margem inferior
+  const paddingBottom = Math.max(insets.bottom, 0) + 9;
 
   return (
     <View style={{ flex: 1 }}>

@@ -175,17 +175,18 @@ const MerchantDashboardScreen: React.FC = () => {
     }
   }, [currentMonth, router]);
 
-  // Resetar estado do calendário quando a tela receber foco
+  // Resetar estado do calendário e recarregar agendamentos quando a tela receber foco
+  // Usamos dependências vazias para evitar loop de re-render (setState altera currentMonth -> altera callback)
   useFocusEffect(
     React.useCallback(() => {
-      const now = new Date();
-      setCurrentMonth(now);
-      setSelectedDate(now);
+      setCurrentMonth(new Date());
+      setSelectedDate(new Date());
       setCalendarResetKey((prev) => prev + 1);
-    }, [])
+      // Recarregar agendamentos quando a tela receber foco (ex: após reagendamento)
+      loadBusinessAndAppointments();
+    }, []) // loadBusinessAndAppointments é estável o suficiente; evitar depender de currentMonth
   );
 
-  // Carregar agendamentos quando currentMonth mudar ou quando a tela receber foco
   useEffect(() => {
     loadBusinessAndAppointments();
   }, [loadBusinessAndAppointments]);

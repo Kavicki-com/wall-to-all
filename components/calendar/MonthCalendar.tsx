@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   },
   dayInnerToday: {
     borderWidth: 1.5,
-    borderColor: '#E5102E',
+    borderColor: '#17723F',
   },
   dayInnerHasAppointments: {
     borderWidth: 1,

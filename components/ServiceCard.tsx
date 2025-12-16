@@ -90,7 +90,7 @@ export default ServiceCard;
 const styles = StyleSheet.create({
   serviceCard: {
     flexDirection: 'row',
-    width: 342,
+    width: '100%',
     height: 104,
     borderWidth: 1,
     borderColor: '#DCDCDC',

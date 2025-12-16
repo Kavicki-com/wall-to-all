@@ -33,7 +33,7 @@ export const CustomTabBar: React.FC<TabBarProps> = (props) => {
   const nestedRouteName =
     nestedState?.routes?.[nestedState.index ?? 0]?.name ?? focusedTab.name;
   // Telas que não devem mostrar a tabbar
-  const hiddenScreens = ['search/index', 'home/share'];
+  const hiddenScreens = ['search/index', 'home/share', 'store/[id]'];
   // Opcional: log para descobrir o nome correto da rota
   // console.log('Rota interna ativa:', nestedRouteName);
   if (hiddenScreens.includes(nestedRouteName)) {

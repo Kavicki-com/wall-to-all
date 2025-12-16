@@ -63,6 +63,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       const data = await fetchNotifications(session.user.id, {
         types: [
           'reschedule_requested',
+          'reschedule_suggested',
           'appointment_requested',
           'reschedule_accepted',
           'reschedule_rejected',
@@ -141,6 +142,8 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
     switch (type) {
       case 'reschedule_requested':
         return 'Solicitação de Reagendamento';
+      case 'reschedule_suggested':
+        return 'Reagendamento Sugerido';
       case 'appointment_requested':
         return 'Solicitação de Agendamento';
       case 'reschedule_accepted':

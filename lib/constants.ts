@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 export const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 90 : 70;
 
 export const AUTH_TIMEOUTS = {
-  FETCH_USER_ROLE: 10000,
+  FETCH_USER_ROLE: 30000,
   INITIALIZATION: 5000,
 } as const;
 

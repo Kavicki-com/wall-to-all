@@ -5,27 +5,32 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
-  Image,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../lib/supabase';
 import { formatWorkDays } from '../../../lib/workDaysUtils';
-import { IconSchedule, IconKidStar, IconPix, IconCreditCard, IconCash } from '../../../lib/icons';
-import BackgroundSvg from '../../../assets/background.svg';
-import AppHeader from '../../../components/layout/AppHeader';
+import { Icon } from '../../../components/ui/Icon';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
+import AppHeader from '../../../components/layout/AppHeader';
 import { safeGoBack } from '../../../lib/router-utils';
 import ServiceCard from '../../../components/ServiceCard';
 import { CustomButton } from '../../../components/CustomButton';
-import { Card } from '../../../components/ui/Card';
-import { useResponsiveWidth, useResponsiveHeight } from '../../../lib/responsive';
+// Shared profile components
+import BricksBackground from '../../../components/profile/BricksBackground';
+import ProfileHero from '../../../components/profile/ProfileHero';
+import RatingsRowCard from '../../../components/profile/RatingsRowCard';
+import ProfileAddressCard from '../../../components/profile/ProfileAddressCard';
+import OperatingHoursCard from '../../../components/profile/OperatingHoursCard';
+import PaymentMethodsCard from '../../../components/profile/PaymentMethodsCard';
+import SectionTitle from '../../../components/ui/SectionTitle';
 
 type BusinessProfile = {
   id: string;
   business_name: string;
   description: string | null;
   logo_url: string | null;
+  banner_url: string | null;
   category_id: string | null;
   categories?: {
     id: string;
@@ -48,6 +53,10 @@ type Service = {
   photos: string[] | string | null;
   rating?: number;
   review_count?: number;
+  categories?: {
+    id: number;
+    name: string;
+  } | null;
 };
 
 type ReviewStats = {
@@ -60,14 +69,11 @@ const StoreProfileScreen: React.FC = () => {
   const params = useLocalSearchParams<{ id: string }>();
   const businessId = params.id;
 
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [reviewStats, setReviewStats] = useState<ReviewStats>({ average_rating: 0, total_reviews: 0 });
-
-  // Dimensões responsivas
-  const heroHeight = useResponsiveHeight(122);
-  const avatarSize = useResponsiveWidth(88);
 
   useEffect(() => {
     if (businessId) {
@@ -114,31 +120,45 @@ const StoreProfileScreen: React.FC = () => {
             )
           `)
           .eq('business_id', businessData.id)
+          .eq('is_active', true)
           .order('created_at', { ascending: false });
 
         if (servicesError) {
           console.error('Erro ao buscar serviços:', servicesError);
         } else if (servicesData) {
-          const servicesWithRatings = await Promise.all(
-            (servicesData as Service[]).map(async (service) => {
-              const { data: serviceReviews } = await supabase
-                .from('reviews')
-                .select('rating')
-                .eq('service_id', service.id);
+          const serviceIds = (servicesData as Service[]).map((service) => service.id);
+          let ratingsMap: Record<string, { sum: number; count: number }> = {};
 
-              const rating =
-                serviceReviews && serviceReviews.length > 0
-                  ? serviceReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / serviceReviews.length
-                  : undefined;
-              const reviewCount = serviceReviews?.length || undefined;
+          if (serviceIds.length > 0) {
+            const { data: serviceReviews, error: reviewsError } = await supabase
+              .from('reviews')
+              .select('service_id, rating')
+              .in('service_id', serviceIds);
 
-              return {
-                ...service,
-                rating,
-                review_count: reviewCount,
-              };
-            })
-          );
+            if (!reviewsError && serviceReviews) {
+              ratingsMap = serviceReviews.reduce((acc, review) => {
+                if (!review.service_id) return acc;
+                if (!acc[review.service_id]) {
+                  acc[review.service_id] = { sum: 0, count: 0 };
+                }
+                acc[review.service_id].sum += review.rating || 0;
+                acc[review.service_id].count += 1;
+                return acc;
+              }, {} as Record<string, { sum: number; count: number }>);
+            }
+          }
+
+          const servicesWithRatings = (servicesData as Service[]).map((service) => {
+            const stats = ratingsMap[service.id];
+            const count = stats?.count || 0;
+            const rating = count > 0 ? stats!.sum / count : undefined;
+
+            return {
+              ...service,
+              rating,
+              review_count: count || undefined,
+            };
+          });
           setServices(servicesWithRatings);
         }
 
@@ -168,18 +188,20 @@ const StoreProfileScreen: React.FC = () => {
 
 
   const getPriceRange = (services: Service[]) => {
-    if (services.length === 0) return '$$$$$';
+    if (services.length === 0) return '$----';
     const prices = services.map((s) => s.price).filter((p) => p > 0);
-    if (prices.length === 0) return '$$$$$';
+    if (prices.length === 0) return '$----';
+
     const avg = prices.reduce((sum, p) => sum + p, 0) / prices.length;
-    if (avg < 30) return '$$$$$';
-    if (avg < 50) return '$$$$$';
-    if (avg < 100) return '$$$$$';
+
+    if (avg < 50) return '$----';
+    if (avg < 100) return '$$---';
+    if (avg < 200) return '$$$--';
+    if (avg < 400) return '$$$$-';
     return '$$$$$';
   };
 
   const renderServiceCard = ({ item }: { item: Service }) => {
-    const serviceWithCategory = item as any;
     return (
       <ServiceCard
         name={item.name}
@@ -187,7 +209,8 @@ const StoreProfileScreen: React.FC = () => {
         photos={item.photos}
         rating={item.rating}
         reviewCount={item.review_count}
-        categoryName={serviceWithCategory.categories?.name || null}
+        categoryName={item.categories?.name}
+        containerStyle={styles.serviceCard}
         onPress={() => {
           router.push(`/(client)/schedule/service?businessId=${businessId}`);
         }}
@@ -197,9 +220,16 @@ const StoreProfileScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
-      </View>
+      <ScreenContainer 
+        scroll={false} 
+        backgroundColor="#FAFAFA" 
+        hasHeader={false}
+        hasTabBar={false}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#E5102E" />
+        </View>
+      </ScreenContainer>
     );
   }
 
@@ -207,16 +237,9 @@ const StoreProfileScreen: React.FC = () => {
     return (
       <ScreenContainer 
         scroll={false} 
-        horizontalPadding={0} 
         backgroundColor="#FAFAFA" 
-        hasHeader={true}
+        hasHeader={false}
         hasTabBar={false}
-        header={
-          <AppHeader 
-            showBackButton={true}
-            onPressBack={() => safeGoBack('/(client)/home')}
-          />
-        }
       >
         <View style={styles.container}>
           <Text style={styles.errorText}>Loja não encontrada</Text>
@@ -229,148 +252,62 @@ const StoreProfileScreen: React.FC = () => {
   const priceRange = getPriceRange(services);
 
   return (
-    <ScreenContainer 
-      scroll={true}
-      hasHeader={true}
-      hasTabBar={false}
-      horizontalPadding={0}
-      backgroundColor="#FAFAFA"
-      header={
-        <AppHeader 
-          showBackButton={true}
-          onPressBack={() => safeGoBack('/(client)/home')}
-        />
-      }
-    >
-      {/* Background com bricks pattern */}
-      <View style={styles.backgroundPattern}>
-        <BackgroundSvg 
-          width="100%" 
-          height="100%" 
-          style={styles.backgroundSvg}
-          preserveAspectRatio="none"
-        />
-      </View>
-
-      {/* Hero Section */}
-        <View style={styles.heroContainer}>
-          <View style={[styles.heroImageContainer, { height: heroHeight }]}>
-            {businessProfile.logo_url ? (
-              <Image
-                source={{ uri: businessProfile.logo_url }}
-                style={styles.heroImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={[styles.heroImage, styles.placeholderImage]} />
-            )}
-            <LinearGradient
-              colors={['transparent', 'rgba(0,14,61,0.5)']}
-              style={styles.heroGradient}
-            />
-          </View>
-
-          {/* Profile Avatar e Info */}
-          <View style={styles.profileAvatarContainer}>
-            <View style={[styles.avatarContainer, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}>
-              {businessProfile.logo_url ? (
-                <Image
-                  source={{ uri: businessProfile.logo_url }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={[styles.avatar, styles.placeholderAvatar]} />
-              )}
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.businessName}>{businessProfile.business_name}</Text>
-              <Text style={styles.businessDescription}>
-                {businessProfile.description || 'Serviços profissionais'}
-              </Text>
-            </View>
-          </View>
+    <View style={{ flex: 1 }}>
+      <ScreenContainer 
+        scroll={true}
+        hasHeader={true}
+        hasTabBar={false}
+        backgroundColor="transparent"
+        horizontalPadding={0}
+        header={
+          <AppHeader 
+            showBackButton={true}
+            onPressBack={() => safeGoBack('/(client)/home')}
+          />
+        }
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.backgroundContainer}>
+          <BricksBackground 
+            fillScreen={true}
+            opacity={0.08}
+          />
         </View>
-
-        {/* Ratings Card */}
-        <Card variant="secondary" padding={16} style={{ marginHorizontal: 24, marginBottom: 8 }}>
-          <View style={styles.ratingContainer}>
-            <View style={styles.ratingValueContainer}>
-              <Text style={styles.ratingText}>
-                {reviewStats.total_reviews === 0
-                  ? 'Sem avaliações'
-                  : `${reviewStats.average_rating.toFixed(1)}`}
-              </Text>
-            </View>
-            <Text style={styles.ratingCount}>({reviewStats.total_reviews})</Text>
-          </View>
-          <View style={[styles.ratingContainer, { marginTop: 0 }]}>
-            <Text style={styles.priceRangeLabel}>Preço médio</Text>
-            <Text style={styles.priceRangeValue}>
-              {priceRange.slice(0, 3)}
-              <Text style={styles.priceRangeInactive}>{priceRange.slice(3)}</Text>
-            </Text>
-          </View>
-        </Card>
-
-        {/* Address Card */}
-        {businessProfile.address && (
-          <Card variant="secondary" padding={16} style={{ marginHorizontal: 24, marginBottom: 8 }}>
-            <Text style={styles.addressText}>{businessProfile.address}</Text>
-          </Card>
-        )}
-
-        {/* Operating Hours Card */}
-        <Card variant="secondary" paddingHorizontal={16} paddingVertical={12} style={{ marginHorizontal: 24, marginBottom: 8, gap: 8 }}>
-          <Text style={styles.operatingHoursTitle}>Horário de funcionamento</Text>
-          <Text style={styles.operatingHoursText}>
-            {formatWorkDays(businessProfile.work_days)}
-          </Text>
-        </Card>
-
-        {/* Payment Methods Card */}
-        <Card variant="secondary" paddingHorizontal={16} paddingVertical={12} style={{ marginHorizontal: 24, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <Text style={styles.paymentMethodsTitle}>Pagamentos aceitos</Text>
-          <View style={styles.paymentMethodsRow}>
-            {paymentMethods.pix && (
-              <View style={styles.paymentMethodItem}>
-                <IconPix width={24} height={24} />
-                <Text style={styles.paymentMethodText}>PIX</Text>
-              </View>
-            )}
-            {paymentMethods.card && (
-              <View style={styles.paymentMethodItem}>
-                <IconCreditCard width={24} height={24} color="#000E3D" />
-                <Text style={styles.paymentMethodText}>Cartão</Text>
-              </View>
-            )}
-            {paymentMethods.cash && (
-              <View style={styles.paymentMethodItem}>
-                <IconCash width={24} height={24} color="#000E3D" />
-                <Text style={styles.paymentMethodText}>Dinheiro</Text>
-              </View>
-            )}
-          </View>
-        </Card>
-
-        {/* Services Section */}
+        {/* Top section: Hero and Ratings */}
+        <View style={styles.topSection}>
+          <ProfileHero
+            bannerUrl={businessProfile.banner_url || null}
+            logoUrl={businessProfile.logo_url}
+            businessName={businessProfile.business_name}
+            description={businessProfile.description || businessProfile.categories?.name || undefined}
+          />
+          <RatingsRowCard
+            averageRating={reviewStats.average_rating}
+            totalReviews={reviewStats.total_reviews}
+            priceRange={priceRange}
+          />
+        </View>
+        {/* Address */}
+        {businessProfile.address && <ProfileAddressCard address={businessProfile.address} />}
+        {/* Operating hours */}
+        <OperatingHoursCard hours={formatWorkDays(businessProfile.work_days || null)} />
+        {/* Accepted payment methods */}
+        <PaymentMethodsCard methods={paymentMethods} />
+        {/* Services section */}
         <View style={styles.servicesSection}>
-          <Text style={styles.servicesTitle}>Serviços</Text>
+          <SectionTitle>Serviços</SectionTitle>
           {services.length > 0 ? (
             <FlatList
               data={services}
               renderItem={renderServiceCard}
               keyExtractor={(item) => item.id}
               scrollEnabled={false}
-              contentContainerStyle={styles.servicesList}
-              ItemSeparatorComponent={() => <View style={styles.serviceSeparator} />}
-              removeClippedSubviews={false}
-              initialNumToRender={services.length}
+              contentContainerStyle={{ gap: 16 }}
             />
           ) : (
             <Text style={styles.emptyServicesText}>Nenhum serviço disponível</Text>
           )}
         </View>
-
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
           <CustomButton
@@ -381,8 +318,8 @@ const StoreProfileScreen: React.FC = () => {
                 router.push(`/(client)/schedule/service?businessId=${businessId}`);
               }
             }}
-            rightIcon={<IconSchedule size={24} color="#FEFEFE" />}
-            style={{ borderRadius: 24, shadowColor: '#1D1D1D', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.24, shadowRadius: 8, elevation: 4 }}
+            rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#FEFEFE" />}
+            style={styles.primaryButton}
             width="100%"
           />
 
@@ -391,12 +328,13 @@ const StoreProfileScreen: React.FC = () => {
             variant="outline"
             onPress={() => {
             }}
-            rightIcon={<IconKidStar size={24} color="#000E3D" />}
-            style={{ borderRadius: 24, marginTop: 12 }}
+            rightIcon={<Icon name="kid_star" family="MaterialSymbols" size={24} color="#000E3D" />}
+            style={styles.outlineButton}
             width="100%"
           />
         </View>
-    </ScreenContainer>
+      </ScreenContainer>
+    </View>
   );
 };
 
@@ -412,164 +350,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
-  backgroundPattern: {
+  scrollContent: {
+    flexGrow: 1,
+  },
+  backgroundContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    width: '100%',
-    height: '100%',
     zIndex: 0,
   },
-  backgroundSvg: {
-    opacity: 0.08,
-    width: '100%',
-    height: '100%',
-  },
-  heroContainer: {
-    marginTop: 24,
-    marginHorizontal: 24,
-    marginBottom: 16,
-  },
-  heroImageContainer: {
-    // height será aplicado dinamicamente via style prop
-    borderRadius: 8,
-    marginBottom: -80,
-    overflow: 'hidden',
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-  },
-  heroGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '60%',
-  },
-  profileAvatarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingLeft: 16,
-    // height será calculado dinamicamente baseado no avatarSize
-    marginTop: -80,
-  },
-  avatarContainer: {
-    // width, height e borderRadius serão aplicados dinamicamente via style prop
-    overflow: 'hidden',
-  },
-  avatar: {
-    width: '100%',
-    height: '100%',
-  },
-  profileInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  businessName: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
-  },
-  businessDescription: {
-    fontSize: 8,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#FEFEFE',
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    justifyContent: 'space-between',
-  },
-  ratingValueContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-  },
-  ratingCount: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#474747',
-  },
-  priceRangeLabel: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-  },
-  priceRangeValue: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-  },
-  priceRangeInactive: {
-    color: '#DBDBDB',
-  },
-  addressText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-    flex: 1,
-  },
-  operatingHoursTitle: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
-  },
-  operatingHoursText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-  },
-  paymentMethodsTitle: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
-    flex: 1,
-  },
-  paymentMethodsRow: {
-    flexDirection: 'row',
-    gap: 16,
-    alignItems: 'center',
-  },
-  paymentMethodItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  paymentMethodText: {
-    fontSize: 12,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+  topSection: {
+    gap: 0,
+    zIndex: 1,
   },
   servicesSection: {
     marginHorizontal: 24,
     marginBottom: 16,
-    gap: 16,
+    zIndex: 1,
   },
-  servicesTitle: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-  },
-  servicesList: {
-    paddingTop: 0,
-  },
-  serviceSeparator: {
-    height: 16,
+  serviceCard: {
+    width: '100%',
   },
   actionsContainer: {
     marginHorizontal: 24,
+    marginTop: 16,
     marginBottom: 24,
-    gap: 9,
+    gap: 12,
+    zIndex: 1,
+  },
+  primaryButton: {
+    borderRadius: 24,
+    height: 48,
+    shadowColor: '#1D1D1D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.24,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  outlineButton: {
+    borderRadius: 24,
+    height: 48,
+    marginTop: 0,
   },
   emptyServicesText: {
     fontSize: 14,
@@ -584,12 +407,6 @@ const styles = StyleSheet.create({
     color: '#E5102E',
     textAlign: 'center',
     marginTop: 24,
-  },
-  placeholderImage: {
-    backgroundColor: '#E0E0E0',
-  },
-  placeholderAvatar: {
-    backgroundColor: '#E0E0E0',
   },
 });
 

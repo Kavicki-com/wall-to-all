@@ -77,6 +77,7 @@ type Appointment = {
   pending_reschedules?: AppointmentReschedule[]; // Reagendamentos pendentes criados pelo merchant
   client_pending_reschedules?: AppointmentReschedule[]; // Reagendamentos pendentes criados pelo cliente
   accepted_reschedules?: AppointmentReschedule[];
+  rejected_reschedules?: AppointmentReschedule[]; // Reagendamentos rejeitados
 };
 
 const AppointmentDetailScreen: React.FC = () => {
@@ -153,6 +154,15 @@ const AppointmentDetailScreen: React.FC = () => {
           .order('accepted_at', { ascending: false })
           .limit(1); // Pegar apenas o mais recente
 
+        // Buscar reagendamentos rejeitados (tanto do cliente quanto do merchant)
+        const { data: rejectedReschedules } = await supabase
+          .from('appointment_reschedules')
+          .select('*')
+          .eq('appointment_id', appointmentData.id)
+          .eq('status', 'rejected')
+          .order('rejected_at', { ascending: false })
+          .limit(1); // Pegar apenas o mais recente
+
         // Atualizar estado com os dados atualizados do agendamento
         // Isso garante que o card branco e as seções de reagendamento sejam atualizados
         const updatedAppointment = {
@@ -160,6 +170,7 @@ const AppointmentDetailScreen: React.FC = () => {
           pending_reschedules: merchantPendingReschedules || [],
           client_pending_reschedules: clientPendingReschedules || [],
           accepted_reschedules: acceptedReschedules || [],
+          rejected_reschedules: rejectedReschedules || [],
         } as Appointment;
         
         setAppointment(updatedAppointment);
@@ -575,6 +586,66 @@ const AppointmentDetailScreen: React.FC = () => {
         );
       })()}
 
+      {/* Rejected Reschedules - Mostrar reagendamentos rejeitados */}
+      {appointment.rejected_reschedules && 
+       appointment.rejected_reschedules.length > 0 && 
+       (!appointment.pending_reschedules || appointment.pending_reschedules.length === 0) &&
+       (!appointment.client_pending_reschedules || appointment.client_pending_reschedules.length === 0) && (
+        <View style={styles.reschedulesSection}>
+          <Text style={styles.sectionTitle}>Reagendamento Rejeitado:</Text>
+          {appointment.rejected_reschedules.map((reschedule) => {
+            const originalDate = parseLocalDate(reschedule.original_start_time);
+            const newDate = parseLocalDate(reschedule.new_start_time);
+            const originalTime = format(originalDate, 'HH:mm');
+            const newTime = format(newDate, 'HH:mm');
+            const originalEndTime = format(parseLocalDate(reschedule.original_end_time), 'HH:mm');
+            const newEndTime = format(parseLocalDate(reschedule.new_end_time), 'HH:mm');
+
+            return (
+              <View key={reschedule.id} style={[styles.rescheduleCard, styles.rejectedRescheduleCard]}>
+                <View style={styles.rescheduleHeader}>
+                  <Text style={styles.rescheduleTitle}>Reagendamento Rejeitado</Text>
+                  <Text style={styles.rescheduleDate}>
+                    Rejeitado em {format(parseLocalDate(reschedule.rejected_at || reschedule.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  </Text>
+                </View>
+
+                <View style={styles.rescheduleTimes}>
+                  <View style={styles.rescheduleTimeItem}>
+                    <Text style={styles.rescheduleTimeLabel}>Horário anterior:</Text>
+                    <Text style={styles.rescheduleTimeValue}>
+                      {format(originalDate, 'dd/MM/yyyy', { locale: ptBR })} - {originalTime} às {originalEndTime}
+                    </Text>
+                  </View>
+                  <View style={styles.rescheduleTimeItem}>
+                    <Text style={styles.rescheduleTimeLabel}>Horário sugerido:</Text>
+                    <Text style={styles.rescheduleTimeValue}>
+                      {format(newDate, 'dd/MM/yyyy', { locale: ptBR })} - {newTime} às {newEndTime}
+                    </Text>
+                  </View>
+                </View>
+
+                {reschedule.justification && (
+                  <View style={styles.rescheduleJustification}>
+                    <Text style={styles.rescheduleJustificationLabel}>
+                      {reschedule.requested_by_type === 'merchant' ? 'Justificativa do profissional:' : 'Sua justificativa:'}
+                    </Text>
+                    <Text style={styles.rescheduleJustificationText}>{reschedule.justification}</Text>
+                  </View>
+                )}
+
+                {reschedule.rejected_reason && (
+                  <View style={styles.rescheduleJustification}>
+                    <Text style={styles.rescheduleJustificationLabel}>Motivo da rejeição:</Text>
+                    <Text style={styles.rescheduleJustificationText}>{reschedule.rejected_reason}</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       {/* Pending Reschedules - Criados pelo merchant (para o cliente aceitar/rejeitar) */}
       {appointment.pending_reschedules && appointment.pending_reschedules.length > 0 && (
         <View style={styles.reschedulesSection}>
@@ -802,6 +873,11 @@ const styles = StyleSheet.create({
     borderColor: '#17723F',
     borderWidth: 2,
     backgroundColor: '#F0F9F4',
+  },
+  rejectedRescheduleCard: {
+    borderColor: '#E5102E',
+    borderWidth: 2,
+    backgroundColor: '#FFF5F5',
   },
   newTimeValue: {
     color: '#17723F',

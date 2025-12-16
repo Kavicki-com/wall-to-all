@@ -18,6 +18,7 @@ import { checkAppointmentConflicts, calculateAppointmentPrice } from '../../../.
 import { useSafeGoBack } from '../../../../lib/router-utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { notifyRescheduleSuggested } from '../../../../lib/notifications';
 
 type Appointment = {
   id: string;
@@ -267,6 +268,22 @@ const MerchantRescheduleFinalConfirmScreen: React.FC = () => {
         Alert.alert('Erro', 'Não foi possível atualizar o status do agendamento. Tente novamente.');
         setSubmitting(false);
         return;
+      }
+
+      // Enviar notificação para o cliente sobre o reagendamento sugerido
+      if (appointment.client?.id && rescheduleData) {
+        try {
+          await notifyRescheduleSuggested(
+            appointment.client.id,
+            parseInt(params.appointmentId),
+            rescheduleData.id,
+            startTime.toISOString(),
+            appointment.business.business_name
+          );
+        } catch (notifError) {
+          console.warn('[RescheduleConfirm] Erro ao enviar notificação de reagendamento sugerido:', notifError);
+          // Não bloquear o fluxo se a notificação falhar
+        }
       }
 
       // Mostrar modal de sucesso
