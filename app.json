@@ -13,6 +13,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.kavicki.walltoall",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Este app precisa acessar sua galeria de fotos para adicionar o logotipo do seu negócio.",
         "NSCameraUsageDescription": "Este app precisa acessar sua câmera para tirar uma foto do logotipo do seu negócio."
@@ -47,7 +48,11 @@
     "scheme": "walltoall",
     "extra": {
       "supabaseUrl": "",
-      "supabaseAnonKey": ""
+      "supabaseAnonKey": "",
+      "router": {},
+      "eas": {
+        "projectId": "dbc84d0e-1278-4eb0-869e-af6ebb163552"
+      }
     }
   }
 }
