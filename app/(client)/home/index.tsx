@@ -87,13 +87,11 @@ const ClientHomeScreen: React.FC = () => {
   const [allPopularServices, setAllPopularServices] = useState<Service[]>([]);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
 
-  // Cards de negócios (~1.5 visíveis em scroll horizontal)
   const businessCardWidth = useCardWidth(1.5, 24, 10);
-  const businessGap = 10; // Gap entre cards de negócios (marginRight)
+  const businessGap = 10;
 
-  // Cards de serviços (~2 visíveis em scroll horizontal)
   const serviceCardWidth = useCardWidth(2, 24, 14);
-  const serviceGap = 14; // Gap entre cards de serviços (marginRight)
+  const serviceGap = 14;
 
   const buildRatingsMap = (reviews: Array<{ service_id: string; rating: number | null }>) => {
     const map: Record<string, { sum: number; count: number }> = {};
@@ -173,7 +171,6 @@ const ClientHomeScreen: React.FC = () => {
       if (appointmentsError) {
         console.error('Erro ao buscar agendamentos:', appointmentsError);
       } else if (appointmentsData) {
-        // Aplicar reagendamentos aceitos aos agendamentos
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
         setAppointments(appointmentsWithReschedules as Appointment[]);
       }
@@ -243,9 +240,6 @@ const ClientHomeScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-
-  // Função para realizar a busca (ao dar Enter no teclado)
-
   const renderBusinessCard = ({ item }: { item: BusinessProfile }) => (
     <View style={{ marginRight: businessGap }}>
       <BusinessCard
@@ -277,111 +271,111 @@ const ClientHomeScreen: React.FC = () => {
     />
   );
 
-  // Estilos dinâmicos usando useMemo
   const styles = useMemo(() => StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FAFAFA',
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  searchBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 16,
-    gap: 8,
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEFEFE',
-    borderWidth: 1,
-    borderColor: '#474747',
-    borderRadius: 24,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    minWidth: 152,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
-    padding: 0,
-    margin: 0,
-  },
-  searchIconContainer: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 3,
-  },
-  filterButton: {
-    width: 56,
-    height: 56,
-    backgroundColor: '#E5102E',
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  categoriesContainer: {
-    marginBottom: 16,
-  },
-  categoriesContent: {
-    gap: 4,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
-    marginBottom: 16,
-  },
-  appointmentsList: {
-    gap: 12,
-  },
-  appointmentsScrollArea: {
-    maxHeight: 360,
-  },
-  appointmentCard: {
-    paddingVertical: 4,
-  },
-  businessesList: {
-    gap: 10,
-    paddingRight: 24,
-  },
-  servicesList: {
-    paddingRight: 24,
-    marginBottom: 24,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
-    textAlign: 'center',
-    marginTop: 16,
-  },
-  headerArea: {
-    paddingTop: 10,
-    paddingBottom: 10,
-    backgroundColor: '#FAFAFA',
-  },
+    container: {
+      flex: 1,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#FAFAFA',
+    },
+    scrollContent: {
+      paddingBottom: 24,
+    },
+    searchBarContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingTop: 12,
+      paddingBottom: 16,
+      gap: 8,
+    },
+    searchInputContainer: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#FEFEFE',
+      borderWidth: 1,
+      borderColor: '#474747',
+      borderRadius: 24,
+      paddingHorizontal: 12,
+      paddingVertical: 16,
+      minWidth: 152,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 16,
+      fontFamily: 'Montserrat_400Regular',
+      color: '#0F0F0F',
+      padding: 0,
+      margin: 0,
+    },
+    searchIconContainer: {
+      width: 24,
+      height: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 3,
+    },
+    filterButton: {
+      width: 56,
+      height: 56,
+      backgroundColor: '#E5102E',
+      borderRadius: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: '#1D1D1D',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.24,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    categoriesContainer: {
+      marginBottom: 16,
+    },
+    categoriesContent: {
+      gap: 4,
+    },
+    section: {
+      marginBottom: 24,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontFamily: 'Montserrat_700Bold',
+      color: '#E5102E',
+      marginBottom: 16,
+    },
+    appointmentsList: {
+      gap: 12,
+    },
+    appointmentsScrollArea: {
+      maxHeight: 360,
+    },
+    appointmentCard: {
+      paddingVertical: 4,
+    },
+    businessesList: {
+      gap: 10,
+      paddingRight: 24,
+      paddingBottom: 20, 
+    },
+    servicesList: {
+      paddingRight: 24,
+      marginBottom: 24,
+    },
+    emptyText: {
+      fontSize: 14,
+      fontFamily: 'Montserrat_400Regular',
+      color: '#474747',
+      textAlign: 'center',
+      marginTop: 16,
+    },
+    headerArea: {
+      paddingTop: 10,
+      paddingBottom: 10,
+      backgroundColor: '#FAFAFA',
+    },
   }), []);
 
   if (loading) {
@@ -408,7 +402,6 @@ const ClientHomeScreen: React.FC = () => {
       }
       header={<AppHeader showBackButton={false} />}
     >
-        {/* --- SEÇÃO DO SEARCHBAR (Atualizada para Navegação) --- */}
         <View style={styles.headerArea}>
           <TouchableOpacity 
             activeOpacity={0.9} 
@@ -425,7 +418,6 @@ const ClientHomeScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Categories */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -448,7 +440,6 @@ const ClientHomeScreen: React.FC = () => {
           ))}
         </ScrollView>
 
-        {/* Meus Agendamentos */}
         {appointments.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
@@ -488,7 +479,6 @@ const ClientHomeScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Lojas em destaque */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Lojas em destaque</Text>
           {allFeaturedBusinesses.length > 0 ? (
@@ -514,7 +504,6 @@ const ClientHomeScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Serviços mais contratados */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
           {allPopularServices.length > 0 ? (
@@ -539,12 +528,11 @@ const ClientHomeScreen: React.FC = () => {
             <Text style={styles.emptyText}>Nenhum serviço disponível no momento</Text>
           )}
 
-          {/* Botão Agendar serviços - dentro da seção de serviços */}
           <CustomButton
             title="Agendar serviços"
             variant="outline"
             onPress={() => {
-              // Navegar para agendamento
+              
             }}
             style={{ marginTop: 24, borderRadius: 24 }}
             width="100%"

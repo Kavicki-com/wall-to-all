@@ -105,7 +105,7 @@ const ChangePasswordScreen: React.FC = () => {
         <AppHeader 
           title="Alterar senha"
           showBackButton={true}
-          onPressBack={() => safeGoBack('/(client)/profile')}
+          onPressBack={() => safeGoBack('/(client)/settings')}
         />
       }
     >
@@ -154,7 +154,7 @@ const ChangePasswordScreen: React.FC = () => {
               title="Fechar"
               onPress={() => {
                 setShowSuccessModal(false);
-                safeGoBack('/(client)/profile');
+                safeGoBack('/(client)/settings');
               }}
               variant="primary"
               style={{ marginVertical: 0, borderRadius: 25 }}

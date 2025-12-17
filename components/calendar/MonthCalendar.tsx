@@ -140,14 +140,14 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                   styles.dayInner,
                   isTodayDate && styles.dayInnerToday,
                   hasAppointments && styles.dayInnerHasAppointments,
-                  isSelected && styles.dayInnerSelected,
+                  isSelected && !isTodayDate && styles.dayInnerSelected,
                 ]}
               >
                 <Text
                   style={[
                     styles.calendarDayText,
                     !isCurrentMonth && styles.calendarDayTextInactive,
-                    isSelected && styles.calendarDayTextSelected,
+                    isSelected && !isTodayDate && styles.calendarDayTextSelected,
                   ]}
                 >
                   {format(date, 'd')}

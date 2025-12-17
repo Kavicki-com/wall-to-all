@@ -71,33 +71,27 @@ const ClientProfileScreen: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [averageRating, setAverageRating] = useState(0);
-  const [avatarKey, setAvatarKey] = useState(0); // Para forçar atualização da imagem
+  const [avatarKey, setAvatarKey] = useState(0);
 
-  // Card de negócios (~1.5 visíveis em scroll horizontal)
   const businessCardWidth = useCardWidth(1.5, 24, 10);
-  const businessGap = 10; // Gap entre cards de negócios (marginRight)
+  const businessGap = 10;
 
-  // Card de serviços (~2 visíveis em scroll horizontal)
   const serviceCardWidth = useCardWidth(2, 24, 14);
   const serviceGap = 14;
 
-  // Dimensões responsivas
   const avatarSize = useResponsiveWidth(88);
 
-  // Atualizar avatarKey quando o avatar_url mudar
   React.useEffect(() => {
     if (profile?.avatar_url) {
       setAvatarKey(Date.now());
     }
   }, [profile?.avatar_url]);
 
-  // Carregar dados quando o perfil estiver disponível
   React.useEffect(() => {
     if (profile && !profileLoading) {
       loadProfile();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id, profileLoading]); // Carregar quando o perfil estiver disponível
+  }, [profile?.id, profileLoading]);
 
   const loadProfile = async () => {
     try {
@@ -108,12 +102,10 @@ const ClientProfileScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
         setLoading(false);
         return;
       }
 
-      // Buscar agendamentos
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
         .select(
@@ -127,7 +119,6 @@ const ClientProfileScreen: React.FC = () => {
       if (appointmentsError) {
         console.error('Erro ao buscar agendamentos:', appointmentsError);
       } else if (appointmentsData) {
-        // Aplicar reagendamentos aceitos aos agendamentos
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
         setAppointments(appointmentsWithReschedules as Appointment[]);
       }
@@ -170,8 +161,6 @@ const ClientProfileScreen: React.FC = () => {
               acc[review.service_id].count += 1;
               return acc;
             }, {} as Record<string, { sum: number; count: number }>);
-          } else if (reviewsError) {
-            console.error('Erro ao buscar avaliações dos serviços:', reviewsError);
           }
         }
 
@@ -189,7 +178,6 @@ const ClientProfileScreen: React.FC = () => {
         setServices(servicesWithRatings.slice(0, 10));
       }
 
-      // Buscar profissionais mais contratados
       const businessIds = [
         ...new Set(
           appointmentsData?.map((a: { business_id: string | null }) => a.business_id).filter(Boolean) || []
@@ -215,7 +203,6 @@ const ClientProfileScreen: React.FC = () => {
         }
       }
 
-      // Calcular média de avaliações
       const { data: allReviews } = await supabase
         .from('reviews')
         .select('rating')
@@ -252,8 +239,6 @@ const ClientProfileScreen: React.FC = () => {
     />
   );
 
-
-
   if (loading || profileLoading) {
     return (
       <ScreenContainer 
@@ -274,7 +259,7 @@ const ClientProfileScreen: React.FC = () => {
       backgroundColor="#FAFAFA"
       contentContainerStyle={styles.scrollContent}
     >
-        {/* Profile Container */}
+      <View style={styles.defaultPadding}>
         <View style={styles.profileContainer}>
           <View style={styles.profileAvatarContainer}>
             {profile?.avatar_url ? (
@@ -283,7 +268,7 @@ const ClientProfileScreen: React.FC = () => {
                   uri: profile.avatar_url + (profile.avatar_url.includes('?') ? '&' : '?') + `_t=${avatarKey}`,
                 }}
                 style={[styles.avatar, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}
-                key={`${profile.avatar_url}-${avatarKey}`} // Force re-render quando URL ou key mudar
+                key={`${profile.avatar_url}-${avatarKey}`}
               />
             ) : (
               <View style={[styles.avatar, styles.placeholderAvatar, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]} />
@@ -295,7 +280,6 @@ const ClientProfileScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Ratings Card */}
         <View style={styles.ratingsCard}>
           <View style={styles.ratingItem}>
             <Text style={styles.ratingLabel}>Agendamentos</Text>
@@ -310,7 +294,6 @@ const ClientProfileScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Payment Methods Card */}
         <View style={styles.paymentMethodsCard}>
           <Text style={styles.paymentMethodsTitle}>
             Meus métodos de pagamento mais usados
@@ -326,63 +309,62 @@ const ClientProfileScreen: React.FC = () => {
             </View>
           </View>
         </View>
+      </View>
 
-        {/* Services Section */}
-        {services.length > 0 && (
-          <View style={styles.servicesSection}>
-            <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
-            <FlatList
-              data={services}
-              renderItem={renderServiceCard}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.servicesList}
-              initialNumToRender={3}
-              maxToRenderPerBatch={5}
-              windowSize={5}
-              removeClippedSubviews={true}
-              getItemLayout={(data, index) => ({
-                length: serviceCardWidth + serviceGap,
-                offset: (serviceCardWidth + serviceGap) * index,
-                index,
-              })}
-            />
-          </View>
-        )}
+      {services.length > 0 && (
+        <View style={styles.servicesSection}>
+          <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
+          <FlatList
+            data={services}
+            renderItem={renderServiceCard}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.servicesList}
+            initialNumToRender={3}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            removeClippedSubviews={true}
+            getItemLayout={(data, index) => ({
+              length: serviceCardWidth + serviceGap,
+              offset: (serviceCardWidth + serviceGap) * index,
+              index,
+            })}
+          />
+        </View>
+      )}
 
-        {/* Businesses Section */}
-        {businesses.length > 0 && (
-          <View style={styles.businessesSection}>
-            <Text style={styles.sectionTitle}>
-              Profissionais mais contratados por você
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.businessesList}
-            >
-              {businesses.map((business) => (
-                <View key={business.id} style={{ marginRight: businessGap }}>
-                  <BusinessCard
-                    id={business.id}
-                    business_name={business.business_name}
-                    logo_url={business.logo_url}
-                    banner_url={business.banner_url}
-                    description={business.description}
-                    category={business.categories?.name || null}
-                    accepted_payment_methods={business.accepted_payment_methods}
-                    work_days={business.work_days}
-                    services={business.services}
-                    categories={business.categories}
-                    width={businessCardWidth}
-                    onPress={(id) => router.push(`/(client)/store/${id}`)}
-                  />
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+      {businesses.length > 0 && (
+        <View style={styles.businessesSection}>
+          <Text style={styles.sectionTitle}>
+            Profissionais mais contratados por você
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.businessesList}
+          >
+            {businesses.map((business) => (
+              <View key={business.id} style={{ marginRight: businessGap }}>
+                <BusinessCard
+                  id={business.id}
+                  business_name={business.business_name}
+                  logo_url={business.logo_url}
+                  banner_url={business.banner_url}
+                  description={business.description}
+                  category={business.categories?.name || null}
+                  accepted_payment_methods={business.accepted_payment_methods}
+                  work_days={business.work_days}
+                  services={business.services}
+                  categories={business.categories}
+                  width={businessCardWidth}
+                  onPress={(id) => router.push(`/(client)/store/${id}`)}
+                />
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
     </ScreenContainer>
   );
 };
@@ -398,8 +380,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 24,
+    paddingBottom: 32,
     paddingTop: 16,
+    paddingHorizontal: 0,
+  },
+  defaultPadding: {
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
   },
   profileContainer: {
     alignItems: 'center',
@@ -410,7 +398,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   avatar: {
-    // Dimensões serão aplicadas dinamicamente via style prop
+    // dynamic
   },
   placeholderAvatar: {
     backgroundColor: '#E0E0E0',
@@ -435,8 +423,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 16,
     marginBottom: 16,
-    width: '90%',
-    maxWidth: 342,
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -445,7 +432,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
-    alignSelf: 'center',
   },
   ratingItem: {
     flexDirection: 'row',
@@ -472,8 +458,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 12,
     marginBottom: 16,
-    width: '90%',
-    maxWidth: 342,
+    width: '100%',
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -484,7 +469,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
-    alignSelf: 'center',
   },
   paymentMethodsTitle: {
     fontSize: 12,
@@ -508,29 +492,29 @@ const styles = StyleSheet.create({
     color: '#0F0F0F',
   },
   servicesSection: {
-    width: '90%',
-    maxWidth: 342,
+    width: '100%',
     marginBottom: 16,
     gap: 16,
-    alignSelf: 'center',
   },
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#E5102E',
     marginBottom: 0,
+    paddingHorizontal: 24,
   },
   servicesList: {
-    paddingRight: 24,
+    paddingHorizontal: 24,
+    paddingRight: 32,
   },
   businessesSection: {
-    width: '90%',
-    maxWidth: 342,
+    width: '100%',
     marginBottom: 16,
     gap: 16,
-    alignSelf: 'center',
   },
   businessesList: {
-    paddingVertical: 4, // espaço para sombras não serem cortadas
+    paddingHorizontal: 24,
+    paddingRight: 32,
+    paddingVertical: 4,
   },
 });
