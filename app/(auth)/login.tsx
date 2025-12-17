@@ -27,13 +27,14 @@ import { CustomButton } from '../../components/CustomButton';
 const LoginScreen: React.FC = () => {
   const router = useRouter();
   const { session } = useAuth();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const { width } = useWindowDimensions();
   const horizontalPadding = width >= 768 ? 24 : 16;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -93,11 +94,57 @@ const LoginScreen: React.FC = () => {
   };
 
   const handleForgotPasswordPress = async () => {
+    setError(null);
+    setInfo(null);
+
     if (!email) {
       setError('Informe seu e-mail.');
+      showError('Informe seu e-mail.');
       return;
     }
-    // Lógica de recuperação...
+
+    // Validação básica de formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('E-mail inválido. Verifique o formato.');
+      showError('E-mail inválido. Verifique o formato.');
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      setError('Erro de configuração.');
+      showError('Erro de configuração.');
+      return;
+    }
+
+    try {
+      setResettingPassword(true);
+      // URL de redirecionamento usando o scheme do app
+      const redirectUrl = 'walltoall://reset-password';
+      
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl,
+      });
+
+      if (resetError) {
+        const processed = handleError(resetError, 'auth');
+        setError(processed.userMessage);
+        showError(processed.userMessage);
+        setResettingPassword(false);
+        return;
+      }
+
+      // Sucesso - mostra mensagem informativa
+      const successMessage = 'E-mail de recuperação enviado! Verifique sua caixa de entrada.';
+      setInfo(successMessage);
+      showSuccess(successMessage);
+      setResettingPassword(false);
+    } catch (e) {
+      const processed = handleError(e, 'auth');
+      setError(processed.userMessage);
+      showError(processed.userMessage);
+      setResettingPassword(false);
+    }
   };
 
   const handleGooglePress = async () => {
@@ -154,8 +201,18 @@ const LoginScreen: React.FC = () => {
                     labelStyle={styles.label}
                     containerStyle={{ marginBottom: 4 }}
                   />
-                  <TouchableOpacity onPress={handleForgotPasswordPress} activeOpacity={0.7} style={styles.forgotPasswordButton}>
-                    <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
+                  <TouchableOpacity 
+                    onPress={handleForgotPasswordPress} 
+                    activeOpacity={0.7} 
+                    style={styles.forgotPasswordButton}
+                    disabled={resettingPassword}
+                  >
+                    <Text style={[
+                      styles.forgotPasswordText,
+                      resettingPassword && styles.forgotPasswordTextDisabled
+                    ]}>
+                      {resettingPassword ? 'Enviando...' : 'Esqueceu sua senha?'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -264,6 +321,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
     color: '#FEFEFE',
+  },
+  forgotPasswordTextDisabled: {
+    opacity: 0.6,
   },
   messageContainer: {
     width: '100%',

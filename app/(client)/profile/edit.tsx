@@ -200,7 +200,7 @@ const EditProfileScreen: React.FC = () => {
       // Atualizar o contexto do perfil antes de voltar
       await refreshProfile();
       setTimeout(() => {
-        safeGoBack('/(client)/profile');
+        safeGoBack('/(client)/settings');
       }, 1000);
     } catch (error) {
       const processed = handleError(error, 'profile');
@@ -283,7 +283,7 @@ const EditProfileScreen: React.FC = () => {
           <AppHeader 
             title="Editar perfil"
             showBackButton={true}
-            onPressBack={() => safeGoBack('/(client)/profile')}
+            onPressBack={() => safeGoBack('/(client)/settings')}
           />
         }
       >
@@ -304,7 +304,7 @@ const EditProfileScreen: React.FC = () => {
           <AppHeader 
             title="Editar perfil"
             showBackButton={true}
-            onPressBack={() => safeGoBack('/(client)/profile')}
+            onPressBack={() => safeGoBack('/(client)/settings')}
           />
         }
       >
@@ -326,7 +326,7 @@ const EditProfileScreen: React.FC = () => {
         <AppHeader 
           title="Editar perfil"
           showBackButton={true}
-          onPressBack={() => safeGoBack('/(client)/profile')}
+          onPressBack={() => safeGoBack('/(client)/settings')}
         />
       }
       footer={

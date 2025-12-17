@@ -72,7 +72,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       setLoading(false);
     } else if (!profileLoading && !contextBusinessProfile) {
       Alert.alert('Erro', 'Perfil do negócio não encontrado.');
-      router.replace('/(merchant)/profile');
+      router.replace('/(merchant)/settings');
     }
   }, [contextBusinessProfile, profileLoading]);
 
@@ -289,7 +289,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       // Atualizar o contexto do perfil antes de voltar
       await refreshBusinessProfile();
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
-        { text: 'OK', onPress: () => safeGoBack('/(merchant)/profile') },
+        { text: 'OK', onPress: () => safeGoBack('/(merchant)/settings') },
       ]);
     } catch (error) {
       const processed = handleError(error, 'profile');
@@ -373,7 +373,7 @@ const EditBusinessProfileScreen: React.FC = () => {
           <AppHeader 
             title="Editar perfil"
             showBackButton={true}
-            onPressBack={() => safeGoBack('/(merchant)/profile')}
+            onPressBack={() => safeGoBack('/(merchant)/settings')}
           />
         }
       >
@@ -395,7 +395,7 @@ const EditBusinessProfileScreen: React.FC = () => {
           <AppHeader 
             title="Editar perfil"
             showBackButton={true}
-            onPressBack={() => safeGoBack('/(merchant)/profile')}
+            onPressBack={() => safeGoBack('/(merchant)/settings')}
           />
         }
       >
@@ -418,7 +418,7 @@ const EditBusinessProfileScreen: React.FC = () => {
         <AppHeader 
           title="Editar perfil"
           showBackButton={true}
-          onPressBack={() => safeGoBack('/(merchant)/profile')}
+          onPressBack={() => safeGoBack('/(merchant)/settings')}
         />
       }
       footer={
