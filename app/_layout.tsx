@@ -52,6 +52,9 @@ const MainLayout: React.FC = () => {
       allSegments.includes(route) || segments.some(seg => seg.includes(route))
     );
     
+    // Não mostra erro de perfil durante o fluxo de reset de senha
+    const isInResetPassword = segments[0] === '(auth)' && allSegments.includes('reset-password');
+    
     // Só ativa o timeout se NÃO estiver em fluxo de cadastro E NÃO estiver em reset de senha
     // Durante reset de senha, não devemos redirecionar para user-type-selection
     if (session && !userRole && !profileError && segments[0] === '(auth)' && !isInSignupFlow && !isInResetPassword) {
@@ -64,9 +67,6 @@ const MainLayout: React.FC = () => {
         }
       }, 3000);
     }
-
-    // Não mostra erro de perfil durante o fluxo de reset de senha
-    const isInResetPassword = segments[0] === '(auth)' && allSegments.includes('reset-password');
     
     if (profileError && session && !isInResetPassword) {
       console.log('[MainLayout] Erro de perfil detectado');
