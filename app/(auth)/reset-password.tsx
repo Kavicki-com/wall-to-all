@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { useToast } from '../../components/ui/ToastProvider';
 import { handleError } from '../../lib/errorHandler';
+import { processAuthTokensFromUrl, setIsRecoverySession } from '../../lib/useDeepLinking';
 import {
   LogoWallToAll,
   LogoWallToAllTypography,
@@ -22,10 +24,10 @@ import { CustomButton } from '../../components/CustomButton';
 
 const ResetPasswordScreen: React.FC = () => {
   const router = useRouter();
-  const params = useLocalSearchParams();
   const { showError, showSuccess } = useToast();
   const { width } = useWindowDimensions();
   const horizontalPadding = width >= 768 ? 24 : 16;
+  const hasProcessedRef = useRef(false);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,37 +36,92 @@ const ResetPasswordScreen: React.FC = () => {
   const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
-    // Verifica se há parâmetros de reset no URL (vindos do deep link)
-    const checkResetParams = async () => {
+    // Evita processamento duplicado
+    if (hasProcessedRef.current) return;
+    hasProcessedRef.current = true;
+
+    const processUrl = async (url: string | null) => {
+      if (!isSupabaseConfigured) {
+        setError('Erro de configuração.');
+        setIsValidating(false);
+        return false;
+      }
+
+      if (!url) return false;
+
+      try {
+        console.log('[ResetPassword] Processando URL:', url);
+
+        // Se há uma URL com tokens, processa ela
+        if (url.includes('#')) {
+          console.log('[ResetPassword] Processando tokens da URL...');
+          const success = await processAuthTokensFromUrl(url);
+          
+          if (success) {
+            console.log('[ResetPassword] Tokens processados com sucesso!');
+            setIsValidating(false);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.error('[ResetPassword] Erro ao processar URL:', e);
+      }
+
+      return false;
+    };
+
+    const processDeepLinkAndValidate = async () => {
       if (!isSupabaseConfigured) {
         setError('Erro de configuração.');
         setIsValidating(false);
         return;
       }
 
-      // O Supabase automaticamente processa os parâmetros do link quando o app abre
-      // Verificamos se há uma sessão válida de reset
       try {
+        // Primeiro, tenta pegar a URL inicial (deep link que abriu o app - cold start)
+        const initialUrl = await Linking.getInitialURL();
+        console.log('[ResetPassword] URL inicial (getInitialURL):', initialUrl);
+
+        // Se há uma URL com tokens, processa ela
+        if (await processUrl(initialUrl)) {
+          return;
+        }
+
+        // Se não processou tokens da URL, verifica se já há uma sessão válida
         const { data: { session } } = await supabase.auth.getSession();
         
-        // Se não há sessão, pode ser que o link ainda não foi processado
-        // ou o token expirou
-        if (!session) {
-          setError('Link inválido ou expirado. Solicite um novo link de recuperação.');
+        if (session) {
+          console.log('[ResetPassword] Sessão existente encontrada');
           setIsValidating(false);
           return;
         }
 
+        // Sem sessão e sem tokens válidos
+        setError('Link inválido ou expirado. Solicite um novo link de recuperação.');
         setIsValidating(false);
       } catch (e) {
+        console.error('[ResetPassword] Erro:', e);
         const processed = handleError(e, 'auth');
         setError(processed.userMessage);
         setIsValidating(false);
       }
     };
 
-    checkResetParams();
-  }, [params]);
+    // Processa deep link inicial (cold start)
+    processDeepLinkAndValidate();
+
+    // Listener para deep links quando o app já está aberto
+    const subscription = Linking.addEventListener('url', (event) => {
+      console.log('[ResetPassword] Deep link recebido (app aberto):', event.url);
+      if (event.url && event.url.includes('reset-password')) {
+        processUrl(event.url);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   const handleResetPassword = async () => {
     setError(null);
@@ -95,11 +152,36 @@ const ResetPasswordScreen: React.FC = () => {
 
     try {
       setLoading(true);
-      const { error: updateError } = await supabase.auth.updateUser({
+      
+      // Verifica se há sessão antes de tentar alterar a senha
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      console.log('[ResetPassword] Verificando sessão antes de alterar:', {
+        hasSession: !!currentSession,
+        userEmail: currentSession?.user?.email,
+        sessionError: sessionError?.message,
+      });
+      
+      if (!currentSession) {
+        const errorMsg = sessionError?.message || 'Sessão expirada. Solicite um novo link de recuperação.';
+        setError(errorMsg);
+        showError(errorMsg);
+        setLoading(false);
+        return;
+      }
+
+      console.log('[ResetPassword] Tentando alterar senha...');
+      const { data, error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
+      console.log('[ResetPassword] Resultado updateUser:', {
+        hasData: !!data,
+        hasUser: !!data?.user,
+        updateError: updateError?.message,
+      });
+
       if (updateError) {
+        console.error('[ResetPassword] Erro ao alterar senha:', updateError);
         const processed = handleError(updateError, 'auth');
         setError(processed.userMessage);
         showError(processed.userMessage);
@@ -107,14 +189,46 @@ const ResetPasswordScreen: React.FC = () => {
         return;
       }
 
-      // Sucesso
+      // Verifica se realmente alterou (data deve ter user)
+      if (!data?.user) {
+        console.error('[ResetPassword] updateUser retornou sem user!');
+        setError('Erro ao alterar senha. Tente novamente.');
+        showError('Erro ao alterar senha. Tente novamente.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('[ResetPassword] Senha alterada com sucesso!');
+      // Sucesso - senha alterada
       showSuccess('Senha alterada com sucesso!');
+      setLoading(false);
       
-      // Redireciona para login após 1 segundo
-      setTimeout(() => {
-        router.replace('/(auth)/login');
-      }, 1000);
-    } catch (e) {
+      // Limpa a flag de sessão de recuperação
+      setIsRecoverySession(false);
+      
+      // Faz signOut para limpar a sessão de recuperação
+      // O Supabase já invalida a sessão de recuperação ao alterar a senha, mas fazemos signOut para garantir
+      try {
+        await supabase.auth.signOut();
+      } catch (error) {
+        console.warn('[ResetPassword] Erro ao fazer signOut (ignorado):', error);
+      }
+      
+      // Redireciona imediatamente para login
+      router.replace('/(auth)/login');
+    } catch (e: any) {
+      console.error('[ResetPassword] Exceção ao alterar senha:', e);
+      // Se o erro é "Auth session missing", significa que não há sessão válida
+      // NÃO assumimos que a senha foi alterada - mostramos erro
+      const errorMessage = e?.message || String(e);
+      if (errorMessage.includes('Auth session missing') || errorMessage.includes('session missing')) {
+        setError('Sessão expirada. Solicite um novo link de recuperação.');
+        showError('Sessão expirada. Solicite um novo link de recuperação.');
+        setLoading(false);
+        return;
+      }
+      
+      // Para outros erros, mostra normalmente
       const processed = handleError(e, 'auth');
       setError(processed.userMessage);
       showError(processed.userMessage);

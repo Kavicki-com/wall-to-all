@@ -34,7 +34,7 @@ const MainLayout: React.FC = () => {
     // Timeout para redirecionar se userRole não for encontrado após login
     let redirectTimeout: NodeJS.Timeout | null = null;
     
-    // Verifica se está em uma rota de cadastro antes de ativar o timeout
+    // Verifica se está em uma rota de cadastro ou recuperação de senha antes de ativar o timeout
     const signupRoutes = [
       'merchant-signup-personal',
       'merchant-signup-address',
@@ -44,6 +44,7 @@ const MainLayout: React.FC = () => {
       'client-signup-personal',
       'client-signup-address',
       'client-signup-loading',
+      'reset-password', // Permite acesso à tela de reset de senha
     ];
     
     const allSegments = segments.join('/');
@@ -51,8 +52,9 @@ const MainLayout: React.FC = () => {
       allSegments.includes(route) || segments.some(seg => seg.includes(route))
     );
     
-    // Só ativa o timeout se NÃO estiver em fluxo de cadastro
-    if (session && !userRole && !profileError && segments[0] === '(auth)' && !isInSignupFlow) {
+    // Só ativa o timeout se NÃO estiver em fluxo de cadastro E NÃO estiver em reset de senha
+    // Durante reset de senha, não devemos redirecionar para user-type-selection
+    if (session && !userRole && !profileError && segments[0] === '(auth)' && !isInSignupFlow && !isInResetPassword) {
       console.log('[MainLayout] Sessão existe mas role não encontrado, aguardando 3s antes de redirecionar...');
       redirectTimeout = setTimeout(() => {
         if (!hasRedirectedRef.current) {
@@ -63,7 +65,10 @@ const MainLayout: React.FC = () => {
       }, 3000);
     }
 
-    if (profileError && session) {
+    // Não mostra erro de perfil durante o fluxo de reset de senha
+    const isInResetPassword = segments[0] === '(auth)' && allSegments.includes('reset-password');
+    
+    if (profileError && session && !isInResetPassword) {
       console.log('[MainLayout] Erro de perfil detectado');
       Alert.alert(
         'Erro de Perfil',
@@ -102,7 +107,7 @@ const MainLayout: React.FC = () => {
       // Usuário logado
       console.log('[MainLayout] Usuário logado, userRole:', userRole, 'segments:', segments);
       
-      // Rotas de cadastro que devem ser permitidas mesmo com usuário logado
+      // Rotas de cadastro e recuperação de senha que devem ser permitidas mesmo com usuário logado
       const signupRoutes = [
         'merchant-signup-personal',
         'merchant-signup-address',
@@ -112,10 +117,11 @@ const MainLayout: React.FC = () => {
         'client-signup-personal',
         'client-signup-address',
         'client-signup-loading',
+        'reset-password', // Permite acesso à tela de reset de senha
       ];
       
-      // Verifica se está em uma rota de cadastro
-      // Verifica todos os segments para encontrar rotas de cadastro
+      // Verifica se está em uma rota de cadastro ou recuperação
+      // Verifica todos os segments para encontrar rotas permitidas
       const allSegments = segments.join('/');
       const isInSignupFlow = inAuthGroup && signupRoutes.some(route => 
         allSegments.includes(route) || segments.some(seg => seg.includes(route))
@@ -167,12 +173,12 @@ const MainLayout: React.FC = () => {
     };
   }, [session, userRole, isLoading, segments, profileError, router]);
 
-  // Reset do flag quando a sessão muda ou quando navega entre telas de cadastro
+  // Reset do flag quando a sessão muda ou quando navega entre telas de cadastro/recuperação
   useEffect(() => {
     if (!session) {
       hasRedirectedRef.current = false;
     } else {
-      // Verifica se está em uma rota de cadastro e reseta o flag
+      // Verifica se está em uma rota de cadastro ou recuperação e reseta o flag
       const signupRoutes = [
         'merchant-signup-personal',
         'merchant-signup-address',
@@ -182,6 +188,7 @@ const MainLayout: React.FC = () => {
         'client-signup-personal',
         'client-signup-address',
         'client-signup-loading',
+        'reset-password', // Permite acesso à tela de reset de senha
       ];
       
       const allSegments = segments.join('/');
@@ -190,7 +197,7 @@ const MainLayout: React.FC = () => {
       );
       
       if (isInSignupFlow) {
-        hasRedirectedRef.current = false; // Permite navegação entre telas de cadastro
+        hasRedirectedRef.current = false; // Permite navegação entre telas de cadastro/recuperação
       }
     }
   }, [session, segments]);
@@ -201,7 +208,7 @@ const MainLayout: React.FC = () => {
       const currentSegment = segments[0];
       const inAuthGroup = currentSegment === '(auth)';
       
-      // Rotas de cadastro que devem ser permitidas mesmo com usuário logado
+      // Rotas de cadastro e recuperação de senha que devem ser permitidas mesmo com usuário logado
       const signupRoutes = [
         'merchant-signup-personal',
         'merchant-signup-address',
@@ -211,10 +218,11 @@ const MainLayout: React.FC = () => {
         'client-signup-personal',
         'client-signup-address',
         'client-signup-loading',
+        'reset-password', // Permite acesso à tela de reset de senha
       ];
       
-      // Verifica se está em uma rota de cadastro
-      // Verifica todos os segments para encontrar rotas de cadastro
+      // Verifica se está em uma rota de cadastro ou recuperação
+      // Verifica todos os segments para encontrar rotas permitidas
       const allSegments = segments.join('/');
       const isInSignupFlow = inAuthGroup && signupRoutes.some(route => 
         allSegments.includes(route) || segments.some(seg => seg.includes(route))

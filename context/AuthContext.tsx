@@ -3,6 +3,7 @@ import { Session } from '@supabase/supabase-js';
 import { supabase, clearInvalidAuthTokens, isSupabaseConfigured } from '../lib/supabase';
 import { handleError } from '../lib/errorHandler';
 import { AUTH_TIMEOUTS } from '../lib/constants';
+import { getIsRecoverySession } from '../lib/useDeepLinking';
 
 type UserRole = 'client' | 'merchant' | null;
 
@@ -75,7 +76,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       return userType || null;
     } catch (error: unknown) {
-      handleError(error, 'auth');
+      // Se for timeout, não define profileError para evitar modal durante reset de senha
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isTimeout = errorMessage.includes('Timeout ao buscar user_role');
+      
+      if (!isTimeout) {
+        handleError(error, 'auth');
+      } else {
+        // Log silencioso para timeout - não mostra erro visual
+        console.warn('[AuthContext] Timeout ao buscar user_role (pode ser durante reset de senha)');
+      }
       return null;
     }
   };
@@ -150,11 +160,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setSession(currentSession);
 
         if (currentSession?.user?.id) {
-          const role = await fetchUserRole(currentSession.user.id);
-          setUserRole(role);
-          
-          if (!role) {
-            setProfileError('Perfil não encontrado no banco de dados. Entre em contato com o suporte.');
+          // Se for sessão de recuperação, não busca user_role (não é necessário)
+          if (getIsRecoverySession()) {
+            console.log('[AuthContext] Sessão de recuperação detectada (init) - pulando busca de user_role');
+            setUserRole(null);
+            setProfileError(null);
+          } else {
+            const role = await fetchUserRole(currentSession.user.id);
+            setUserRole(role);
+            
+            // Só define profileError se role for null E houver um erro real (não timeout)
+            // O fetchUserRole não define profileError em caso de timeout
+            if (role) {
+              setProfileError(null);
+            } else {
+              // Se role é null, pode ser timeout ou perfil não encontrado
+              // Se profileError já está definido (erro real), mantém
+              // Se não está definido (timeout), não define novo erro
+              // Isso evita mostrar erro durante reset de senha
+            }
           }
         } else {
           setUserRole(null);
@@ -206,13 +230,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setSession(newSession);
 
           if (newSession?.user?.id) {
-            const role = await fetchUserRole(newSession.user.id);
-            setUserRole(role);
-            
-            if (!role) {
-              setProfileError('Perfil não encontrado no banco de dados. Entre em contato com o suporte.');
-            } else {
+            // Se for sessão de recuperação, não busca user_role (não é necessário)
+            if (getIsRecoverySession()) {
+              console.log('[AuthContext] Sessão de recuperação detectada - pulando busca de user_role');
+              setUserRole(null);
               setProfileError(null);
+            } else {
+              // Busca user_role normalmente para sessões regulares
+              const role = await fetchUserRole(newSession.user.id);
+              setUserRole(role);
+              
+              // Só define profileError se role for null E houver um erro real (não timeout)
+              // O fetchUserRole não define profileError em caso de timeout
+              if (role) {
+                setProfileError(null);
+              } else {
+                // Se role é null, pode ser timeout ou perfil não encontrado
+                // Se profileError já está definido (erro real), mantém
+                // Se não está definido (timeout), não define novo erro
+                // Isso evita mostrar erro durante reset de senha
+              }
             }
           } else {
             setUserRole(null);
