@@ -6,12 +6,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { Alert } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Linking from 'expo-linking';
 import { useFonts as useMontserrat, Montserrat_400Regular, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { useFonts as useRoboto, Roboto_400Regular, Roboto_500Medium } from '@expo-google-fonts/roboto';
 import { useFonts as useMaterialSymbols, MaterialSymbolsOutlined_400Regular } from '@expo-google-fonts/material-symbols-outlined';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ToastProvider } from '../components/ui/ToastProvider';
+import { processAuthTokensFromUrl } from '../lib/useDeepLinking';
 
 // Impede o splash screen de sumir automaticamente
 SplashScreen.preventAutoHideAsync();
@@ -21,6 +23,7 @@ const MainLayout: React.FC = () => {
   const segments = useSegments();
   const router = useRouter();
   const hasRedirectedRef = useRef(false);
+  const deepLinkProcessedRef = useRef(false);
 
   useEffect(() => {
     console.log('[MainLayout] Estado:', { isLoading, hasSession: !!session, userRole, profileError, segment: segments[0] });
@@ -259,6 +262,139 @@ const MainLayout: React.FC = () => {
       }
     }
   }, [isLoading, session, userRole, segments, router]);
+
+  // Intercepta deep links de reset-password ANTES do Expo Router processá-los
+  // Isso garante que possamos processar os tokens mesmo quando a Activity é reiniciada
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      // Ignora URLs do Expo dev server
+      if (event.url && event.url.includes('expo-development-client')) {
+        console.log('[MainLayout] URL do Expo dev server ignorada no listener global:', event.url);
+        // Tenta obter a URL real do getInitialURL
+        try {
+          const realUrl = await Linking.getInitialURL();
+          
+          if (realUrl && realUrl.includes('reset-password') && !realUrl.includes('expo-development-client')) {
+            console.log('[MainLayout] URL real encontrada via getInitialURL no _layout:', realUrl);
+            // Processa os tokens e navega para reset-password
+            try {
+              const success = await processAuthTokensFromUrl(realUrl);
+              if (success) {
+                console.log('[MainLayout] Tokens processados com sucesso no _layout, navegando para reset-password');
+                router.replace('/(auth)/reset-password');
+                deepLinkProcessedRef.current = true;
+              }
+            } catch (error: any) {
+              console.error('[MainLayout] Erro ao processar tokens no _layout:', error);
+              // Se for erro do Supabase, navega para reset-password mesmo assim
+              // O componente reset-password.tsx vai tratar o erro
+              if (error?.message?.startsWith('SUPABASE_ERROR:')) {
+                router.replace('/(auth)/reset-password');
+                deepLinkProcessedRef.current = true;
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[MainLayout] Erro ao obter URL real no _layout:', error);
+        }
+        return;
+      }
+      
+      // Se for um deep link de reset-password, processa os tokens e navega
+      if (event.url && event.url.includes('reset-password') && !deepLinkProcessedRef.current) {
+        console.log('[MainLayout] Deep link de reset-password detectado no _layout, processando...');
+        deepLinkProcessedRef.current = true;
+        
+        try {
+          const success = await processAuthTokensFromUrl(event.url);
+          
+          if (success) {
+            console.log('[MainLayout] Tokens processados com sucesso no _layout, navegando para reset-password');
+            router.replace('/(auth)/reset-password');
+          } else {
+            // Mesmo se falhar, navega para reset-password para mostrar o erro
+            console.log('[MainLayout] Falha ao processar tokens, navegando para reset-password mesmo assim');
+            router.replace('/(auth)/reset-password');
+          }
+        } catch (error: any) {
+          console.error('[MainLayout] Erro ao processar tokens no _layout:', error);
+          // Se for erro do Supabase, navega para reset-password mesmo assim
+          if (error?.message?.startsWith('SUPABASE_ERROR:')) {
+            router.replace('/(auth)/reset-password');
+          }
+        }
+      }
+    };
+    
+    // Registra o listener global
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    
+    // Também verifica getInitialURL() periodicamente para warm start
+    let checkInterval: NodeJS.Timeout | null = null;
+    let checkCount = 0;
+    const maxChecks = 20; // 6 segundos (20 * 300ms)
+    
+    const startPeriodicCheck = () => {
+      checkInterval = setInterval(async () => {
+        checkCount++;
+        
+        // Para se já processou ou excedeu o limite
+        if (deepLinkProcessedRef.current || checkCount >= maxChecks) {
+          if (checkInterval) {
+            clearInterval(checkInterval);
+            checkInterval = null;
+          }
+          return;
+        }
+        
+        try {
+          const checkUrl = await Linking.getInitialURL();
+          
+          if (checkUrl && checkUrl.includes('reset-password') && !checkUrl.includes('expo-development-client') && !deepLinkProcessedRef.current) {
+            console.log('[MainLayout] URL encontrada na verificação periódica do _layout, processando...');
+            deepLinkProcessedRef.current = true;
+            
+            if (checkInterval) {
+              clearInterval(checkInterval);
+              checkInterval = null;
+            }
+            
+            try {
+              const success = await processAuthTokensFromUrl(checkUrl);
+              if (success) {
+                console.log('[MainLayout] Tokens processados com sucesso na verificação periódica, navegando para reset-password');
+                router.replace('/(auth)/reset-password');
+              } else {
+                router.replace('/(auth)/reset-password');
+              }
+            } catch (error: any) {
+              console.error('[MainLayout] Erro ao processar tokens na verificação periódica:', error);
+              if (error?.message?.startsWith('SUPABASE_ERROR:')) {
+                router.replace('/(auth)/reset-password');
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[MainLayout] Erro na verificação periódica:', error);
+        }
+      }, 300);
+    };
+    
+    // Inicia a verificação periódica após 500ms
+    setTimeout(() => {
+      if (!deepLinkProcessedRef.current) {
+        startPeriodicCheck();
+      }
+    }, 500);
+    
+    return () => {
+      subscription.remove();
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
+      deepLinkProcessedRef.current = false;
+    };
+  }, [router]);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F6F9' }}>

@@ -67,7 +67,20 @@ export const extractAuthParams = (url: string): Record<string, string> | null =>
       hasAccessToken: !!params.access_token,
       hasRefreshToken: !!params.refresh_token,
       hasType: !!params.type,
+      hasError: !!params.error,
+      errorCode: params.error_code,
     });
+
+    // Verifica se a URL contém erros do Supabase (link expirado/inválido)
+    if (params.error || params.error_code) {
+      console.log('[DeepLinking] extractAuthParams - URL contém erro do Supabase:', {
+        error: params.error,
+        errorCode: params.error_code,
+        errorDescription: params.error_description,
+      });
+      // Retorna um objeto especial indicando erro
+      return { __error: true, error: params.error, error_code: params.error_code, error_description: params.error_description };
+    }
 
     // Verifica se tem os tokens necessários
     if (params.access_token && params.refresh_token) {
@@ -100,6 +113,17 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
     return false;
   }
 
+  // Verifica se a URL contém erro do Supabase
+  if (params.__error) {
+    console.error('[DeepLinking] URL contém erro do Supabase:', {
+      error: params.error,
+      error_code: params.error_code,
+      error_description: params.error_description,
+    });
+    // Retorna um erro específico que será tratado pelo componente
+    throw new Error(`SUPABASE_ERROR:${params.error_code || params.error}:${params.error_description || 'Link inválido ou expirado'}`);
+  }
+
   console.log('[DeepLinking] Params extraídos:', {
     hasAccessToken: !!params.access_token,
     hasRefreshToken: !!params.refresh_token,
@@ -116,6 +140,24 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
     if (params.type === 'recovery') {
       setIsRecoverySession(true);
       console.log('[DeepLinking] Sessão de recuperação detectada - pulando busca de user_role');
+      
+      // Limpa qualquer sessão anterior antes de configurar a nova sessão de recovery
+      // Isso evita conflitos quando o app está aberto e um novo link é processado
+      // IMPORTANTE: Sempre faz signOut antes de processar recovery, mesmo que não detecte sessão
+      // porque o Supabase pode ter uma sessão em cache que não é retornada por getSession()
+      try {
+        const { data: currentSession, error: sessionError } = await supabase.auth.getSession();
+        
+        // Sempre faz signOut antes de processar recovery, mesmo se não detectar sessão
+        // Isso garante que não há sessão em cache interferindo
+        console.log('[DeepLinking] Limpando sessão anterior antes de processar link de recovery...');
+        await supabase.auth.signOut();
+        // Aguarda um pouco para garantir que a limpeza foi processada
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (cleanupError) {
+        console.warn('[DeepLinking] Erro ao limpar sessão anterior (pode não existir):', cleanupError);
+        // Continua mesmo se a limpeza falhar
+      }
     }
 
     // Configura a sessão com os tokens do link
@@ -146,6 +188,34 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
 
     console.log('[DeepLinking] Sessão configurada com sucesso!');
     console.log('[DeepLinking] Usuário:', data.session?.user?.email);
+
+    // Verifica se a sessão foi realmente persistida após setSession
+    // Em produção, pode haver um delay na persistência
+    const verifySession = async () => {
+      const { data: { session: verifiedSession }, error: verifyError } = await supabase.auth.getSession();
+      if (verifyError) {
+        console.error('[DeepLinking] Erro ao verificar sessão após setSession:', verifyError);
+        return false;
+      }
+      if (!verifiedSession) {
+        console.warn('[DeepLinking] Sessão não encontrada após setSession - pode haver delay na persistência');
+        // Aguarda um pouco e tenta novamente
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const { data: { session: retrySession } } = await supabase.auth.getSession();
+        if (!retrySession) {
+          console.error('[DeepLinking] Sessão ainda não encontrada após retry');
+          return false;
+        }
+        console.log('[DeepLinking] Sessão encontrada após retry');
+      }
+      return true;
+    };
+
+    const sessionPersisted = await verifySession();
+    if (!sessionPersisted) {
+      console.error('[DeepLinking] Sessão não foi persistida corretamente');
+      return false;
+    }
 
     return true;
   } catch (error: any) {

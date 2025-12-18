@@ -36,11 +36,11 @@ const ResetPasswordScreen: React.FC = () => {
   const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
-    // Evita processamento duplicado
-    if (hasProcessedRef.current) return;
-    hasProcessedRef.current = true;
+    // NOTA: Não bloqueia processamento com hasProcessedRef aqui porque quando o app está aberto
+    // e a Activity é reiniciada pelo deep link, precisamos processar novamente
+    // O hasProcessedRef será gerenciado dentro de processUrl e pelo listener
 
-    const processUrl = async (url: string | null) => {
+    const processUrl = async (url: string | null): Promise<boolean | 'ERROR_DEFINED'> => {
       if (!isSupabaseConfigured) {
         setError('Erro de configuração.');
         setIsValidating(false);
@@ -51,16 +51,67 @@ const ResetPasswordScreen: React.FC = () => {
 
       try {
         console.log('[ResetPassword] Processando URL:', url);
+        console.log('[ResetPassword] URL contém #:', url.includes('#'));
 
         // Se há uma URL com tokens, processa ela
         if (url.includes('#')) {
           console.log('[ResetPassword] Processando tokens da URL...');
-          const success = await processAuthTokensFromUrl(url);
-          
-          if (success) {
-            console.log('[ResetPassword] Tokens processados com sucesso!');
-            setIsValidating(false);
-            return true;
+          try {
+            const success = await processAuthTokensFromUrl(url);
+            
+            if (success) {
+              console.log('[ResetPassword] Tokens processados com sucesso!');
+              setIsValidating(false);
+              return true;
+            } else {
+              console.warn('[ResetPassword] Falha ao processar tokens da URL');
+            }
+          } catch (e: any) {
+            // Verifica se é um erro do Supabase (link expirado/inválido)
+            if (e?.message?.startsWith('SUPABASE_ERROR:')) {
+              const errorParts = e.message.split(':');
+              const errorCode = errorParts[1];
+              const errorDescription = errorParts.slice(2).join(':') || 'Link inválido ou expirado';
+              
+              console.error('[ResetPassword] Erro do Supabase detectado:', { errorCode, errorDescription });
+              
+              // Define mensagem de erro apropriada
+              if (errorCode === 'otp_expired' || errorCode === 'access_denied') {
+                setError('Link inválido ou expirado. Solicite um novo link de recuperação.');
+              } else {
+                setError(errorDescription || 'Link inválido ou expirado. Solicite um novo link de recuperação.');
+              }
+              setIsValidating(false);
+              return 'ERROR_DEFINED'; // Retorna valor especial indicando que erro já foi definido
+            }
+            throw e; // Re-lança se não for erro do Supabase
+          }
+        } else {
+          console.warn('[ResetPassword] URL não contém # - pode estar truncada ou modificada');
+          // Tenta processar mesmo sem #, caso a URL tenha sido modificada
+          try {
+            const success = await processAuthTokensFromUrl(url);
+            if (success) {
+              console.log('[ResetPassword] Tokens processados com sucesso (sem #)!');
+              setIsValidating(false);
+              return true;
+            }
+          } catch (e: any) {
+            // Verifica se é um erro do Supabase
+            if (e?.message?.startsWith('SUPABASE_ERROR:')) {
+              const errorParts = e.message.split(':');
+              const errorCode = errorParts[1];
+              const errorDescription = errorParts.slice(2).join(':') || 'Link inválido ou expirado';
+              
+              if (errorCode === 'otp_expired' || errorCode === 'access_denied') {
+                setError('Link inválido ou expirado. Solicite um novo link de recuperação.');
+              } else {
+                setError(errorDescription || 'Link inválido ou expirado. Solicite um novo link de recuperação.');
+              }
+              setIsValidating(false);
+              return 'ERROR_DEFINED'; // Retorna valor especial indicando que erro já foi definido
+            }
+            throw e;
           }
         }
       } catch (e) {
@@ -78,25 +129,117 @@ const ResetPasswordScreen: React.FC = () => {
       }
 
       try {
+        // IMPORTANTE: Verifica primeiro se já há uma sessão válida
+        // Isso pode acontecer se o _layout.tsx já processou o deep link antes do componente montar
+        
+        let existingSession = null;
+        for (let i = 0; i < 3; i++) {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
+            existingSession = currentSession;
+            console.log('[ResetPassword] Sessão existente encontrada ANTES de processar deep link (tentativa', i + 1, ')');
+            break;
+          }
+          if (i < 2) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+        
+        // Se já há uma sessão válida, não precisa processar o deep link
+        if (existingSession) {
+          console.log('[ResetPassword] Sessão já existe, não precisa processar deep link');
+          setIsValidating(false);
+          return;
+        }
+        
         // Primeiro, tenta pegar a URL inicial (deep link que abriu o app - cold start)
         const initialUrl = await Linking.getInitialURL();
         console.log('[ResetPassword] URL inicial (getInitialURL):', initialUrl);
 
+        // Ignora URLs do Expo dev server - só processa URLs de reset-password
+        const shouldProcessInitialUrl = initialUrl && 
+          initialUrl.includes('reset-password') && 
+          !initialUrl.includes('expo-development-client');
+
         // Se há uma URL com tokens, processa ela
-        if (await processUrl(initialUrl)) {
-          return;
+        if (shouldProcessInitialUrl) {
+          const urlProcessed = await processUrl(initialUrl);
+          // Se processUrl retornou true, significa que processou com sucesso
+          if (urlProcessed === true) {
+            hasProcessedRef.current = true;
+            return;
+          }
+          // Se processUrl retornou 'ERROR_DEFINED', significa que detectou erro do Supabase
+          // e já definiu a mensagem de erro apropriada - não continua para verificar sessão
+          if (urlProcessed === 'ERROR_DEFINED') {
+            hasProcessedRef.current = true;
+            return; // Para aqui, não continua para verificar sessão
+          }
         }
 
         // Se não processou tokens da URL, verifica se já há uma sessão válida
-        const { data: { session } } = await supabase.auth.getSession();
+        // Em produção, pode haver um delay na persistência da sessão
+        // IMPORTANTE: Se não havia URL inicial (app aberto), aguarda um pouco para dar tempo
+        // ao listener processar o deep link se o usuário clicar nele
+        // Também verifica getInitialURL novamente após o delay, pois quando a Activity é reiniciada
+        // pelo deep link, pode haver um delay antes de getInitialURL retornar a URL
+        if (!initialUrl) {
+          console.log('[ResetPassword] Sem URL inicial - verificando getInitialURL periodicamente por 3s...');
+          
+          // Verifica getInitialURL periodicamente durante 3 segundos
+          // Quando a Activity é reiniciada pelo deep link, getInitialURL pode retornar a URL após um delay
+          let foundUrl: string | null = null;
+          const checkInterval = 300; // Verifica a cada 300ms
+          const totalWaitTime = 3000; // Total de 3 segundos
+          const maxChecks = Math.floor(totalWaitTime / checkInterval);
+          
+          for (let i = 0; i < maxChecks; i++) {
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            const checkUrl = await Linking.getInitialURL();
+            
+            if (checkUrl && checkUrl.includes('reset-password') && !checkUrl.includes('expo-development-client')) {
+              foundUrl = checkUrl;
+              console.log('[ResetPassword] URL encontrada na verificação', i + 1, ', processando...');
+              break;
+            }
+          }
+          
+          if (foundUrl) {
+            const urlProcessed = await processUrl(foundUrl);
+            if (urlProcessed === true) {
+              hasProcessedRef.current = true;
+              return;
+            }
+            if (urlProcessed === 'ERROR_DEFINED') {
+              hasProcessedRef.current = true;
+              return;
+            }
+          } else {
+            console.log('[ResetPassword] Nenhuma URL encontrada após', totalWaitTime, 'ms de verificação periódica');
+          }
+        }
+        
+        let session = null;
+        for (let i = 0; i < 3; i++) {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
+            session = currentSession;
+            console.log('[ResetPassword] Sessão existente encontrada (tentativa', i + 1, ')');
+            break;
+          }
+          if (i < 2) {
+            // Aguarda um pouco antes de tentar novamente
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
         
         if (session) {
-          console.log('[ResetPassword] Sessão existente encontrada');
           setIsValidating(false);
           return;
         }
 
         // Sem sessão e sem tokens válidos
+        console.error('[ResetPassword] Nenhuma sessão encontrada após processar URL');
         setError('Link inválido ou expirado. Solicite um novo link de recuperação.');
         setIsValidating(false);
       } catch (e) {
@@ -107,19 +250,116 @@ const ResetPasswordScreen: React.FC = () => {
       }
     };
 
-    // Processa deep link inicial (cold start)
-    processDeepLinkAndValidate();
-
-    // Listener para deep links quando o app já está aberto
-    const subscription = Linking.addEventListener('url', (event) => {
+    // IMPORTANTE: Registra o listener ANTES de processar o deep link inicial
+    // Isso garante que o listener esteja ativo quando a Activity é reiniciada pelo deep link
+    
+    const subscription = Linking.addEventListener('url', async (event) => {
       console.log('[ResetPassword] Deep link recebido (app aberto):', event.url);
+      
+      // Ignora URLs do Expo dev server
+      if (event.url && event.url.includes('expo-development-client')) {
+        console.log('[ResetPassword] URL do Expo dev server ignorada no listener:', event.url);
+        // Tenta obter a URL real do getInitialURL quando recebe URL do Expo dev server
+        // Isso pode acontecer quando o app está aberto e a Activity é reiniciada
+        try {
+          const realUrl = await Linking.getInitialURL();
+          if (realUrl && realUrl.includes('reset-password') && !realUrl.includes('expo-development-client')) {
+            console.log('[ResetPassword] URL real encontrada via getInitialURL:', realUrl);
+            // Reseta o flag para permitir processamento
+            hasProcessedRef.current = false;
+            setIsValidating(true);
+            setError(null);
+            const urlProcessed = await processUrl(realUrl);
+            if (urlProcessed === true || urlProcessed === 'ERROR_DEFINED') {
+              hasProcessedRef.current = true;
+            }
+            return;
+          }
+        } catch (error) {
+          console.warn('[ResetPassword] Erro ao obter URL real:', error);
+        }
+        return;
+      }
+      
       if (event.url && event.url.includes('reset-password')) {
-        processUrl(event.url);
+        console.log('[ResetPassword] Processando deep link do listener...');
+        // Reseta o flag para permitir processamento novamente
+        hasProcessedRef.current = false;
+        // Reseta o estado de validação e erro para processar o novo link
+        setIsValidating(true);
+        setError(null);
+        // Processa a URL e aguarda o resultado
+        const urlProcessed = await processUrl(event.url);
+        // Se processou com sucesso ou erro já foi definido, marca como processado
+        if (urlProcessed === true || urlProcessed === 'ERROR_DEFINED') {
+          hasProcessedRef.current = true;
+        }
+      } else {
+        console.warn('[ResetPassword] Deep link recebido mas não é reset-password:', event.url);
       }
     });
 
+    // Processa deep link inicial (cold start) - DEPOIS de registrar o listener
+    processDeepLinkAndValidate();
+
+    // Verificação contínua de getInitialURL() para warm start
+    // Mesmo após registrar o listener, continuamos verificando getInitialURL() periodicamente
+    // porque quando a Activity é reiniciada, o listener pode não ser acionado imediatamente
+    let continuousCheckInterval: NodeJS.Timeout | null = null;
+    let continuousCheckCount = 0;
+    const maxContinuousChecks = 20; // Verifica por até 6 segundos (20 * 300ms)
+    
+    const startContinuousCheck = () => {
+      continuousCheckInterval = setInterval(async () => {
+        continuousCheckCount++;
+        
+        // Para a verificação se já processou ou se excedeu o limite
+        if (hasProcessedRef.current || continuousCheckCount >= maxContinuousChecks) {
+          if (continuousCheckInterval) {
+            clearInterval(continuousCheckInterval);
+            continuousCheckInterval = null;
+          }
+          return;
+        }
+        
+        try {
+          const checkUrl = await Linking.getInitialURL();
+          
+          if (checkUrl && checkUrl.includes('reset-password') && !checkUrl.includes('expo-development-client')) {
+            console.log('[ResetPassword] URL encontrada na verificação contínua (check', continuousCheckCount, '), processando...');
+            // Para a verificação contínua
+            if (continuousCheckInterval) {
+              clearInterval(continuousCheckInterval);
+              continuousCheckInterval = null;
+            }
+            // Reseta o flag para permitir processamento
+            hasProcessedRef.current = false;
+            setIsValidating(true);
+            setError(null);
+            const urlProcessed = await processUrl(checkUrl);
+            if (urlProcessed === true || urlProcessed === 'ERROR_DEFINED') {
+              hasProcessedRef.current = true;
+            }
+          }
+        } catch (error) {
+          console.warn('[ResetPassword] Erro na verificação contínua:', error);
+        }
+      }, 300); // Verifica a cada 300ms
+    };
+    
+    // Inicia a verificação contínua apenas se não havia URL inicial (warm start)
+    // Aguarda um pouco para dar tempo ao listener processar primeiro
+    setTimeout(() => {
+      if (!hasProcessedRef.current) {
+        startContinuousCheck();
+      }
+    }, 500);
+
     return () => {
       subscription.remove();
+      if (continuousCheckInterval) {
+        clearInterval(continuousCheckInterval);
+      }
     };
   }, []);
 
@@ -182,6 +422,17 @@ const ResetPasswordScreen: React.FC = () => {
 
       if (updateError) {
         console.error('[ResetPassword] Erro ao alterar senha:', updateError);
+        
+        // Trata erro específico de senha igual à antiga
+        if (updateError.message?.includes('New password should be different from the old password') || 
+            updateError.message?.includes('new password should be different')) {
+          const specificError = 'A nova senha deve ser diferente da senha atual.';
+          setError(specificError);
+          showError(specificError);
+          setLoading(false);
+          return;
+        }
+        
         const processed = handleError(updateError, 'auth');
         setError(processed.userMessage);
         showError(processed.userMessage);
