@@ -2,7 +2,7 @@ import React from 'react';
 import { TouchableOpacity, View, StyleSheet, ViewStyle, Platform } from 'react-native';
 
 export interface SelectableCardProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   selected?: boolean;
   onPress?: () => void;
   style?: ViewStyle;
@@ -21,7 +21,6 @@ export const SelectableCard: React.FC<SelectableCardProps> = ({
   rightIcon,
 }) => {
   
-  // Define o estilo base (Container)
   const containerStyle: ViewStyle = {
     ...styles.cardBase,
     ...style,
@@ -53,7 +52,7 @@ export const SelectableCard: React.FC<SelectableCardProps> = ({
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={1} // Remove o efeito de transparência que parecia um "retângulo branco"
+      activeOpacity={1}
       disabled={disabled}
       style={styles.touchable}
     >
@@ -69,17 +68,13 @@ const styles = StyleSheet.create({
   cardBase: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 24, // Mesmo radius do Card Primary
-    borderWidth: 2,   // Borda fixa para evitar pulos de layout
+    padding: 16,
+    borderRadius: 24,
+    borderWidth: 0,
+    gap: 16,
   },
-  
-  // Estado NÃO Selecionado (Branco + Sombra)
   unselectedState: {
     backgroundColor: '#FEFEFE',
-    borderColor: 'transparent', // Borda invisível para manter o tamanho
-    // Sombra igual ao Card Primary
     ...Platform.select({
       ios: {
         shadowColor: '#1D1D1D',
@@ -92,25 +87,25 @@ const styles = StyleSheet.create({
       },
     }),
   },
-
-  // Estado Selecionado (Azul + Borda + Sem Sombra)
   selectedState: {
     backgroundColor: '#D6E0FF',
+    borderWidth: 2,
     borderColor: '#000E3D',
+    padding: 14,
     shadowOpacity: 0,
     elevation: 0,
-    shadowColor: 'transparent',
   },
-
   iconWrapper: {
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
   },
   contentWrapper: {
     flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
     gap: 8,
   },
 });

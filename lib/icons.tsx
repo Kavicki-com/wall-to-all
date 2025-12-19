@@ -69,7 +69,7 @@ export const IconDelete1 = ({ size, color, style }: { size?: number; color?: str
 );
 
 export const IconShare = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
-  <Icon name="share" size={size} color={color} style={style} />
+  <Icon name="ios_share" family="MaterialSymbols" size={size} color={color} style={style} />
 );
 
 export const IconHelp = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (

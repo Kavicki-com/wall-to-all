@@ -110,7 +110,6 @@ wall-to-all/
 │   ├── index.tsx                # Tela inicial (redirecionamento)
 │   ├── (auth)/                  # Grupo de autenticação
 │   │   ├── login.tsx
-│   │   ├── signup.tsx
 │   │   ├── user-type-selection.tsx
 │   │   ├── client-signup-*.tsx  # Fluxo cadastro cliente
 │   │   └── merchant-signup-*.tsx # Fluxo cadastro lojista

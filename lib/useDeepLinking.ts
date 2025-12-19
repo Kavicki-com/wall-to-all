@@ -32,7 +32,7 @@ export const getIsRecoverySession = (): boolean => {
  * Extrai os parâmetros de autenticação do fragmento (#) da URL
  * O Supabase envia tokens no formato: walltoall://reset-password#access_token=xxx&refresh_token=xxx&type=recovery
  */
-export const extractAuthParams = (url: string): Record<string, string> | null => {
+export const extractAuthParams = (url: string): Record<string, string | boolean> | null => {
   try {
     // Procura por fragmento (#) na URL
     const hashIndex = url.indexOf('#');
@@ -124,20 +124,25 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
     throw new Error(`SUPABASE_ERROR:${params.error_code || params.error}:${params.error_description || 'Link inválido ou expirado'}`);
   }
 
+  // Type guard: após verificar que não há erro, garantimos que access_token e refresh_token são strings
+  const accessToken = typeof params.access_token === 'string' ? params.access_token : null;
+  const refreshToken = typeof params.refresh_token === 'string' ? params.refresh_token : null;
+  const type = typeof params.type === 'string' ? params.type : undefined;
+
   console.log('[DeepLinking] Params extraídos:', {
-    hasAccessToken: !!params.access_token,
-    hasRefreshToken: !!params.refresh_token,
-    accessTokenLength: params.access_token?.length,
-    refreshTokenLength: params.refresh_token?.length,
-    type: params.type,
+    hasAccessToken: !!accessToken,
+    hasRefreshToken: !!refreshToken,
+    accessTokenLength: accessToken?.length,
+    refreshTokenLength: refreshToken?.length,
+    type: type,
   });
 
   try {
     console.log('[DeepLinking] Configurando sessão com tokens...');
-    console.log('[DeepLinking] Tipo:', params.type);
+    console.log('[DeepLinking] Tipo:', type);
 
     // Se for uma sessão de recuperação, define a flag para pular busca de user_role
-    if (params.type === 'recovery') {
+    if (type === 'recovery') {
       setIsRecoverySession(true);
       console.log('[DeepLinking] Sessão de recuperação detectada - pulando busca de user_role');
       
@@ -161,9 +166,14 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
     }
 
     // Configura a sessão com os tokens do link
+    if (!accessToken || !refreshToken) {
+      console.error('[DeepLinking] Tokens inválidos ou ausentes');
+      return false;
+    }
+
     const { data, error } = await supabase.auth.setSession({
-      access_token: params.access_token,
-      refresh_token: params.refresh_token,
+      access_token: accessToken,
+      refresh_token: refreshToken,
     });
 
     console.log('[DeepLinking] Resultado setSession:', {

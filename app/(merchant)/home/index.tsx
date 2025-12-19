@@ -59,7 +59,6 @@ const MerchantHomeScreen: React.FC = () => {
     loadBusinessAndServices();
   }, []);
 
-  // Recarregar dados quando a tela receber foco (ex: após reagendamento)
   useFocusEffect(
     useCallback(() => {
       loadBusinessAndServices();
@@ -80,7 +79,6 @@ const MerchantHomeScreen: React.FC = () => {
         return;
       }
 
-      // Buscar business_profile do lojista
       const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
         .select('id, business_name, logo_url, description')
@@ -88,8 +86,6 @@ const MerchantHomeScreen: React.FC = () => {
         .single();
 
       if (businessError || !businessData) {
-        // PGRST116 significa que não há perfil (0 linhas) - isso é esperado durante o cadastro inicial
-        // Não logamos esse erro específico pois é tratado adequadamente
         if (businessError?.code === 'PGRST116') {
           Alert.alert(
             'Perfil não encontrado',
@@ -97,14 +93,12 @@ const MerchantHomeScreen: React.FC = () => {
             [{ text: 'OK', onPress: () => router.push('/(merchant)/profile/edit') }]
           );
         } else if (businessError) {
-          // Só loga erros que não são PGRST116
           console.error('Erro ao buscar negócio:', businessError);
         }
         setLoading(false);
         return;
       }
 
-      // Business ID is not used in this component
       setBusinessProfile(businessData as BusinessProfile);
 
       const { data: servicesData, error: servicesError } = await supabase
@@ -124,7 +118,6 @@ const MerchantHomeScreen: React.FC = () => {
       if (servicesError) {
         console.error('Erro ao buscar serviços:', servicesError);
       } else if (servicesData) {
-        // Buscar ratings para serviços
         const servicesWithRatings = await Promise.all(
           (servicesData as Service[]).map(async (service) => {
             const { data: serviceReviews } = await supabase
@@ -148,11 +141,11 @@ const MerchantHomeScreen: React.FC = () => {
         setServices(servicesWithRatings);
       }
 
-      // Buscar próximos agendamentos (próximos 3)
-      // IMPORTANTE: Buscar um range maior para incluir agendamentos que podem ter sido reagendados
       const today = new Date();
-      const extendedEnd = new Date(today);
-      extendedEnd.setMonth(extendedEnd.getMonth() + 3); // Buscar até 3 meses à frente
+      const startOfToday = new Date(today);
+      startOfToday.setHours(0, 0, 0, 0);
+      const endOfToday = new Date(today);
+      endOfToday.setHours(23, 59, 59, 999);
       
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
@@ -165,22 +158,22 @@ const MerchantHomeScreen: React.FC = () => {
         `,
         )
         .eq('business_id', businessData.id)
-        .gte('start_time', today.toISOString())
-        .lte('start_time', extendedEnd.toISOString())
+        .gte('start_time', startOfToday.toISOString())
+        .lte('start_time', endOfToday.toISOString())
         .order('start_time', { ascending: true })
-        .limit(50); // Buscar mais para depois filtrar os 3 primeiros após aplicar reagendamentos
+        .limit(50);
 
       if (appointmentsError) {
         console.error('Erro ao buscar agendamentos do lojista:', appointmentsError);
       } else if (appointmentsData) {
-        // Aplicar reagendamentos aceitos aos agendamentos PRIMEIRO
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
         
-        // Filtrar apenas agendamentos futuros (após aplicar reagendamentos)
-        const futureAppointments = appointmentsWithReschedules
-          .filter((apt) => new Date(apt.start_time) >= today);
+        const todayAppointments = appointmentsWithReschedules.filter((apt) => {
+          const appointmentDate = new Date(apt.start_time);
+          return appointmentDate >= startOfToday && appointmentDate <= endOfToday;
+        });
         
-        setAppointments(futureAppointments as Appointment[]);
+        setAppointments(todayAppointments as Appointment[]);
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -234,20 +227,8 @@ const MerchantHomeScreen: React.FC = () => {
       hasHeader={true}
       backgroundColor="#FAFAFA"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      footer={
-        <View style={styles.footerContainer}>
-          <CustomButton
-            title="Cadastrar novo serviço"
-            variant="outline"
-            onPress={() => router.push('/(merchant)/services/create')}
-            style={{ borderRadius: 24, height: 48 }}
-            width="100%"
-          />
-        </View>
-      }
       header={<AppHeader showBackButton={false} />}
     >
-        {/* Avatar e Nome do Negócio */}
         <View style={styles.avatarSection}>
           {businessProfile?.logo_url ? (
             <Image
@@ -264,7 +245,6 @@ const MerchantHomeScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Seção Meus Agendamentos */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
           {appointments.length > 0 ? (
@@ -320,7 +300,6 @@ const MerchantHomeScreen: React.FC = () => {
           />
         </View>
 
-        {/* Seção Meus Serviços */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Meus Serviços</Text>
           {services.length > 0 ? (
@@ -339,6 +318,14 @@ const MerchantHomeScreen: React.FC = () => {
           ) : (
             <Text style={styles.emptyServicesText}>Nenhum serviço cadastrado</Text>
           )}
+          
+          <CustomButton
+            title="Cadastrar novo serviço"
+            variant="outline"
+            onPress={() => router.push('/(merchant)/services/create')}
+            style={{ borderRadius: 24, height: 48, marginTop: 16 }}
+            width="100%"
+          />
         </View>
     </ScreenContainer>
   );
@@ -411,16 +398,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
     color: '#0F0F0F',
-    textAlign: 'center',
+    textAlign: 'left',
   },
   servicesCarousel: {
     paddingRight: 24,
-  },
-  footerContainer: {
-    paddingTop: 8,
-    backgroundColor: '#FAFAFA',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
   },
   emptyServicesText: {
     fontSize: 14,

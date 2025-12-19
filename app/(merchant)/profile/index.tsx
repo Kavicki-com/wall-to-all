@@ -19,6 +19,7 @@ import RatingsRowCard from '../../../components/profile/RatingsRowCard';
 import OperatingHoursCard from '../../../components/profile/OperatingHoursCard';
 import PaymentMethodsCard from '../../../components/profile/PaymentMethodsCard';
 import SectionTitle from '../../../components/ui/SectionTitle';
+import { CustomButton } from '../../../components/CustomButton';
 
 type Service = {
   id: string;
@@ -35,7 +36,6 @@ type ReviewStats = {
   total_reviews: number;
 };
 
-
 const MerchantProfileScreen: React.FC = () => {
   const router = useRouter();
   const { businessProfile, loading: profileLoading } = useBusinessProfile();
@@ -43,7 +43,6 @@ const MerchantProfileScreen: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [reviewStats, setReviewStats] = useState<ReviewStats>({ average_rating: 0, total_reviews: 0 });
 
-  // Carregar dados quando o perfil do negócio estiver disponível
   React.useEffect(() => {
     if (businessProfile && !profileLoading) {
       loadBusinessData();
@@ -65,9 +64,6 @@ const MerchantProfileScreen: React.FC = () => {
         return;
       }
 
-      // Perfil do negócio agora vem do BusinessProfileContext, não precisa buscar aqui
-
-      // Buscar serviços do negócio
       if (businessProfile) {
         const { data: servicesData, error: servicesError } = await supabase
           .from('services')
@@ -77,12 +73,8 @@ const MerchantProfileScreen: React.FC = () => {
 
         if (servicesError) {
           console.error('Erro ao buscar serviços:', servicesError);
-        } else if (servicesData) {
-          // Os serviços serão atualizados com ratings abaixo
-          // setServices(servicesData as Service[]);
         }
 
-        // Buscar estatísticas de avaliações do negócio
         const { data: reviewsData, error: reviewsError } = await supabase
           .from('reviews')
           .select('rating')
@@ -100,7 +92,6 @@ const MerchantProfileScreen: React.FC = () => {
           });
         }
 
-        // Buscar avaliações por serviço para calcular ratings individuais
         if (servicesData) {
           const servicesWithRatings = await Promise.all(
             (servicesData as Service[]).map(async (service) => {
@@ -192,7 +183,6 @@ const MerchantProfileScreen: React.FC = () => {
         horizontalPadding={0}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Top section: Hero and Ratings */}
         <View style={styles.topSection}>
           <ProfileHero
             bannerUrl={businessProfile.banner_url || null}
@@ -206,11 +196,11 @@ const MerchantProfileScreen: React.FC = () => {
             priceRange={priceRange}
           />
         </View>
-        {/* Operating hours */}
+
         <OperatingHoursCard hours={formatWorkDays(businessProfile.work_days || null)} />
-        {/* Accepted payment methods */}
+        
         <PaymentMethodsCard methods={paymentMethods} />
-        {/* Edit Profile Button */}
+        
         <TouchableOpacity
           style={styles.editProfileButton}
           activeOpacity={0.8}
@@ -218,7 +208,7 @@ const MerchantProfileScreen: React.FC = () => {
         >
           <Text style={styles.editProfileButtonText}>Editar Perfil</Text>
         </TouchableOpacity>
-        {/* Services section */}
+
         <View style={styles.servicesSection}>
           <SectionTitle>Serviços</SectionTitle>
           {services.length > 0 ? (
@@ -232,15 +222,22 @@ const MerchantProfileScreen: React.FC = () => {
           ) : (
             <Text style={styles.emptyServicesText}>Nenhum serviço cadastrado</Text>
           )}
-          {/* Add Service Button */}
-          <TouchableOpacity
-            style={styles.addServiceButton}
-            activeOpacity={0.8}
-            onPress={() => router.push('/(merchant)/services/create')}
-          >
-            <Text style={styles.addServiceButtonText}>Cadastrar novo serviço</Text>
-          </TouchableOpacity>
         </View>
+
+        {/* Spacer para empurrar o botão para o fundo se houver espaço */}
+        <View style={{ flex: 1 }} />
+        
+        {/* Container do botão fora da servicesSection */}
+        <View style={styles.footerButtonContainer}>
+          <CustomButton
+            title="Cadastrar novo serviço"
+            variant="outline"
+            onPress={() => router.push('/(merchant)/services/create')}
+            style={{ borderRadius: 24, height: 48 }}
+            width="100%"
+          />
+        </View>
+
       </ScreenContainer>
     </View>
   );
@@ -280,25 +277,11 @@ const styles = StyleSheet.create({
   },
   servicesSection: {
     marginHorizontal: 24,
-    marginBottom: 6,
+    // Removido marginBottom grande daqui para controlar no footer
+    marginBottom: 8,
   },
   serviceCard: {
     width: '100%',
-  },
-  addServiceButton: {
-    borderWidth: 1,
-    borderColor: '#000E3D',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  addServiceButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
   },
   emptyServicesText: {
     fontSize: 14,
@@ -313,5 +296,10 @@ const styles = StyleSheet.create({
     color: '#E5102E',
     textAlign: 'center',
     marginTop: 24,
+  },
+  footerButtonContainer: {
+    paddingHorizontal: 24,
+    marginTop: 32,
+    marginBottom: 16,
   },
 });

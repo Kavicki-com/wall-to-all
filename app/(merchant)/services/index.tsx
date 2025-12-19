@@ -163,6 +163,7 @@ const MerchantServicesScreen: React.FC = () => {
       scroll={false} 
       backgroundColor="#FAFAFA" 
       hasHeader={true}
+      horizontalPadding={24}
       header={
         <AppHeader 
           showBackButton={true}
@@ -194,7 +195,9 @@ const MerchantServicesScreen: React.FC = () => {
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
-            <IconSearch size={20} color="#0F0F0F" />
+            <View style={styles.searchIconContainer}>
+              <IconSearch size={20} color="#0F0F0F" />
+            </View>
           </View>
         </View>
 
@@ -239,16 +242,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   
-  // --- HEADER (Ajustado posicionamento e tamanho da busca) ---
+  // --- HEADER ---
   headerSection: {
-    paddingTop: 0, // Conteúdo começa imediatamente após o header
-    paddingBottom: 16, // Reduzido para aproximar os cards da barra de busca
+    paddingTop: 0,
+    paddingBottom: 16,
   },
   title: {
-    fontSize: 16,
+    fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
     color: '#E5102E',
-    marginTop: 24, // Espaço consistente após o header
+    marginTop: 0,
     marginBottom: 16,
   },
   searchBarContainer: {
@@ -256,25 +259,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    paddingHorizontal: 16, // Padding interno lateral
-    height: 56, // Aumentada a altura da barra
-    borderRadius: 4,
+    paddingHorizontal: 16,
+    height: 56,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#474747',
-    backgroundColor: 'transparent',
+    borderColor: '#DCDCDC',
+    backgroundColor: '#FFFFFF',
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
     color: '#0F0F0F',
-    marginRight: 8,
-    height: '100%', // Garante que o input ocupe toda a altura
+    paddingRight: 12,
+    height: '100%',
+  },
+  searchIconContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   // --- LISTA ---
   listSection: {
-    flex: 1, // Ocupa o espaço central
+    flex: 1,
   },
   listContent: {
     paddingBottom: 20,
@@ -296,8 +303,7 @@ const styles = StyleSheet.create({
   // --- FOOTER ---
   footerContainer: {
     paddingTop: 16,
+    paddingBottom: 32,
     backgroundColor: '#FAFAFA',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
   },
 });

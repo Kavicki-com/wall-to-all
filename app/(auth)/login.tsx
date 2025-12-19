@@ -28,7 +28,7 @@ const LoginScreen: React.FC = () => {
   const router = useRouter();
   const { session } = useAuth();
   const { showError, showSuccess } = useToast();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const horizontalPadding = width >= 768 ? 24 : 16;
 
   const [email, setEmail] = useState('');
@@ -103,7 +103,6 @@ const LoginScreen: React.FC = () => {
       return;
     }
 
-    // Validação básica de formato de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       setError('E-mail inválido. Verifique o formato.');
@@ -119,7 +118,6 @@ const LoginScreen: React.FC = () => {
 
     try {
       setResettingPassword(true);
-      // URL de redirecionamento usando o scheme do app
       const redirectUrl = 'walltoall://reset-password';
       
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
@@ -134,7 +132,6 @@ const LoginScreen: React.FC = () => {
         return;
       }
 
-      // Sucesso - mostra mensagem informativa
       const successMessage = 'E-mail de recuperação enviado! Verifique sua caixa de entrada.';
       setInfo(successMessage);
       showSuccess(successMessage);
@@ -148,7 +145,6 @@ const LoginScreen: React.FC = () => {
   };
 
   const handleGooglePress = async () => {
-    // Lógica do Google...
   };
 
   return (
@@ -159,76 +155,77 @@ const LoginScreen: React.FC = () => {
         end={{ x: 0, y: 0 }}
         style={styles.gradient}
       >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <KeyboardAvoidingView
-            style={styles.keyboardContainer}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {/* Logo */}
-            <View style={styles.logoContainer}>
-              <LogoWallToAll width={66.4} height={40} />
-              <LogoWallToAllTypography width={66.4} height={40} />
-            </View>
-
-            {/* Container Mestre: Largura fluida com padding responsivo */}
-            <View style={[styles.contentContainer, { paddingHorizontal: horizontalPadding }]}>
-              
-              {/* Formulário */}
-              <View style={styles.inputsWrapper}>
-                <CustomInput
-                  label="Usuário"
-                  placeholder="seu@email.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={setEmail}
-                  rightIcon={<IconAccountCircle width={20} height={20} />}
-                  labelStyle={styles.label}
-                  containerStyle={{ marginBottom: 0 }}
-                />
-
-                <View>
-                  <CustomInput
-                    label="Senha"
-                    placeholder="***********"
-                    isPassword
-                    value={password}
-                    onChangeText={setPassword}
-                    labelStyle={styles.label}
-                    containerStyle={{ marginBottom: 4 }}
-                  />
-                  <TouchableOpacity 
-                    onPress={handleForgotPasswordPress} 
-                    activeOpacity={0.7} 
-                    style={styles.forgotPasswordButton}
-                    disabled={resettingPassword}
-                  >
-                    <Text style={[
-                      styles.forgotPasswordText,
-                      resettingPassword && styles.forgotPasswordTextDisabled
-                    ]}>
-                      {resettingPassword ? 'Enviando...' : 'Esqueceu sua senha?'}
-                    </Text>
-                  </TouchableOpacity>
+            <View style={[
+              styles.mainContainer, 
+              { 
+                paddingHorizontal: horizontalPadding,
+                minHeight: height * 0.9 
+              }
+            ]}>
+              <View style={styles.topSection}>
+                <View style={styles.logoContainer}>
+                  <LogoWallToAll width={66.4} height={40} />
+                  <LogoWallToAllTypography width={66.4} height={40} />
                 </View>
+
+                <View style={styles.inputsWrapper}>
+                  <CustomInput
+                    label="Usuário"
+                    placeholder="seu@email.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={email}
+                    onChangeText={setEmail}
+                    rightIcon={<IconAccountCircle width={20} height={20} />}
+                    labelStyle={styles.label}
+                    containerStyle={{ marginBottom: 0 }}
+                  />
+
+                  <View>
+                    <CustomInput
+                      label="Senha"
+                      placeholder="***********"
+                      isPassword
+                      value={password}
+                      onChangeText={setPassword}
+                      labelStyle={styles.label}
+                      containerStyle={{ marginBottom: 4 }}
+                    />
+                    <TouchableOpacity 
+                      onPress={handleForgotPasswordPress} 
+                      activeOpacity={0.7} 
+                      style={styles.forgotPasswordButton}
+                      disabled={resettingPassword}
+                    >
+                      <Text style={[
+                        styles.forgotPasswordText,
+                        resettingPassword && styles.forgotPasswordTextDisabled
+                      ]}>
+                        {resettingPassword ? 'Enviando...' : 'Esqueceu sua senha?'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {(error || info) && (
+                  <View style={styles.messageContainer}>
+                    <Text style={error ? styles.errorText : styles.infoText}>
+                      {error || info}
+                    </Text>
+                  </View>
+                )}
               </View>
 
-              {(error || info) && (
-                <View style={styles.messageContainer}>
-                  <Text style={error ? styles.errorText : styles.infoText}>
-                    {error || info}
-                  </Text>
-                </View>
-              )}
-
-              {/* Ações: Aqui garantimos o comprimento igual */}
-              <View style={styles.actionsContainer}>
-                
-                {/* 1. Entrar: VERMELHO e LARGURA TOTAL */}
+              <View style={styles.bottomSection}>
                 <CustomButton
                   title="Entrar"
                   onPress={handleLogin}
@@ -239,7 +236,6 @@ const LoginScreen: React.FC = () => {
                   style={styles.buttonSpacing}
                 />
 
-                {/* 2. Registrar: LARGURA TOTAL */}
                 <CustomButton
                   title="Registrar"
                   onPress={handleGoToSignup}
@@ -248,7 +244,6 @@ const LoginScreen: React.FC = () => {
                   style={styles.buttonSpacing}
                 />
 
-                {/* 3. Google: LARGURA TOTAL */}
                 <CustomButton
                   title="Continue with Google"
                   onPress={handleGooglePress}
@@ -260,8 +255,8 @@ const LoginScreen: React.FC = () => {
                 />
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </LinearGradient>
     </View>
   );
@@ -279,14 +274,23 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
   },
-  keyboardContainer: {
+  mainContainer: {
     flex: 1,
+    justifyContent: 'space-between',
+    paddingVertical: 32,
+  },
+  topSection: {
+    flex: 1,
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 32,
     gap: 32,
+  },
+  bottomSection: {
+    width: '100%',
+    gap: 16,
+    marginBottom: 16,
   },
   logoContainer: {
     width: 88,
@@ -300,11 +304,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  contentContainer: {
-    width: '100%',
-    gap: 24,
-  },
   inputsWrapper: {
+    width: '100%',
     gap: 20,
   },
   label: {
@@ -329,6 +330,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 16,
   },
   errorText: {
     color: '#E5102E',
@@ -342,17 +344,13 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_400Regular',
     textAlign: 'center',
   },
-  actionsContainer: {
-    width: '100%',
-    gap: 16,
-    marginTop: 8,
-  },
   buttonSpacing: {
     marginVertical: 0,
   },
   googleButtonOverride: {
     backgroundColor: '#FEFEFE',
     borderColor: '#FEFEFE',
+    borderRadius: 8,
   },
   googleButtonText: {
     color: '#4A4A4A',

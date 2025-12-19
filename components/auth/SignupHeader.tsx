@@ -1,5 +1,4 @@
 import React from 'react';
-
 import {
   View,
   Text,
@@ -7,16 +6,13 @@ import {
   StyleProp,
   ViewStyle,
   TouchableOpacity,
-  useWindowDimensions,
 } from 'react-native';
-
 import Svg, {
   Defs,
   RadialGradient as SvgRadialGradient,
   Stop,
   Rect,
 } from 'react-native-svg';
-
 import { Icon } from '../ui/Icon';
 
 type SignupHeaderProps = {
@@ -40,8 +36,6 @@ const SignupHeader: React.FC<SignupHeaderProps> = ({
   showBackButton = false,
   onPressBack,
 }) => {
-  const { width } = useWindowDimensions();
-  const horizontalPadding = width >= 768 ? 24 : 16;
   const hasSteps = !!steps && steps.length > 0;
 
   return (
@@ -68,7 +62,7 @@ const SignupHeader: React.FC<SignupHeaderProps> = ({
               <SvgRadialGradient
                 id="signupHeaderRadialGradient"
                 cx="0.5"
-                cy="0.3"
+                cy="0.59"
                 rx="100%"
                 ry="100%"
                 gradientUnits="objectBoundingBox"
@@ -80,14 +74,14 @@ const SignupHeader: React.FC<SignupHeaderProps> = ({
             <Rect
               x="0"
               y="0"
-              width="390"
-              height="129"
+              width="100%"
+              height="100%"
               fill="url(#signupHeaderRadialGradient)"
             />
           </Svg>
         </View>
 
-        <View style={[styles.gradientContent, { paddingHorizontal: horizontalPadding }]}>
+        <View style={styles.gradientContent}>
           <View style={styles.headerRow}>
             {showBackButton && (
               <TouchableOpacity
@@ -99,12 +93,13 @@ const SignupHeader: React.FC<SignupHeaderProps> = ({
                   name="chevron_backward"
                   family="MaterialSymbols"
                   size={24}
-                  color="#FFFFFF"
+                  color="#FEFEFE"
+                  style={styles.chevronIcon}
                 />
               </TouchableOpacity>
             )}
 
-            <View style={styles.headerTextWrapper}>
+            <View style={[styles.headerTextWrapper, !showBackButton && { marginLeft: 24 }]}>
               <Text style={styles.title}>{title}</Text>
               {subtitle ? (
                 <Text style={styles.subtitle}>{subtitle}</Text>
@@ -115,7 +110,7 @@ const SignupHeader: React.FC<SignupHeaderProps> = ({
       </View>
 
       {hasSteps && (
-        <View style={[styles.stepsContainer, { paddingHorizontal: horizontalPadding }]}>
+        <View style={styles.stepsContainer}>
           {steps!.map((label, index) => {
             const isActive = index === currentStepIndex;
 
@@ -158,6 +153,7 @@ const styles = StyleSheet.create({
   gradientContainer: {
     overflow: 'hidden',
     backgroundColor: '#000E3D',
+    height: 129,
   },
   cardGradientContainer: {
     borderRadius: 16,
@@ -169,31 +165,58 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   gradientContent: {
-    paddingTop: 32,
-    paddingBottom: 24,
+    height: 129,
+    paddingTop: 45,
+    paddingBottom: 25,
+    paddingLeft: 0,
+    paddingRight: 24,
+    justifyContent: 'center',
+    position: 'relative',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    paddingLeft: 0,
   },
   backButton: {
-    marginRight: 12,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    width: 24,
+    height: 24,
+    padding: 0,
+    margin: 0,
+    marginLeft: 24,
+    overflow: 'visible',
+  },
+  chevronIcon: {
+    marginLeft: 0,
+    marginRight: 0,
+    padding: 0,
+    lineHeight: 24,
+    textAlign: 'left',
+    includeFontPadding: false,
   },
   headerTextWrapper: {
     flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    gap: 4,
   },
   title: {
-    color: '#FFFFFF',
+    fontFamily: 'Montserrat_700Bold',
     fontSize: 20,
-    fontWeight: '700',
+    color: '#FEFEFE',
+    lineHeight: 24,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    marginTop: 8,
-    color: '#FFFFFF',
+    fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
-    fontWeight: '400',
+    color: '#FEFEFE',
+    lineHeight: 20,
+    opacity: 0.9,
   },
   stepsContainer: {
     flexDirection: 'row',
@@ -202,6 +225,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingTop: 16,
     paddingBottom: 12,
+    paddingHorizontal: 24,
     backgroundColor: '#FFFFFF',
   },
   stepItem: {
@@ -218,12 +242,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5102E',
   },
   stepLabel: {
+    fontFamily: 'Montserrat_400Regular',
     fontSize: 12,
     color: '#9E9E9E',
   },
   stepLabelActive: {
+    fontFamily: 'Montserrat_600SemiBold',
     color: '#101828',
-    fontWeight: '600',
   },
 });
 

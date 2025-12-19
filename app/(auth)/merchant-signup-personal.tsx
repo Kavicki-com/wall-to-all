@@ -186,7 +186,7 @@ const MerchantSignupPersonalScreen: React.FC = () => {
           steps={['Cadastro', 'Endereço', 'Negócio', 'Serviços']}
           currentStepIndex={0}
           showBackButton={true}
-          onPressBack={() => safeGoBack('/(auth)/signup')}
+          onPressBack={() => safeGoBack('/(auth)/user-type-selection')}
         />
       }
     >
