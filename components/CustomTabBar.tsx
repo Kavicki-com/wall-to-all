@@ -53,7 +53,11 @@ export const CustomTabBar: React.FC<TabBarProps> = (props) => {
       {visibleRoutes.map((route) => {
         const routeIndex = state.routes.findIndex((r) => r.key === route.key);
         const { options } = descriptors[route.key];
-        const isFocused = state.index === routeIndex;
+        const isScheduleRoute = nestedRouteName?.startsWith('schedule/');
+        const isAppointmentsTab = route.name === 'appointments/index';
+        const isFocused = isScheduleRoute && isAppointmentsTab 
+          ? true 
+          : state.index === routeIndex;
         const tabItem = tabs.find((t) => t.route === route.name);
 
         if (!tabItem) return null;

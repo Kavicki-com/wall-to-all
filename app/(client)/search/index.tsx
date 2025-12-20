@@ -247,7 +247,6 @@ const styles = StyleSheet.create({
   searchBarContainer: {
     paddingHorizontal: 0,
     marginTop: 0,
-    marginBottom: 8,
   },
 
   dropdownContainer: {

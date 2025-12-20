@@ -109,6 +109,11 @@ const SearchResultsScreen: React.FC = () => {
 
       setSelectedCategoryId(categoryId);
 
+      // Verificar se o termo de busca é igual ao nome da categoria
+      // Se for, tratar como busca apenas por categoria (não filtrar por nome)
+      const isCategoryOnlySearch = selectedCategory && 
+        trimmedSearch.toLowerCase().trim() === selectedCategory.toLowerCase().trim();
+
       // Se não houver busca nem categoria, limpar
       if (!trimmedSearch && !categoryId) {
         setBusinesses([]);
@@ -132,16 +137,17 @@ const SearchResultsScreen: React.FC = () => {
         serviceQuery = serviceQuery.eq('category_id', categoryId);
       }
 
-      if (trimmedSearch) {
+      // Só aplicar filtro de nome se não for uma busca apenas por categoria
+      if (trimmedSearch && !isCategoryOnlySearch) {
         serviceQuery = serviceQuery.ilike('name', `%${trimmedSearch}%`);
       }
 
       const svcRes = await serviceQuery.limit(10);
 
-      // Se houver termo de busca, buscar negócios que têm serviços com esse termo
+      // Se houver termo de busca (e não for busca apenas por categoria), buscar negócios que têm serviços com esse termo
       // Se não houver termo mas houver categoria, buscar todos os negócios da categoria
       let businessIds: string[] = [];
-      if (trimmedSearch && svcRes.data) {
+      if (trimmedSearch && !isCategoryOnlySearch && svcRes.data) {
         // Pegar business_ids únicos dos serviços encontrados
         businessIds = [
           ...new Set(
@@ -150,8 +156,8 @@ const SearchResultsScreen: React.FC = () => {
               .filter(Boolean),
           ),
         ];
-      } else if (!trimmedSearch && categoryId && svcRes.data) {
-        // Se só tiver categoria, pegar business_ids dos serviços da categoria
+      } else if ((!trimmedSearch || isCategoryOnlySearch) && categoryId && svcRes.data) {
+        // Se só tiver categoria (ou for busca apenas por categoria), pegar business_ids dos serviços da categoria
         businessIds = [
           ...new Set(
             (svcRes.data as any[])
@@ -170,15 +176,15 @@ const SearchResultsScreen: React.FC = () => {
       `,
       );
 
-      if (trimmedSearch && businessIds.length > 0) {
-        // Se houver termo de busca, buscar apenas negócios que têm serviços com esse termo
+      if (trimmedSearch && !isCategoryOnlySearch && businessIds.length > 0) {
+        // Se houver termo de busca (e não for busca apenas por categoria), buscar apenas negócios que têm serviços com esse termo
         businessQuery = businessQuery.in('id', businessIds);
         // Se também houver categoria, filtrar por categoria também
         if (categoryId) {
           businessQuery = businessQuery.eq('category_id', categoryId);
         }
-      } else if (!trimmedSearch && categoryId) {
-        // Se não houver termo mas houver categoria, buscar por categoria diretamente
+      } else if ((!trimmedSearch || isCategoryOnlySearch) && categoryId) {
+        // Se não houver termo mas houver categoria (ou for busca apenas por categoria), buscar por categoria diretamente
         businessQuery = businessQuery.eq('category_id', categoryId);
       } else if (!trimmedSearch && !categoryId) {
         // Se não houver nem termo nem categoria, não buscar negócios
@@ -327,6 +333,7 @@ const SearchResultsScreen: React.FC = () => {
           onPressFilter={() => {
             // abrir painel de filtros quando existir
           }}
+          containerStyle={{ width: '100%', paddingHorizontal: 0 }}
         />
       </View>
 
@@ -443,6 +450,7 @@ const styles = StyleSheet.create({
   // Horizontal row de BusinessCards
   businessRow: {
     paddingRight: 24,
+    paddingBottom: 16,
   },
   businessWrapper: {
     marginRight: 16,

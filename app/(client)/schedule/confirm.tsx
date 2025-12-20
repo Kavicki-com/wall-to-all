@@ -310,27 +310,13 @@ const ScheduleConfirmScreen: React.FC = () => {
       hasHeader={true}
       hasTabBar={true}
       backgroundColor="#FAFAFA"
+      horizontalPadding={0}
       contentContainerStyle={styles.scrollContent}
       header={
         <AppHeader
           showBackButton={true}
           onPressBack={() => safeGoBack('/(client)/home')}
         />
-      }
-      footer={
-        <View style={styles.footerContainer}>
-          <CustomButton
-            compact
-            title="Agendar"
-            onPress={handleConfirm}
-            isLoading={submitting}
-            disabled={submitting}
-            variant="primary"
-            accessibilityLabel="Confirmar agendamento"
-            accessibilityHint="Confirma o agendamento com o método de pagamento escolhido"
-            accessibilityState={{ disabled: submitting }}
-          />
-        </View>
       }
     >
       {service && business && (
@@ -348,7 +334,7 @@ const ScheduleConfirmScreen: React.FC = () => {
           observations={observations}
           onChangeObservations={setObservations}
           onConfirm={handleConfirm}
-          showConfirmButton={false}
+          showConfirmButton={true}
         />
       )}
 
@@ -357,8 +343,8 @@ const ScheduleConfirmScreen: React.FC = () => {
         visible={showSuccessModal}
         onClose={() => {
           setShowSuccessModal(false);
-          // Redirecionar para a tela de agendamentos do cliente após confirmar agendamento
-          router.replace('/(client)/appointments');
+          // Redirecionar para a home do cliente após confirmar agendamento
+          router.replace('/(client)/home');
         }}
       />
     </ScreenContainer>
@@ -377,14 +363,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 0,
-    paddingTop: 16,
-    alignItems: 'center',
-  },
-  footerContainer: {
-    backgroundColor: '#FEFEFE',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
+    paddingTop: 0,
+    paddingBottom: 64,
   },
 });
 

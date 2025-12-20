@@ -115,10 +115,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   footerContainer: {
-    backgroundColor: '#FEFEFE',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
+    backgroundColor: 'transparent',
+    paddingTop: 12,
   },
 });
 

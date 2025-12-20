@@ -17,6 +17,7 @@ import { PillGrid, PillItem } from '../../../../components/appointments/PillGrid
 import { InlineLink } from '../../../../components/appointments/InlineLink';
 import { format } from 'date-fns';
 import { useSafeGoBack } from '../../../../lib/router-utils';
+import { applyAcceptedReschedules } from '../../../../lib/utils';
 
 type Appointment = {
   id: string;
@@ -327,7 +328,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       // Limite de 50 appointments por dia (suficiente para verificar conflitos)
       const { data: existingAppointments } = await supabase
         .from('appointments')
-        .select('start_time, end_time')
+        .select('id, start_time, end_time')
         .eq('business_id', appointment.business_id)
         .gte('start_time', `${dateString}T00:00:00`)
         .lt('start_time', `${dateString}T23:59:59`)
@@ -352,6 +353,11 @@ const MerchantRescheduleScreen: React.FC = () => {
       } else {
         console.log('[Reschedule] NENHUM appointment existente encontrado para esta data!');
       }
+
+      // Aplicar reagendamentos aceitos aos appointments existentes
+      const appointmentsWithReschedules = existingAppointments 
+        ? await applyAcceptedReschedules(existingAppointments)
+        : [];
 
       // duration_minutes deve estar em minutos
       let serviceDuration = appointment.service.duration_minutes || 60;
@@ -393,7 +399,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       const slots = generateTimeSlots(
         startTime,
         endTime,
-        existingAppointments || [],
+        appointmentsWithReschedules || [],
         serviceDuration,
         dateString,
         lunchBreakStart,
@@ -456,17 +462,20 @@ const MerchantRescheduleScreen: React.FC = () => {
       const aptStartHour = aptStart.getHours();
       const aptEndHour = aptEnd.getHours();
       
-      // Marcar todas as horas ocupadas pelo appointment
-      // Se um appointment vai de 9:00 a 11:00, marcar horas 9 e 10 como ocupadas
-      for (let hour = aptStartHour; hour < aptEndHour; hour++) {
-        occupiedHours.add(hour);
-      }
+      // Marcar todas as horas que, se um serviço começar nelas, se sobreporiam com este appointment
+      // Se um appointment está de 9:00 a 11:00 e o serviço dura 2h,
+      // então qualquer slot de 7:00 até 10:59 se sobreporia
+      // (serviço de 7:00-9:00, 8:00-10:00, 9:00-11:00, 10:00-12:00)
+      const minSlotHour = Math.max(startHour, aptStartHour - serviceDurationHours + 1);
+      const maxSlotHour = Math.min(endHour, aptEndHour);
       
-      // Também marcar horas que, se um serviço começar nelas, se sobreporiam
-      // Se um serviço de 2h começar em 8:00 e o appointment está em 9:00-11:00,
-      // então 8:00 também está ocupado
-      for (let hour = aptStartHour - serviceDurationHours + 1; hour < aptStartHour; hour++) {
-        if (hour >= startHour && hour < aptEndHour) {
+      for (let hour = minSlotHour; hour < maxSlotHour; hour++) {
+        // Verificar se um serviço começando nesta hora se sobreporia com o appointment
+        const serviceStart = new Date(`${dateString}T${String(hour).padStart(2, '0')}:00:00`);
+        const serviceEnd = new Date(serviceStart);
+        serviceEnd.setMinutes(serviceEnd.getMinutes() + serviceDuration);
+        
+        if (serviceStart.getTime() < aptEnd.getTime() && serviceEnd.getTime() > aptStart.getTime()) {
           occupiedHours.add(hour);
         }
       }
@@ -474,8 +483,8 @@ const MerchantRescheduleScreen: React.FC = () => {
 
     let currentHour = startHour;
 
-    // Gerar slots até o final do expediente (incluindo o último horário possível)
-    while (currentHour <= endHour) {
+    // Gerar slots apenas dentro do horário de funcionamento
+    while (currentHour < endHour) {
       const timeString = `${String(currentHour).padStart(2, '0')}:00`;
       let type: 'available' | 'occupied' | 'lunch' = 'available';
 

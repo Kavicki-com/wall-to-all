@@ -61,7 +61,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
   },
   modalContainer: {
     backgroundColor: '#FEFEFE',
@@ -76,6 +75,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.24,
     shadowRadius: 16,
     elevation: 8,
+    marginHorizontal: 24,
   },
   iconContainer: {
     width: 67,

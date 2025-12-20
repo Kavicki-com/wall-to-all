@@ -224,10 +224,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   footerContainer: {
-    backgroundColor: '#FEFEFE',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
+    backgroundColor: 'transparent',
+    paddingTop: 12,
+    paddingBottom: 32,
   },
 });
 

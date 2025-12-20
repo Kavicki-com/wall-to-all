@@ -4,6 +4,7 @@ import { IconPix, IconCreditCard, IconCash } from '../../lib/icons';
 import { CustomButton } from '../CustomButton';
 import { CustomRadioButton } from './CustomRadioButton';
 import { Card } from './Card';
+import { Icon } from './Icon';
 
 interface ScheduleConfirmCardProps {
   serviceName: string;
@@ -41,89 +42,91 @@ const ScheduleConfirmCard: React.FC<ScheduleConfirmCardProps> = ({
 
   return (
     <View style={styles.mainCard}>
-      {/* Appointment Details */}
-      <View style={styles.appointmentDetails}>
-        <Text style={styles.dateTimeText}>{dateTime}</Text>
-        <Text style={styles.serviceName}>{serviceName}</Text>
-        <Text style={styles.priceText}>
-          R$ {price.toFixed(2).replace('.', ',')}
-        </Text>
-      </View>
+      <View style={styles.contentContainer}>
+        {/* Appointment Details */}
+        <View style={styles.appointmentDetails}>
+          <Text style={styles.dateTimeText}>{dateTime}</Text>
+          <Text style={styles.serviceName}>{serviceName}</Text>
+          <Text style={styles.priceText}>
+            R$ {price.toFixed(2).replace('.', ',')}
+          </Text>
+        </View>
 
-      {/* Business Info */}
-      <View style={styles.businessInfo}>
-        <View style={styles.businessHeader}>
-          {logoUrl ? (
-            <Image
-              source={{ uri: logoUrl }}
-              style={styles.businessAvatar}
-            />
-          ) : (
-            <View style={[styles.businessAvatar, styles.placeholderAvatar]} />
+        {/* Business Info */}
+        <View style={styles.businessInfo}>
+          <View style={styles.businessHeader}>
+            {logoUrl ? (
+              <Image
+                source={{ uri: logoUrl }}
+                style={styles.businessAvatar}
+              />
+            ) : (
+              <View style={[styles.businessAvatar, styles.placeholderAvatar]} />
+            )}
+            <Text style={styles.businessName}>{businessName}</Text>
+          </View>
+          {address && (
+            <Card variant="secondary" padding={16}>
+              <Text style={styles.addressText}>{address}</Text>
+            </Card>
           )}
-          <Text style={styles.businessName}>{businessName}</Text>
         </View>
-        {address && (
-          <Card variant="secondary" padding={16}>
-            <Text style={styles.addressText}>{address}</Text>
-          </Card>
-        )}
-      </View>
 
-      {/* Payment Method */}
-      <View style={styles.paymentSection}>
-        <Text style={styles.paymentTitle}>Selecione o método de pagamento</Text>
-        <View style={styles.paymentMethodsRow}>
-          <CustomRadioButton
-            label="PIX"
-            selected={paymentMethod === 'pix'}
-            onPress={() => onChangePaymentMethod('pix')}
-            leftIcon={<IconPix size={24} color="#000E3D" />}
-            value="pix"
-          />
-          <CustomRadioButton
-            label="Cartão"
-            selected={paymentMethod === 'card'}
-            onPress={() => onChangePaymentMethod('card')}
-            leftIcon={<IconCreditCard size={24} color="#000E3D" />}
-            value="card"
-          />
-          <CustomRadioButton
-            label="Dinheiro"
-            selected={paymentMethod === 'cash'}
-            onPress={() => onChangePaymentMethod('cash')}
-            leftIcon={<IconCash size={24} color="#000E3D" />}
-            value="cash"
-          />
+        {/* Payment Method */}
+        <View style={styles.paymentSection}>
+          <Text style={styles.paymentTitle}>Selecione o método de pagamento</Text>
+          <View style={styles.paymentMethodsRow}>
+            <CustomRadioButton
+              label="PIX"
+              selected={paymentMethod === 'pix'}
+              onPress={() => onChangePaymentMethod('pix')}
+              leftIcon={<IconPix size={24} color="#000E3D" />}
+              value="pix"
+            />
+            <CustomRadioButton
+              label="Cartão"
+              selected={paymentMethod === 'card'}
+              onPress={() => onChangePaymentMethod('card')}
+              leftIcon={<IconCreditCard size={24} color="#000E3D" />}
+              value="card"
+            />
+            <CustomRadioButton
+              label="Dinheiro"
+              selected={paymentMethod === 'cash'}
+              onPress={() => onChangePaymentMethod('cash')}
+              leftIcon={<IconCash size={24} color="#000E3D" />}
+              value="cash"
+            />
+          </View>
         </View>
-      </View>
 
-      {/* Observations */}
-      <View style={styles.observationsContainer}>
-        <Text style={styles.observationsLabel}>Observações</Text>
-        <View style={[
-          styles.textInputContainer,
-          {
-            borderColor: isObservationsFocused ? '#000E3D' : '#474747',
-            borderWidth: isObservationsFocused ? 2 : 1,
-          }
-        ]}>
-          <TextInput
-            style={[styles.textInput, { height: Math.max(80, textInputHeight) }]}
-            placeholder="Gostaria de sugerir um novo horário pois terei uma consulta médica nesse horário solicitado."
-            placeholderTextColor="#9CA3AF"
-            value={observations}
-            onChangeText={onChangeObservations}
-            multiline
-            textAlignVertical="top"
-            onFocus={() => setIsObservationsFocused(true)}
-            onBlur={() => setIsObservationsFocused(false)}
-            onContentSizeChange={(event) => {
-              const newHeight = event.nativeEvent.contentSize.height;
-              // Adiciona padding vertical (16 * 2 = 32) para manter o espaçamento
-              setTextInputHeight(newHeight + 32);
-            }}
-          />
+        {/* Observations */}
+        <View style={styles.observationsContainer}>
+          <Text style={styles.observationsLabel}>Observações</Text>
+          <View style={[
+            styles.textInputContainer,
+            {
+              borderColor: isObservationsFocused ? '#000E3D' : '#474747',
+              borderWidth: isObservationsFocused ? 2 : 1,
+            }
+          ]}>
+            <TextInput
+              style={[styles.textInput, { height: Math.max(80, textInputHeight) }]}
+              placeholder="Gostaria de sugerir um novo horário pois terei uma consulta médica nesse horário solicitado."
+              placeholderTextColor="#9CA3AF"
+              value={observations}
+              onChangeText={onChangeObservations}
+              multiline
+              textAlignVertical="top"
+              onFocus={() => setIsObservationsFocused(true)}
+              onBlur={() => setIsObservationsFocused(false)}
+              onContentSizeChange={(event) => {
+                const newHeight = event.nativeEvent.contentSize.height;
+                // Adiciona padding vertical (16 * 2 = 32) para manter o espaçamento
+                setTextInputHeight(newHeight + 32);
+              }}
+            />
+          </View>
         </View>
       </View>
 
@@ -137,6 +140,7 @@ const ScheduleConfirmCard: React.FC<ScheduleConfirmCardProps> = ({
           variant="outline"
           style={{ borderRadius: 24, marginVertical: 0 }}
           width="100%"
+          rightIcon={<Icon name="check_circle" family="MaterialSymbols" size={24} color="#000E3D" />}
         />
       )}
     </View>
@@ -151,14 +155,19 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     padding: 24,
-    marginTop: 0,
+    marginTop: -16,
     marginHorizontal: 0,
     width: '100%',
+    flexGrow: 1,
     shadowColor: '#1D1D1D',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.16,
     shadowRadius: 16,
     elevation: 4,
+    gap: 24,
+    justifyContent: 'space-between',
+  },
+  contentContainer: {
     gap: 24,
   },
   appointmentDetails: {

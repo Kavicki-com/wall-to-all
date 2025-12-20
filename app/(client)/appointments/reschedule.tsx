@@ -31,6 +31,7 @@ import { useResponsiveWidth } from '../../../lib/responsive';
 import { safeGoBack } from '../../../lib/router-utils';
 import { validateTime, validateDate } from '../../../lib/validations';
 import { RESCHEDULE_DEFAULTS } from '../../../lib/constants';
+import { applyAcceptedReschedules } from '../../../lib/utils';
 
 type Appointment = {
   id: string;
@@ -296,18 +297,23 @@ const RescheduleAppointmentScreen: React.FC = () => {
 
       const { data: existingAppointments } = await supabase
         .from('appointments')
-        .select('start_time, end_time')
+        .select('id, start_time, end_time')
         .eq('business_id', appointment.business_id)
         .gte('start_time', `${dateString}T00:00:00`)
         .lt('start_time', `${dateString}T23:59:59`)
         .in('status', ['pending', 'confirmed'])
         .neq('id', params.appointmentId);
+      
+      // Aplicar reagendamentos aceitos aos appointments existentes
+      const appointmentsWithReschedules = existingAppointments 
+        ? await applyAcceptedReschedules(existingAppointments)
+        : [];
 
       const serviceDuration = parseServiceDuration(appointment.service.duration_minutes || 60);
       const slots = generateTimeSlots(
         startTime,
         endTime,
-        existingAppointments || [],
+        appointmentsWithReschedules || [],
         serviceDuration,
         dateString,
         lunchBreakStart,
@@ -340,8 +346,12 @@ const RescheduleAppointmentScreen: React.FC = () => {
       return [];
     }
 
+    // Calcular a duração do serviço em horas (arredondado para cima)
+    const serviceDurationHours = Math.ceil(serviceDuration / 60);
+
     let currentHour = startHour;
 
+    // Gerar slots apenas dentro do horário de funcionamento
     while (currentHour < endHour) {
       const timeString = `${String(currentHour).padStart(2, '0')}:00`;
       const nextHour = currentHour + 1;
@@ -365,12 +375,21 @@ const RescheduleAppointmentScreen: React.FC = () => {
         }
       }
 
-      if (currentHour + Math.ceil(serviceDuration / 60) > endHour) {
+      // Verificar se há espaço suficiente para o serviço ANTES de verificar appointments
+      // Se o serviço não cabe no tempo restante do expediente, marcar como ocupado
+      const serviceEndHour = currentHour + serviceDurationHours;
+      if (serviceEndHour > endHour) {
         type = 'occupied';
         slots.push({ time: timeString, available: false, type });
         currentHour += 1;
         continue;
       }
+
+      // Verificar overlap com appointments existentes
+      // Calcular o horário de término do serviço se ele começar neste slot
+      const serviceStart = new Date(`${dateString}T${timeString}:00`);
+      const serviceEnd = new Date(serviceStart);
+      serviceEnd.setMinutes(serviceEnd.getMinutes() + serviceDuration);
 
       const isOccupied = existingAppointments.some((apt) => {
         const aptStart = new Date(apt.start_time);
@@ -381,13 +400,10 @@ const RescheduleAppointmentScreen: React.FC = () => {
           return false;
         }
         
-        const overlaps = (
-          (slotStart.getTime() >= aptStart.getTime() && slotStart.getTime() < aptEnd.getTime()) ||
-          (slotEnd.getTime() > aptStart.getTime() && slotEnd.getTime() <= aptEnd.getTime()) ||
-          (slotStart.getTime() <= aptStart.getTime() && slotEnd.getTime() >= aptEnd.getTime())
+        // Verificar se há overlap entre o serviço (serviceStart até serviceEnd) e o appointment
+        return (
+          (serviceStart.getTime() < aptEnd.getTime() && serviceEnd.getTime() > aptStart.getTime())
         );
-        
-        return overlaps;
       });
 
       if (isOccupied) {

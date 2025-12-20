@@ -141,7 +141,7 @@ const ClientSignupPersonalScreen: React.FC = () => {
           steps={['Cadastro', 'Endereço']}
           currentStepIndex={0}
           showBackButton={true}
-          onPressBack={safeGoBack}
+          onPressBack={() => safeGoBack('/(auth)/user-type-selection')}
         />
       }
     >

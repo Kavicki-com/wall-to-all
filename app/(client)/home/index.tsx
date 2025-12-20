@@ -117,7 +117,6 @@ const ClientHomeScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
         setLoading(false);
         return;
       }
@@ -168,34 +167,26 @@ const ClientHomeScreen: React.FC = () => {
           .range(0, CATEGORIES_LIMIT - 1),
       ]);
 
-      if (appointmentsError) {
-        console.error('Erro ao buscar agendamentos:', appointmentsError);
-      } else if (appointmentsData) {
+      if (appointmentsData) {
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
         setAppointments(appointmentsWithReschedules as Appointment[]);
       }
 
-      if (businessesError) {
-        console.error('Erro ao buscar lojas em destaque:', businessesError);
-      } else if (businessesData) {
+      if (businessesData) {
         setAllFeaturedBusinesses(businessesData as BusinessProfile[]);
       }
 
-      if (servicesError) {
-        console.error('Erro ao buscar serviços:', servicesError);
-      } else if (servicesData) {
+      if (servicesData) {
         const serviceIds = (servicesData as Service[]).map((s) => s.id).filter(Boolean);
         let ratingsMap: Record<string, { sum: number; count: number }> = {};
 
         if (serviceIds.length > 0) {
-          const { data: reviewsData, error: reviewsError } = await supabase
+          const { data: reviewsData } = await supabase
             .from('reviews')
             .select('service_id, rating')
             .in('service_id', serviceIds);
 
-          if (reviewsError) {
-            console.error('Erro ao buscar avaliações de serviços populares:', reviewsError);
-          } else if (reviewsData) {
+          if (reviewsData) {
             ratingsMap = buildRatingsMap(reviewsData as Array<{ service_id: string; rating: number | null }>);
           }
         }
@@ -215,9 +206,7 @@ const ClientHomeScreen: React.FC = () => {
         setAllPopularServices(servicesWithRatings);
       }
 
-      if (categoriesError) {
-        console.error('Erro ao buscar categorias:', categoriesError);
-      } else if (categoriesData) {
+      if (categoriesData) {
         const sortedCategories = sortCategories(categoriesData);
         setCategories(sortedCategories);
       }
@@ -284,53 +273,6 @@ const ClientHomeScreen: React.FC = () => {
     scrollContent: {
       paddingBottom: 24,
     },
-    searchBarContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingTop: 12,
-      paddingBottom: 16,
-      gap: 8,
-    },
-    searchInputContainer: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#FEFEFE',
-      borderWidth: 1,
-      borderColor: '#474747',
-      borderRadius: 24,
-      paddingHorizontal: 12,
-      paddingVertical: 16,
-      minWidth: 152,
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: 16,
-      fontFamily: 'Montserrat_400Regular',
-      color: '#0F0F0F',
-      padding: 0,
-      margin: 0,
-    },
-    searchIconContainer: {
-      width: 24,
-      height: 24,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 3,
-    },
-    filterButton: {
-      width: 56,
-      height: 56,
-      backgroundColor: '#E5102E',
-      borderRadius: 24,
-      justifyContent: 'center',
-      alignItems: 'center',
-      shadowColor: '#1D1D1D',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.24,
-      shadowRadius: 8,
-      elevation: 4,
-    },
     categoriesContainer: {
       marginBottom: 16,
     },
@@ -375,6 +317,13 @@ const ClientHomeScreen: React.FC = () => {
       paddingTop: 10,
       paddingBottom: 10,
       backgroundColor: '#FAFAFA',
+      width: '100%',
+    },
+    searchTouchArea: {
+      width: '100%',
+    },
+    searchWrapper: {
+      width: '100%',
     },
   }), []);
 
@@ -406,13 +355,15 @@ const ClientHomeScreen: React.FC = () => {
           <TouchableOpacity 
             activeOpacity={0.9} 
             onPress={() => router.push('/(client)/search')}
+            style={styles.searchTouchArea}
           >
-            <View pointerEvents="none">
+            <View pointerEvents="none" style={styles.searchWrapper}>
               <SearchBar
                 value="" 
                 onChangeText={() => {}} 
                 placeholder="O que você procura?"
                 showFilterButton={true}
+                containerStyle={{ width: '100%', paddingHorizontal: 0 }}
               />
             </View>
           </TouchableOpacity>

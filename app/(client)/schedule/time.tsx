@@ -183,8 +183,12 @@ const ScheduleTimeScreen: React.FC = () => {
     const [startHour] = startTime.split(':').map(Number);
     const [endHour] = endTime.split(':').map(Number);
 
+    // Calcular a duração do serviço em horas (arredondado para cima)
+    const serviceDurationHours = Math.ceil(serviceDuration / 60);
+
     let currentHour = startHour;
 
+    // Gerar slots apenas dentro do horário de funcionamento
     while (currentHour < endHour) {
       const timeString = `${String(currentHour).padStart(2, '0')}:00`;
       const nextHour = currentHour + 1;
@@ -209,23 +213,33 @@ const ScheduleTimeScreen: React.FC = () => {
         }
       }
 
+      // Verificar se há espaço suficiente para o serviço ANTES de verificar appointments
+      // Se o serviço não cabe no tempo restante do expediente, marcar como ocupado
+      const serviceEndHour = currentHour + serviceDurationHours;
+      if (serviceEndHour > endHour) {
+        type = 'occupied';
+        slots.push({ time: timeString, available: false, type });
+        currentHour += 1;
+        continue;
+      }
+
       // Verificar overlap com appointments existentes
+      // Calcular o horário de término do serviço se ele começar neste slot
+      const serviceStart = new Date(`${dateString}T${timeString}:00`);
+      const serviceEnd = new Date(serviceStart);
+      serviceEnd.setMinutes(serviceEnd.getMinutes() + serviceDuration);
+
       const isOccupied = existingAppointments.some((apt) => {
         const aptStart = new Date(apt.start_time);
         const aptEnd = new Date(apt.end_time);
+        
+        // Verificar se há overlap entre o serviço (serviceStart até serviceEnd) e o appointment
         return (
-          (slotStart >= aptStart && slotStart < aptEnd) ||
-          (slotEnd > aptStart && slotEnd <= aptEnd) ||
-          (slotStart <= aptStart && slotEnd >= aptEnd)
+          (serviceStart.getTime() < aptEnd.getTime() && serviceEnd.getTime() > aptStart.getTime())
         );
       });
 
       if (isOccupied) {
-        type = 'occupied';
-      }
-
-      // Verificar se há espaço suficiente para o serviço
-      if (type === 'available' && currentHour + Math.ceil(serviceDuration / 60) > endHour) {
         type = 'occupied';
       }
 
@@ -525,9 +539,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   footerContainer: {
-    backgroundColor: '#FEFEFE',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
+    backgroundColor: 'transparent',
+    paddingTop: 12,
+    paddingBottom: 20,
   },
 });

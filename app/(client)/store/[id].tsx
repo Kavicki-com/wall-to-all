@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginTop: 16,
     marginBottom: 24,
-    gap: 12,
+    gap: 9,
     zIndex: 1,
   },
   primaryButton: {

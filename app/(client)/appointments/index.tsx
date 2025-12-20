@@ -10,6 +10,7 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { format } from 'date-fns';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppHeader from '../../../components/layout/AppHeader';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { safeGoBack } from '../../../lib/router-utils';
@@ -73,6 +74,7 @@ const normalizeAppointmentsList = (items: RawAppointment[] = []) =>
 
 const ClientAppointmentsScreen: React.FC = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -80,12 +82,10 @@ const ClientAppointmentsScreen: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const PAGE_SIZE = 50; // Carregar 50 appointments por vez
+  const PAGE_SIZE = 50; 
   
-  // Usar ref para evitar que mudanças em page recriem loadAppointments
   const pageRef = React.useRef(0);
 
-  // Criar uma chave baseada nos horários dos agendamentos para detectar mudanças
   const appointmentsKey = useMemo(() => {
     return appointments.map(apt => `${apt.id}-${apt.start_time}-${apt.end_time}`).join('|');
   }, [appointments]);
@@ -105,20 +105,16 @@ const ClientAppointmentsScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
         setLoading(false);
         setLoadingMore(false);
         setRefreshing(false);
         return;
       }
 
-      // Para reset, buscar todos os agendamentos (sem paginação)
-      // Para loadMore, usar paginação
       let appointmentsData;
       let error;
       
       if (reset) {
-        // Buscar todos os agendamentos quando for reset (ordenado por data, mais recentes primeiro)
         const result = await supabase
           .from('appointments')
           .select(
@@ -130,12 +126,11 @@ const ClientAppointmentsScreen: React.FC = () => {
           )
           .eq('client_id', user.id)
           .order('start_time', { ascending: false })
-          .limit(1000); // Limite alto para garantir que todos sejam carregados
+          .limit(1000);
         
         appointmentsData = result.data;
         error = result.error;
       } else {
-        // Usar paginação apenas para loadMore
         const currentPage = pageRef.current;
         const from = currentPage * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
@@ -158,7 +153,6 @@ const ClientAppointmentsScreen: React.FC = () => {
       }
 
       if (error) {
-        console.error('Erro ao buscar agendamentos:', error);
         setLoading(false);
         setLoadingMore(false);
         setRefreshing(false);
@@ -166,10 +160,7 @@ const ClientAppointmentsScreen: React.FC = () => {
       }
 
       if (appointmentsData) {
-        // Aplicar reagendamentos aceitos aos agendamentos primeiro
         const appointmentsWithAcceptedReschedules = await applyAcceptedReschedules(appointmentsData);
-        
-        // Buscar reagendamentos pendentes criados pelo cliente para cada agendamento
         const appointmentIds = appointmentsWithAcceptedReschedules.map(apt => apt.id);
         
         if (appointmentIds.length > 0) {
@@ -180,13 +171,10 @@ const ClientAppointmentsScreen: React.FC = () => {
             .eq('status', 'pending')
             .eq('requested_by_type', 'client');
 
-          // Criar um Set com IDs de agendamentos que têm reagendamento pendente
-          // Converter ambos para string para garantir comparação correta
           const pendingRescheduleAppointmentIds = new Set(
             (pendingReschedules || []).map(r => String(r.appointment_id))
           );
 
-          // Adicionar flag hasPendingReschedule para cada agendamento
           const appointmentsWithReschedule = appointmentsWithAcceptedReschedules.map(apt => ({
             ...apt,
             hasPendingReschedule: pendingRescheduleAppointmentIds.has(String(apt.id)),
@@ -219,11 +207,9 @@ const ClientAppointmentsScreen: React.FC = () => {
           }
         }
         
-        // Verificar se há mais dados para carregar (apenas para paginação)
         if (!reset) {
           setHasMore(appointmentsData.length === PAGE_SIZE);
         } else {
-          // Se foi reset, não há mais para carregar (já trouxe tudo)
           setHasMore(false);
         }
       }
@@ -242,43 +228,33 @@ const ClientAppointmentsScreen: React.FC = () => {
     }
   }, [loadingMore, hasMore, loadAppointments]);
 
-  // Recarregar agendamentos quando a tela receber foco (voltar de outras telas)
-  // Isso garante que os dados sejam atualizados quando o usuário aceita um reagendamento
   useFocusEffect(
     React.useCallback(() => {
-      // Não resetar a data selecionada, apenas recarregar os dados
-      // Isso permite que o usuário veja a data atualizada se foi alterada
       loadAppointments(true);
     }, [loadAppointments])
   );
 
   useEffect(() => {
     loadAppointments(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    // Quando os agendamentos mudarem (incluindo mudanças nos horários), atualizar a data selecionada
     if (appointments.length > 0) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const currentSelectedString = selectedDate.toISOString().split('T')[0];
       
-      // Verificar se há agendamentos na data selecionada
       const hasSelectedDateAppointments = appointments.some((apt) => {
         const aptDate = new Date(apt.start_time);
         aptDate.setHours(0, 0, 0, 0);
         return aptDate.toISOString().split('T')[0] === currentSelectedString;
       });
       
-      // Se não há agendamentos na data selecionada, encontrar a próxima data com agendamentos
       if (!hasSelectedDateAppointments) {
-        // Ordenar por start_time descendente (mais recentes primeiro) para priorizar agendamentos futuros
         const sortedAppointments = [...appointments].sort((a, b) => 
           new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
         );
         
-        // Primeiro tentar encontrar um agendamento futuro
         const todayString = today.toISOString().split('T')[0];
         const futureAppointment = sortedAppointments.find((apt) => {
           const aptDate = new Date(apt.start_time);
@@ -286,21 +262,16 @@ const ClientAppointmentsScreen: React.FC = () => {
           return aptDate.toISOString().split('T')[0] >= todayString;
         });
         
-        // Se não houver futuro, pegar o mais recente (pode ser passado)
         const appointmentToShow = futureAppointment || sortedAppointments[0];
         
         if (appointmentToShow) {
           const appointmentDate = new Date(appointmentToShow.start_time);
           appointmentDate.setHours(0, 0, 0, 0);
-          
-          // Atualizar para a data do agendamento
           setSelectedDate(appointmentDate);
           setCurrentMonth(appointmentDate);
         }
       }
-      // Se há agendamentos na data selecionada, não fazer nada (manter a seleção atual)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentsKey]);
 
   const onRefresh = () => {
@@ -309,20 +280,7 @@ const ClientAppointmentsScreen: React.FC = () => {
   };
 
   const formatSelectedDate = () => {
-    const months = [
-      'Jan',
-      'Fev',
-      'Mar',
-      'Abr',
-      'Mai',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Set',
-      'Out',
-      'Nov',
-      'Dez',
-    ];
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const day = selectedDate.getDate();
     const month = months[selectedDate.getMonth()];
     return `${day} de ${month}.`;
@@ -363,6 +321,7 @@ const ClientAppointmentsScreen: React.FC = () => {
     () => appointments.map((apt) => format(new Date(apt.start_time), 'yyyy-MM-dd')),
     [appointments],
   );
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -387,7 +346,7 @@ const ClientAppointmentsScreen: React.FC = () => {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
       footer={
-        <View style={styles.footerContainer}>
+        <View style={[styles.footerContainer, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
           <TouchableOpacity
             style={styles.scheduleButton}
             activeOpacity={0.8}
@@ -400,7 +359,6 @@ const ClientAppointmentsScreen: React.FC = () => {
     >
       <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
 
-      {/* Calendar */}
       <MonthCalendar
         key={0}
         currentMonth={currentMonth}
@@ -410,7 +368,6 @@ const ClientAppointmentsScreen: React.FC = () => {
         markedDates={markedDates}
       />
 
-      {/* Appointments List */}
       {(() => {
         const filteredAppointments = getFilteredAppointments();
         const hasPendingReschedule = filteredAppointments.some(
@@ -455,7 +412,6 @@ const ClientAppointmentsScreen: React.FC = () => {
         );
       })()}
 
-      {/* Botão Carregar Mais */}
       {hasMore && (
         <View style={styles.loadMoreContainer}>
           <TouchableOpacity
@@ -478,9 +434,6 @@ const ClientAppointmentsScreen: React.FC = () => {
 export default ClientAppointmentsScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -490,18 +443,19 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingTop: 16,
+    paddingBottom: 100,
   },
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#E5102E',
     marginBottom: 16,
+    paddingHorizontal: 16,
   },
   footerContainer: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: '#FAFAFA',
     paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
+    paddingHorizontal: 16,
   },
   scheduleButton: {
     borderWidth: 1,
@@ -510,6 +464,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FAFAFA',
   },
   scheduleButtonText: {
     fontSize: 16,
