@@ -432,43 +432,24 @@ logger.debug('[ResetPassword] Deep link recebido (app aberto):', event.url);
       }
     });
 
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:436',message:'useEffect started - declaring continuousCheckInterval in outer scope',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-
-    // Declara no escopo do useEffect para ser acessível no cleanup (Hipótese D)
+    // Declara no escopo do useEffect para ser acessível no cleanup
     let continuousCheckInterval: NodeJS.Timeout | null = null;
     let continuousCheckCount = 0;
     const maxContinuousChecks = 20;
 
     // Processa deep link inicial (cold start) - DEPOIS de registrar o listener
     processDeepLinkAndValidate().then(() => {
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:446',message:'processDeepLinkAndValidate completed - setting up continuous check',data:{hasProcessedRefValue:hasProcessedRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      
       // Verificação contínua de getInitialURL() para warm start
       // Mesmo após registrar o listener, continuamos verificando getInitialURL() periodicamente
       // porque quando a Activity é reiniciada, o listener pode não ser acionado imediatamente
       
       const startContinuousCheck = () => {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:455',message:'startContinuousCheck called - creating interval',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
-        
         continuousCheckInterval = setInterval(async () => {
           continuousCheckCount++;
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:463',message:'Continuous check iteration',data:{count:continuousCheckCount,hasProcessed:hasProcessedRef.current,maxChecks:maxContinuousChecks},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
           
           // Para a verificação se já processou ou se excedeu o limite
           if (hasProcessedRef.current || continuousCheckCount >= maxContinuousChecks) {
             if (continuousCheckInterval) {
-              // #region agent log
-              fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:472',message:'Stopping continuous check - limit reached or already processed',data:{hasProcessed:hasProcessedRef.current,count:continuousCheckCount},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-              // #endregion
               clearInterval(continuousCheckInterval);
               continuousCheckInterval = null;
             }
@@ -498,18 +479,11 @@ logger.debug('[ResetPassword] Deep link recebido (app aberto):', event.url);
             logger.warn('[ResetPassword] Erro na verificação contínua:', error);
           }
         }, 300); // Verifica a cada 300ms
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:511',message:'Interval created',data:{intervalIsNull:continuousCheckInterval===null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
       };
       
       // Inicia a verificação contínua apenas se não havia URL inicial (warm start)
       // Aguarda um pouco para dar tempo ao listener processar primeiro
       setTimeout(() => {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:519',message:'setTimeout fired - checking if should start continuous check',data:{hasProcessed:hasProcessedRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         if (!hasProcessedRef.current) {
           startContinuousCheck();
         }
@@ -517,14 +491,8 @@ logger.debug('[ResetPassword] Deep link recebido (app aberto):', event.url);
     });
 
     return () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:532',message:'useEffect cleanup called',data:{intervalExists:continuousCheckInterval!==null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       subscription.remove();
       if (continuousCheckInterval) {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:539',message:'Clearing continuous check interval in cleanup',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         clearInterval(continuousCheckInterval);
       }
     };

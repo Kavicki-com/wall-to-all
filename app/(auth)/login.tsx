@@ -176,9 +176,6 @@ if (oauthError) {
             // Mostrar feedback de sucesso
             showSuccess('Conta Google conectada com sucesso!');
             setInfo('Complete seu cadastro para acessar o app.');
-            
-            if (__DEV__) {
-}
           } else {
             const message = 'Não foi possível conectar com Google.';
             setError(message);

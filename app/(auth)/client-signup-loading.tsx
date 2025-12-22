@@ -214,8 +214,10 @@ const ClientSignupLoadingScreen: React.FC = () => {
       }
     };
 
-    const timeout = setTimeout(async () => {
-      await completeSignup();
+    // Inicia o processo de signup após 1.5s
+    // Nota: setTimeout não espera por promises, então chamamos a função async diretamente
+    const timeout = setTimeout(() => {
+      completeSignup();
     }, 1500);
 
     return () => clearTimeout(timeout);
