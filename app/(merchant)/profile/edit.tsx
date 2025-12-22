@@ -25,6 +25,7 @@ import { safeGoBack } from '../../../lib/router-utils';
 import { CustomButton } from '../../../components/CustomButton';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { handleError } from '../../../lib/errorHandler';
+import { logger } from '../../../lib/logger';
 
 const BUSINESS_TIME_OPTIONS = ['1 ano', '2 anos', '3 anos', '4 anos', '5+ anos'];
 
@@ -65,7 +66,8 @@ const EditBusinessProfileScreen: React.FC = () => {
     if (contextBusinessProfile && !profileLoading) {
       setBusinessName(contextBusinessProfile.business_name);
       setDescription(contextBusinessProfile.description || '');
-      setSelectedCategoryId(contextBusinessProfile.category_id || null);
+      // Converter category_id de number para string (Category.id é string)
+      setSelectedCategoryId(contextBusinessProfile.category_id ? String(contextBusinessProfile.category_id) : null);
       setBannerUri(contextBusinessProfile.banner_url || null);
       setLogoUri(contextBusinessProfile.logo_url || null);
       setWorkDays(contextBusinessProfile.work_days || {});
@@ -74,6 +76,8 @@ const EditBusinessProfileScreen: React.FC = () => {
       Alert.alert('Erro', 'Perfil do negócio não encontrado.');
       router.replace('/(merchant)/settings');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // router é estável do expo-router, não precisa estar nas dependências
   }, [contextBusinessProfile, profileLoading]);
 
   const loadCategories = async () => {
@@ -118,7 +122,7 @@ const EditBusinessProfileScreen: React.FC = () => {
             return;
           }
         } catch (permissionError) {
-          console.error('Erro ao solicitar permissão de imagem:', permissionError);
+          logger.error('Erro ao solicitar permissão de imagem:', permissionError);
           Alert.alert('Erro', 'Não foi possível solicitar permissão para acessar suas fotos.');
           return;
         }
@@ -158,7 +162,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
       const response = await fetch(bannerUri);
       if (!response.ok) {
-        console.error(`Erro ao ler arquivo do banner: HTTP ${response.status}`);
+        logger.error(`Erro ao ler arquivo do banner: HTTP ${response.status}`);
         return null;
       }
       const blob = await response.blob();
@@ -171,7 +175,7 @@ const EditBusinessProfileScreen: React.FC = () => {
         });
 
       if (error) {
-        console.error('Erro ao fazer upload do banner:', error);
+        logger.error('Erro ao fazer upload do banner:', error);
         return null;
       }
 
@@ -181,7 +185,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
       return publicUrl;
     } catch (error) {
-      console.error('Erro ao processar banner:', error);
+      logger.error('Erro ao processar banner:', error);
       return null;
     }
   };
@@ -203,7 +207,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
       const response = await fetch(logoUri);
       if (!response.ok) {
-        console.error(`Erro ao ler arquivo do logo: HTTP ${response.status}`);
+        logger.error(`Erro ao ler arquivo do logo: HTTP ${response.status}`);
         return null;
       }
       const blob = await response.blob();
@@ -216,7 +220,7 @@ const EditBusinessProfileScreen: React.FC = () => {
         });
 
       if (error) {
-        console.error('Erro ao fazer upload:', error);
+        logger.error('Erro ao fazer upload:', error);
         return null;
       }
 
@@ -226,7 +230,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
       return publicUrl;
     } catch (error) {
-      console.error('Erro ao processar imagem:', error);
+      logger.error('Erro ao processar imagem:', error);
       return null;
     }
   };
@@ -353,7 +357,7 @@ const EditBusinessProfileScreen: React.FC = () => {
               Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');
               router.replace('/(auth)/login');
             } catch (error) {
-              console.error('Erro ao excluir conta:', error);
+              logger.error('Erro ao excluir conta:', error);
               Alert.alert('Erro', 'Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
             }
           },

@@ -1,5 +1,10 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
 import appJson from './app.json';
+
+// Carrega .env.local primeiro (tem precedência), depois .env
+// dotenv não sobrescreve variáveis já definidas, então .env.local tem precedência
+config({ path: '.env.local' });
+config(); // Carrega .env (padrão)
 
 export default () => {
   // Função auxiliar para verificar se um valor é um placeholder
@@ -14,6 +19,14 @@ export default () => {
     return placeholders.includes(value);
   };
 
+  // Detectar se estamos em contexto do EAS CLI (build/config check)
+  // O EAS CLI precisa conseguir ler a config mesmo sem credenciais locais
+  // As credenciais virão dos secrets durante o build
+  const isEASContext = process.env.EAS_BUILD === 'true' || 
+                       process.env.EAS_BUILD_ID || 
+                       process.env.EXPO_PUBLIC_ENV === 'production' ||
+                       process.argv.some(arg => arg.includes('eas') || arg.includes('expo config'));
+
   // Pega as variáveis de ambiente ou usa as do app.json como fallback (se não forem placeholders)
   const envUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const envKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -24,9 +37,49 @@ export default () => {
   const supabaseUrl = envUrl || (!isPlaceholder(appJsonUrl) ? appJsonUrl : undefined);
   const supabaseAnonKey = envKey || (!isPlaceholder(appJsonKey) ? appJsonKey : undefined);
 
-  // Usa valores padrão se não houver valores válidos
-  const finalSupabaseUrl = supabaseUrl || 'https://yykqzdiktqlzmvnnokfj.supabase.co';
-  const finalSupabaseAnonKey = supabaseAnonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5a3F6ZGlrdHFsem12bm5va2ZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyNTUxNTcsImV4cCI6MjA3OTgzMTE1N30.4dNJ2txnT6Sgjq4Wy5g1uWiaTvWMvywDRk3ZxhIFICU';
+  // VALIDAÇÃO: Falha explicitamente se as credenciais não estiverem configuradas
+  // EXCETO em contexto do EAS, onde as credenciais virão dos secrets durante o build
+  if (!isEASContext && (!supabaseUrl || !supabaseAnonKey || isPlaceholder(supabaseUrl) || isPlaceholder(supabaseAnonKey))) {
+    throw new Error(`
+╔══════════════════════════════════════════════════════════════╗
+║  ERRO: Variáveis de ambiente do Supabase não configuradas   ║
+╚══════════════════════════════════════════════════════════════╝
+
+Para corrigir este erro, você precisa configurar as credenciais do Supabase.
+
+OPÇÃO 1 - Arquivo .env (Recomendado):
+  1. Crie um arquivo .env na raiz do projeto
+  2. Adicione as seguintes linhas:
+  
+     EXPO_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+     EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-aqui
+
+OPÇÃO 2 - Arquivo app.json:
+  Adicione as credenciais em app.json:
+  
+    "expo": {
+      "extra": {
+        "supabaseUrl": "https://seu-projeto.supabase.co",
+        "supabaseAnonKey": "sua-chave-anon-aqui"
+      }
+    }
+
+COMO OBTER AS CREDENCIAIS:
+  1. Acesse https://app.supabase.com
+  2. Selecione seu projeto
+  3. Vá em Settings > API
+  4. Copie a "Project URL" e a "anon public key"
+
+⚠️  NUNCA commite credenciais reais no código. Use apenas variáveis de ambiente.
+
+NOTA: Em builds do EAS, as credenciais devem ser configuradas via secrets.
+    `.trim());
+  }
+
+  // Em contexto do EAS, usar valores das variáveis de ambiente (que virão dos secrets)
+  // ou placeholders temporários que serão substituídos durante o build
+  const finalSupabaseUrl = supabaseUrl || (isEASContext ? appJsonUrl : undefined);
+  const finalSupabaseAnonKey = supabaseAnonKey || (isEASContext ? appJsonKey : undefined);
 
   return {
     expo: {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { logger } from '../lib/logger';
 
 export type Profile = {
   id: string;
@@ -8,7 +9,7 @@ export type Profile = {
   avatar_url: string | null;
   email?: string;
   created_at?: string;
-  [key: string]: any; // Para permitir outros campos do perfil
+  [key: string]: unknown; // Para permitir outros campos do perfil
 };
 
 interface ProfileContextType {
@@ -53,7 +54,7 @@ export const ProfileProvider: React.FC<ProfileProviderProps> = ({ children }) =>
         .single();
 
       if (profileError) {
-        console.error('[ProfileContext] Erro ao buscar perfil:', profileError);
+        logger.error('[ProfileContext] Erro ao buscar perfil:', profileError);
         setError(profileError.message);
         setProfile(null);
       } else if (profileData) {
@@ -63,9 +64,10 @@ export const ProfileProvider: React.FC<ProfileProviderProps> = ({ children }) =>
         setProfile(null);
         setError('Perfil não encontrado');
       }
-    } catch (err: any) {
-      console.error('[ProfileContext] Erro ao carregar perfil:', err);
-      setError(err.message || 'Erro ao carregar perfil');
+    } catch (err: unknown) {
+      logger.error('[ProfileContext] Erro ao carregar perfil:', err);
+      const error = err as { message?: string };
+      setError(error.message || 'Erro ao carregar perfil');
       setProfile(null);
     } finally {
       setLoading(false);

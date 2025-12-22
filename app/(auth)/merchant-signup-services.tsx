@@ -6,15 +6,12 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Alert,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeGoBack } from '../../lib/router-utils';
-import { supabase } from '../../lib/supabase';
 import { IconCheckboxPayment } from '../../lib/assets';
 import { useToast } from '../../components/ui/ToastProvider';
-import { handleError } from '../../lib/errorHandler';
 import SelectDropdown from '../../components/ui/SelectDropdown';
 import ServiceImagePicker from '../../components/ui/ServiceImagePicker';
 import { Icon } from '../../components/ui/Icon';
@@ -22,6 +19,7 @@ import { CustomInput } from '../../components/ui/CustomInput';
 import ScreenContainer from '../../components/layout/ScreenContainer';
 import SignupHeaderMerchant from '../../components/auth/SignupHeaderMerchant';
 import { CustomButton } from '../../components/CustomButton';
+import { logger } from '../../lib/logger';
 
 type AvailabilityOption = {
   value: string;
@@ -36,9 +34,6 @@ const AVAILABILITY_OPTIONS: AvailabilityOption[] = [
 const MerchantSignupServicesScreen: React.FC = () => {
   const router = useRouter();
   const safeGoBack = useSafeGoBack('/(auth)/merchant-signup-business');
-  const { showError } = useToast();
-  const params = useLocalSearchParams<{ userId?: string; companyId?: string }>();
-  const companyId = params.companyId as string | undefined;
 
   const [serviceName, setServiceName] = useState('');
   const [chargeType, setChargeType] = useState<'fixed' | 'hourly'>('fixed');
@@ -130,96 +125,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
     return totalMinutes > 0 ? totalMinutes : 60; // Default 60 minutos se não conseguir converter
   };
 
-
-
-  // Função para fazer upload de múltiplas imagens para Supabase Storage
-  const uploadImagesToSupabase = async (): Promise<string[]> => {
-    if (serviceImages.length === 0) return [];
-
-    try {
-      setImagesUploading(true);
-
-      const { data, error: authError } = await supabase.auth.getUser();
-      const currentUser = data?.user;
-      
-      if (authError || !currentUser) {
-        throw new Error('Usuário não autenticado. Faça login novamente.');
-      }
-
-      const authenticatedUserId = currentUser.id;
-      const uploadPromises = serviceImages.map(async (imageUri, index) => {
-        const fileExt = imageUri.split('.').pop() || 'jpg';
-        const fileName = `${authenticatedUserId}-${Date.now()}-${index}.${fileExt}`;
-        const filePath = `service-images/${fileName}`;
-
-        const base64 = await FileSystem.readAsStringAsync(imageUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        const byteCharacters = atob(base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-
-      const { error: uploadError } = await supabase.storage
-          .from('services-assets')
-          .upload(filePath, byteArray, {
-            contentType: `image/${fileExt}`,
-            upsert: false,
-          });
-
-        if (uploadError) throw uploadError;
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('services-assets').getPublicUrl(filePath);
-
-        return publicUrl;
-      });
-
-      const imageUrls = await Promise.all(uploadPromises);
-      return imageUrls;
-    } catch (error) {
-      console.error('Erro ao fazer upload das imagens:', error);
-      const message = error instanceof Error ? error.message : 'Erro ao fazer upload das imagens';
-      throw new Error(`Erro ao fazer upload das imagens: ${message}`);
-    } finally {
-      setImagesUploading(false);
-    }
-  };
-
-
   const handleContinue = async () => {
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    const currentUser = authData?.user;
-    
-    if (authError || !currentUser) {
-      setError('Sessão expirada. Por favor, faça login novamente.');
-      setTimeout(() => {
-        router.replace('/(auth)/login');
-      }, 2000);
-      return;
-    }
-
-    let businessIdToUse = companyId;
-    
-    if (!businessIdToUse) {
-      const { data: businessData, error: businessError } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('owner_id', currentUser.id)
-        .single();
-
-      if (businessError || !businessData) {
-        setError('Negócio não encontrado. Por favor, complete o cadastro do negócio primeiro.');
-        return;
-      }
-
-      businessIdToUse = businessData.id;
-    }
-
     if (!serviceName || !price) {
       setError('Informe pelo menos nome e preço do serviço.');
       return;
@@ -228,6 +134,25 @@ const MerchantSignupServicesScreen: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Buscar dados salvos anteriormente
+      const draftKey = 'merchant_signup_draft';
+      const stored = await AsyncStorage.getItem(draftKey);
+      
+      if (!stored) {
+        setError('Dados do cadastro não encontrados. Por favor, volte e preencha novamente.');
+        return;
+      }
+
+      let draftData;
+      try {
+        draftData = JSON.parse(stored);
+      } catch (parseError) {
+        logger.error('[MerchantSignupServices] Erro ao fazer parse do draft:', parseError);
+        await AsyncStorage.removeItem(draftKey);
+        setError('Dados do cadastro corrompidos. Por favor, volte e preencha novamente.');
+        return;
+      }
 
       const numericPrice = Number(
         price.replace('R$', '').replace('.', '').replace(',', '.').trim(),
@@ -239,79 +164,44 @@ const MerchantSignupServicesScreen: React.FC = () => {
       }
 
       const durationMinutes = parseDurationToMinutes(duration);
+      const isActive = availability?.value === 'available';
+      const locationType = category === 'home' ? 'home' : 'shop';
+      const priceTypeValue = chargeType === 'hourly' ? 'hourly' : 'fixed';
 
-      let imageUrls: string[] = [];
-      if (serviceImages.length > 0) {
-        try {
-          imageUrls = await uploadImagesToSupabase();
-        } catch {
-          Alert.alert(
-            'Erro no upload',
-            'Não foi possível fazer upload de todas as imagens. Deseja continuar sem as imagens?',
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              {
-                text: 'Continuar',
-                onPress: async () => {
-                  await performInsert(businessIdToUse!, numericPrice, durationMinutes, []);
-                },
-              },
-            ]
-          );
-          return;
-        }
-      }
+      // Salvar dados do serviço (com URIs locais das imagens para upload posterior)
+      const serviceData = {
+        name: serviceName,
+        description: description || null,
+        price: numericPrice,
+        duration_minutes: durationMinutes,
+        location_type: locationType,
+        is_active: isActive,
+        price_type: priceTypeValue,
+        // Salvar URIs locais das imagens para upload posterior
+        service_images_uris: serviceImages || [],
+      };
 
-      await performInsert(businessIdToUse!, numericPrice, durationMinutes, imageUrls);
+      // Adicionar serviço ao array de serviços no draft
+      const services = draftData.services || [];
+      services.push(serviceData);
+
+      // Adicionar dados do serviço ao draft
+      const updatedDraft = {
+        ...draftData,
+        services,
+      };
+
+      // Salvar dados atualizados no AsyncStorage
+      await AsyncStorage.setItem(draftKey, JSON.stringify(updatedDraft));
+
+      // Navegar para loading screen (onde tudo será criado)
+      router.replace('/(auth)/merchant-signup-loading');
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Erro ao salvar serviço.';
       setError(message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const performInsert = async (
-    businessId: string,
-    numericPrice: number,
-    durationMinutes: number,
-    imageUrls: string[]
-  ) => {
-    const { data: businessData, error: businessError } = await supabase
-      .from('business_profiles')
-      .select('category_id')
-      .eq('id', businessId)
-      .single();
-
-    if (businessError) {
-      console.error('Erro ao buscar categoria da loja:', businessError);
-    }
-
-    const isActive = availability?.value === 'available';
-    const locationType = category === 'home' ? 'home' : 'shop';
-    const priceTypeValue = chargeType === 'hourly' ? 'hourly' : 'fixed';
-
-    const { error: serviceError } = await supabase.from('services').insert({
-      business_id: businessId,
-      name: serviceName,
-      description: description || null,
-      price: numericPrice,
-      duration_minutes: durationMinutes,
-      location_type: locationType,
-      is_active: isActive,
-      price_type: priceTypeValue,
-      category_id: businessData?.category_id || null,
-      photos: imageUrls.length > 0 ? imageUrls : null,
-    });
-
-    if (serviceError) {
-      const processed = handleError(serviceError, 'service');
-      setError(processed.userMessage);
-      showError(processed.userMessage);
-      return;
-    }
-
-    router.replace('/(auth)/merchant-signup-loading');
   };
 
   return (

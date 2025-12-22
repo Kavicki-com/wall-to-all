@@ -10,13 +10,13 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { format } from 'date-fns';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppHeader from '../../../components/layout/AppHeader';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { safeGoBack } from '../../../lib/router-utils';
 import MonthCalendar from '../../../components/calendar/MonthCalendar';
 import AppointmentDaySection from '../../../components/appointments/AppointmentDaySection';
 import AppointmentCard from '../../../components/appointments/AppointmentCard';
+import { CustomButton } from '../../../components/CustomButton';
 import { applyAcceptedReschedules } from '../../../lib/utils';
 
 type AppointmentService = {
@@ -74,7 +74,6 @@ const normalizeAppointmentsList = (items: RawAppointment[] = []) =>
 
 const ClientAppointmentsScreen: React.FC = () => {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -82,7 +81,7 @@ const ClientAppointmentsScreen: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const PAGE_SIZE = 50; 
+  const PAGE_SIZE = 50;
   
   const pageRef = React.useRef(0);
 
@@ -105,6 +104,7 @@ const ClientAppointmentsScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
+        console.log('Usuário não autenticado');
         setLoading(false);
         setLoadingMore(false);
         setRefreshing(false);
@@ -153,6 +153,7 @@ const ClientAppointmentsScreen: React.FC = () => {
       }
 
       if (error) {
+        console.error('Erro ao buscar agendamentos:', error);
         setLoading(false);
         setLoadingMore(false);
         setRefreshing(false);
@@ -160,7 +161,11 @@ const ClientAppointmentsScreen: React.FC = () => {
       }
 
       if (appointmentsData) {
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/index.tsx:168',message:'appointmentsData received',data:{count:appointmentsData.length,firstId:appointmentsData[0]?.id,firstIdType:typeof appointmentsData[0]?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         const appointmentsWithAcceptedReschedules = await applyAcceptedReschedules(appointmentsData);
+        
         const appointmentIds = appointmentsWithAcceptedReschedules.map(apt => apt.id);
         
         if (appointmentIds.length > 0) {
@@ -181,7 +186,16 @@ const ClientAppointmentsScreen: React.FC = () => {
           }));
 
           const normalizedAppointments = normalizeAppointmentsList(
-            appointmentsWithReschedule as RawAppointment[],
+            appointmentsWithReschedule.map(apt => ({
+              ...apt,
+              id: String(apt.id),
+              service: Array.isArray(apt.service) 
+                ? apt.service.map(s => ({ ...s, id: String(s.id) }))
+                : { ...apt.service, id: String(apt.service.id) },
+              business: Array.isArray(apt.business)
+                ? apt.business.map(b => ({ ...b, id: String(b.id) }))
+                : { ...apt.business, id: String(apt.business.id) },
+            })) as RawAppointment[],
           );
 
           if (reset) {
@@ -194,7 +208,16 @@ const ClientAppointmentsScreen: React.FC = () => {
           }
         } else {
           const normalizedAppointments = normalizeAppointmentsList(
-            appointmentsWithAcceptedReschedules as RawAppointment[],
+            appointmentsWithAcceptedReschedules.map(apt => ({
+              ...apt,
+              id: String(apt.id),
+              service: Array.isArray(apt.service)
+                ? apt.service.map(s => ({ ...s, id: String(s.id) }))
+                : { ...apt.service, id: String(apt.service.id) },
+              business: Array.isArray(apt.business)
+                ? apt.business.map(b => ({ ...b, id: String(b.id) }))
+                : { ...apt.business, id: String(apt.business.id) },
+            })) as RawAppointment[],
           );
 
           if (reset) {
@@ -239,6 +262,9 @@ const ClientAppointmentsScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/index.tsx:260',message:'appointmentsKey effect triggered',data:{appointmentsKey,appointmentsCount:appointments.length,selectedDate:selectedDate.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     if (appointments.length > 0) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -249,6 +275,10 @@ const ClientAppointmentsScreen: React.FC = () => {
         aptDate.setHours(0, 0, 0, 0);
         return aptDate.toISOString().split('T')[0] === currentSelectedString;
       });
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/index.tsx:273',message:'checking selected date',data:{hasSelectedDateAppointments,currentSelectedString},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       
       if (!hasSelectedDateAppointments) {
         const sortedAppointments = [...appointments].sort((a, b) => 
@@ -267,6 +297,11 @@ const ClientAppointmentsScreen: React.FC = () => {
         if (appointmentToShow) {
           const appointmentDate = new Date(appointmentToShow.start_time);
           appointmentDate.setHours(0, 0, 0, 0);
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/index.tsx:297',message:'updating selected date',data:{appointmentDate:appointmentDate.toISOString(),appointmentId:appointmentToShow.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+          
           setSelectedDate(appointmentDate);
           setCurrentMonth(appointmentDate);
         }
@@ -280,7 +315,20 @@ const ClientAppointmentsScreen: React.FC = () => {
   };
 
   const formatSelectedDate = () => {
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const months = [
+      'Jan',
+      'Fev',
+      'Mar',
+      'Abr',
+      'Mai',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Set',
+      'Out',
+      'Nov',
+      'Dez',
+    ];
     const day = selectedDate.getDate();
     const month = months[selectedDate.getMonth()];
     return `${day} de ${month}.`;
@@ -321,7 +369,6 @@ const ClientAppointmentsScreen: React.FC = () => {
     () => appointments.map((apt) => format(new Date(apt.start_time), 'yyyy-MM-dd')),
     [appointments],
   );
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -346,19 +393,32 @@ const ClientAppointmentsScreen: React.FC = () => {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
       footer={
-        <View style={[styles.footerContainer, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-          <TouchableOpacity
-            style={styles.scheduleButton}
-            activeOpacity={0.8}
+        <View style={styles.footerContainer}>
+          <CustomButton
+            title="Agendar serviços"
+            variant="outline"
             onPress={() => router.push('/(client)/home')}
-          >
-            <Text style={styles.scheduleButtonText}>Agendar serviços</Text>
-          </TouchableOpacity>
+            width="100%"
+            style={{
+              borderRadius: 30,
+              borderWidth: 1.5,
+              backgroundColor: '#FAFAFA',
+              height: undefined,
+              paddingVertical: 14,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 3.84,
+              elevation: 2,
+              marginVertical: 0,
+            }}
+          />
         </View>
       }
     >
       <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
 
+      {/* Calendar */}
       <MonthCalendar
         key={0}
         currentMonth={currentMonth}
@@ -366,8 +426,10 @@ const ClientAppointmentsScreen: React.FC = () => {
         selectedDate={selectedDate}
         onSelectDate={handleDateSelect}
         markedDates={markedDates}
+        resetExpandedState={false}
       />
 
+      {/* Appointments List */}
       {(() => {
         const filteredAppointments = getFilteredAppointments();
         const hasPendingReschedule = filteredAppointments.some(
@@ -412,6 +474,7 @@ const ClientAppointmentsScreen: React.FC = () => {
         );
       })()}
 
+      {/* Botão Carregar Mais */}
       {hasMore && (
         <View style={styles.loadMoreContainer}>
           <TouchableOpacity
@@ -434,6 +497,9 @@ const ClientAppointmentsScreen: React.FC = () => {
 export default ClientAppointmentsScreen;
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -443,33 +509,20 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingTop: 16,
-    paddingBottom: 100,
+    paddingBottom: 100, 
   },
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#E5102E',
     marginBottom: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24, 
   },
   footerContainer: {
-    backgroundColor: '#FAFAFA',
-    paddingTop: 16,
-    paddingHorizontal: 16,
-  },
-  scheduleButton: {
-    borderWidth: 1,
-    borderColor: '#000E3D',
-    borderRadius: 24,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FAFAFA',
-  },
-  scheduleButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    backgroundColor: '#FAFAFA', 
+    paddingTop: 10,
+    paddingHorizontal: 0,
+    paddingBottom: 20,
   },
   loadMoreContainer: {
     paddingVertical: 16,

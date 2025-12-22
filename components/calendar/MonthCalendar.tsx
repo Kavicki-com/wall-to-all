@@ -51,10 +51,16 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
   markedDates = [],
   resetExpandedState = false,
 }) => {
+  // #region agent log
+  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MonthCalendar.tsx:54',message:'MonthCalendar render',data:{resetExpandedState,markedDatesCount:markedDates.length,selectedDate:selectedDate?.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   const [showFullCalendar, setShowFullCalendar] = useState(false);
 
   // Resetar estado expandido quando resetExpandedState mudar
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MonthCalendar.tsx:59',message:'resetExpandedState effect',data:{resetExpandedState,showFullCalendar},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (resetExpandedState) {
       setShowFullCalendar(false);
     }
@@ -139,7 +145,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                 style={[
                   styles.dayInner,
                   isTodayDate && styles.dayInnerToday,
-                  hasAppointments && styles.dayInnerHasAppointments,
+                  hasAppointments && !isTodayDate && styles.dayInnerHasAppointments,
                   isSelected && !isTodayDate && styles.dayInnerSelected,
                 ]}
               >

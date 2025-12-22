@@ -22,6 +22,7 @@ import { CustomButton } from '../../../components/CustomButton';
 import { safeGoBack } from '../../../lib/router-utils';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { handleError } from '../../../lib/errorHandler';
+import { logger } from '../../../lib/logger';
 
 const EditProfileScreen: React.FC = () => {
   const router = useRouter();
@@ -46,6 +47,8 @@ const EditProfileScreen: React.FC = () => {
       // Se não há perfil e não está carregando, redireciona
       router.replace('/(client)/profile');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // router é estável do expo-router, não precisa estar nas dependências
   }, [contextProfile, profileLoading]);
 
   const pickImage = async () => {
@@ -59,7 +62,7 @@ const EditProfileScreen: React.FC = () => {
             return;
           }
         } catch (permissionError) {
-          console.error('Erro ao solicitar permissão de imagem:', permissionError);
+          logger.error('Erro ao solicitar permissão de imagem:', permissionError);
           Alert.alert('Erro', 'Não foi possível solicitar permissão para acessar suas fotos.');
           return;
         }
@@ -76,7 +79,7 @@ const EditProfileScreen: React.FC = () => {
         setAvatarUri(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
+      logger.error('Erro ao selecionar imagem:', error);
       Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
     }
   };
@@ -115,7 +118,7 @@ const EditProfileScreen: React.FC = () => {
           encoding: FileSystem.EncodingType.Base64,
         });
       } catch (fileError) {
-        console.error('Erro ao ler arquivo do avatar:', fileError);
+        logger.error('Erro ao ler arquivo do avatar:', fileError);
         Alert.alert('Erro', 'Não foi possível ler o arquivo de imagem. Verifique se o arquivo não está corrompido.');
         return null;
       }
@@ -137,7 +140,7 @@ const EditProfileScreen: React.FC = () => {
         });
 
       if (uploadError) {
-        console.error('Erro ao fazer upload:', uploadError);
+        logger.error('Erro ao fazer upload:', uploadError);
         // Verificar se é erro de rede
         if (uploadError.message?.includes('Network') || uploadError.message?.includes('network')) {
           Alert.alert(
@@ -264,7 +267,7 @@ const EditProfileScreen: React.FC = () => {
               Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');
               router.replace('/(auth)/login');
             } catch (error) {
-              console.error('Erro ao excluir conta:', error);
+              logger.error('Erro ao excluir conta:', error);
               Alert.alert('Erro', 'Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
             }
           },

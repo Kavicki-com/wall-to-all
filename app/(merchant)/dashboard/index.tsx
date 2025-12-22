@@ -10,6 +10,7 @@ import { ptBR } from 'date-fns/locale';
 import AppointmentDaySection from '../../../components/appointments/AppointmentDaySection';
 import AppointmentCard from '../../../components/appointments/AppointmentCard';
 import { applyAcceptedReschedules } from '../../../lib/utils';
+import { logger } from '../../../lib/logger';
 
 type Appointment = {
   id: string;
@@ -72,7 +73,8 @@ const MerchantDashboardScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
+        if (__DEV__) { logger.debug('Usuário não autenticado');
+        }
         setLoading(false);
         return;
       }
@@ -95,7 +97,7 @@ const MerchantDashboardScreen: React.FC = () => {
           );
         } else if (businessError) {
           // Só loga erros que não são PGRST116
-          console.error('Erro ao buscar negócio:', businessError);
+          logger.error('Erro ao buscar negócio:', businessError);
         }
         setLoading(false);
         return;
@@ -135,7 +137,7 @@ const MerchantDashboardScreen: React.FC = () => {
         .limit(200); // Aumentar limite para incluir mais agendamentos
 
       if (appointmentsError) {
-        console.error('Erro ao buscar agendamentos:', appointmentsError);
+        logger.error('Erro ao buscar agendamentos:', appointmentsError);
       } else if (appointmentsData) {
         // Aplicar reagendamentos aceitos aos agendamentos PRIMEIRO
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
@@ -163,7 +165,7 @@ const MerchantDashboardScreen: React.FC = () => {
         setAppointments(normalized);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
       Alert.alert(
         'Erro ao carregar',
         'Não foi possível carregar os dados. Verifique sua conexão e tente novamente.',
@@ -184,16 +186,27 @@ const MerchantDashboardScreen: React.FC = () => {
       setCalendarResetKey((prev) => prev + 1);
       // Recarregar agendamentos quando a tela receber foco (ex: após reagendamento)
       loadBusinessAndAppointments();
-    }, []) // loadBusinessAndAppointments é estável o suficiente; evitar depender de currentMonth
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    // loadBusinessAndAppointments é estável o suficiente; evitar depender de currentMonth
   );
 
   useEffect(() => {
     loadBusinessAndAppointments();
   }, [loadBusinessAndAppointments]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadBusinessAndAppointments();
+    try {
+      await loadBusinessAndAppointments();
+    } catch (error) {
+      // Erro já é tratado dentro de loadBusinessAndAppointments
+      // Aqui apenas garantimos que o estado seja resetado
+      logger.error('Erro ao atualizar dados:', error);
+    } finally {
+      // O loadBusinessAndAppointments já reseta o refreshing no finally,
+      // mas garantimos aqui também por segurança
+      setRefreshing(false);
+    }
   };
 
   // Memoizar markedDates para evitar recálculo a cada renderização

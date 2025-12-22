@@ -19,6 +19,7 @@ import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
 import { RadioGroup } from '../../../components/ui/RadioGroup';
 import { Chip } from '../../../components/ui/Chip';
+import { logger } from '../../../lib/logger';
 
 type AvailabilityOption = {
   value: string;
@@ -183,7 +184,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
             encoding: FileSystem.EncodingType.Base64,
           });
         } catch (fileError) {
-          console.error(`Erro ao ler arquivo da imagem ${index + 1}:`, fileError);
+          logger.error(`Erro ao ler arquivo da imagem ${index + 1}:`, fileError);
           throw new Error(`Não foi possível ler o arquivo de imagem ${index + 1}. Verifique se o arquivo não está corrompido.`);
         }
 
@@ -203,7 +204,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
           });
 
         if (uploadError) {
-          console.error(`Erro no upload da imagem ${index}:`, uploadError);
+          logger.error(`Erro no upload da imagem ${index}:`, uploadError);
           throw uploadError;
         }
 
@@ -218,8 +219,8 @@ const MerchantSignupServicesScreen: React.FC = () => {
 
       const imageUrls = await Promise.all(uploadPromises);
       return imageUrls;
-    } catch (error: any) {
-      console.error('Erro ao fazer upload das imagens:', error);
+    } catch (error: unknown) {
+      logger.error('Erro ao fazer upload das imagens:', error);
 
       if (uploadedPaths.length > 0) {
         // Limpa uploads parciais para evitar lixo no bucket
@@ -230,11 +231,12 @@ const MerchantSignupServicesScreen: React.FC = () => {
             )
           );
         } catch (cleanupError) {
-          console.error('Erro ao limpar uploads parciais:', cleanupError);
+          logger.error('Erro ao limpar uploads parciais:', cleanupError);
         }
       }
 
-      throw new Error(`Erro ao fazer upload das imagens: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Erro ao fazer upload das imagens: ${errorMessage}`);
     } finally {
       setImagesUploading(false);
     }
@@ -299,10 +301,11 @@ const MerchantSignupServicesScreen: React.FC = () => {
       if (serviceImages.length > 0) {
         try {
           imageUrls = await uploadImagesToSupabase();
-        } catch (uploadError: any) {
+        } catch (uploadError: unknown) {
+          const error = uploadError as { message?: string };
           Alert.alert(
             'Erro no upload',
-            `Não foi possível fazer upload de todas as imagens: ${uploadError.message}. Deseja continuar sem as imagens?`,
+            `Não foi possível fazer upload de todas as imagens: ${error.message || 'Erro desconhecido'}. Deseja continuar sem as imagens?`,
             [
               { text: 'Cancelar', style: 'cancel' },
               {
@@ -319,8 +322,9 @@ const MerchantSignupServicesScreen: React.FC = () => {
       }
 
       await performInsert(businessIdToUse!, numericPrice, durationMinutes, imageUrls);
-    } catch (e: any) {
-      setError(e?.message ?? 'Erro ao salvar serviço.');
+    } catch (e: unknown) {
+      const error = e as { message?: string };
+      setError(error?.message ?? 'Erro ao salvar serviço.');
     } finally {
       setLoading(false);
     }
@@ -340,7 +344,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
       .single();
 
     if (businessError) {
-      console.error('Erro ao buscar categoria da loja:', businessError);
+      logger.error('Erro ao buscar categoria da loja:', businessError);
     }
 
     // Mapear disponibilidade para is_active

@@ -21,6 +21,7 @@ import {
 } from '../../lib/assets';
 import { CustomInput } from '../../components/ui/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
+import { logger } from '../../lib/logger';
 
 const ResetPasswordScreen: React.FC = () => {
   const router = useRouter();
@@ -36,44 +37,147 @@ const ResetPasswordScreen: React.FC = () => {
   const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
+    // #region agent log
+    try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:39',message:'useEffect montado - reset-password',data:{hasProcessedRef:hasProcessedRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
+    // #endregion
+    
+    if (__DEV__) {
+      logger.debug('[ResetPassword] ========== COMPONENTE MONTADO ==========');
+      console.log('[DEBUG] ResetPassword useEffect montado');
+    }
+    
     // NOTA: Não bloqueia processamento com hasProcessedRef aqui porque quando o app está aberto
     // e a Activity é reiniciada pelo deep link, precisamos processar novamente
     // O hasProcessedRef será gerenciado dentro de processUrl e pelo listener
 
     const processUrl = async (url: string | null): Promise<boolean | 'ERROR_DEFINED'> => {
+      // #region agent log
+      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:44',message:'processUrl chamado',data:{hasUrl:!!url,urlLength:url?.length,urlPreview:url?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
+      // #endregion
       if (!isSupabaseConfigured) {
+        if (__DEV__) {
+          logger.error('[ResetPassword] Supabase não configurado!');
+        }
         setError('Erro de configuração.');
         setIsValidating(false);
         return false;
       }
 
-      if (!url) return false;
+      if (!url) {
+        if (__DEV__) {
+          logger.debug('[ResetPassword] URL é null');
+        }
+        return false;
+      }
 
       try {
-        console.log('[ResetPassword] Processando URL:', url);
-        console.log('[ResetPassword] URL contém #:', url.includes('#'));
+        if (__DEV__) { 
+          logger.debug('[ResetPassword] === INICIANDO PROCESSAMENTO DE URL ===');
+          logger.debug('[ResetPassword] Processando URL:', url.substring(0, 100) + '...');
+          logger.debug('[ResetPassword] URL contém #:', url.includes('#'));
+        }
 
         // Se há uma URL com tokens, processa ela
         if (url.includes('#')) {
-          console.log('[ResetPassword] Processando tokens da URL...');
+          if (__DEV__) { logger.debug('[ResetPassword] Processando tokens da URL...');
+          }
           try {
+            // #region agent log
+            try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:73',message:'Chamando processAuthTokensFromUrl',data:{urlLength:url.length,hasHash:url.includes('#')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
+            // #endregion
+            
             const success = await processAuthTokensFromUrl(url);
             
+            // #region agent log
+            try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:76',message:'processAuthTokensFromUrl retornou',data:{success:!!success},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
+            // #endregion
+            
             if (success) {
-              console.log('[ResetPassword] Tokens processados com sucesso!');
+              if (__DEV__) { 
+                logger.debug('[ResetPassword] Tokens processados com sucesso!');
+                logger.debug('[ResetPassword] Aguardando 1s para persistência da sessão...');
+              }
+              
+              // Aguarda mais tempo para garantir que a sessão foi persistida
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              if (__DEV__) {
+                logger.debug('[ResetPassword] Verificando se sessão foi persistida...');
+              }
+              
+              // Verifica se a sessão foi realmente configurada (com múltiplas tentativas)
+              let verifiedSession = null;
+              let verifyError = null;
+              
+              for (let attempt = 1; attempt <= 3; attempt++) {
+                // #region agent log
+                try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:87',message:'Verificando sessão após processAuthTokens',data:{attempt},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
+                // #endregion
+                
+                if (__DEV__) {
+                  logger.debug(`[ResetPassword] Tentativa ${attempt}/3 de verificar sessão...`);
+                }
+                
+                const result = await supabase.auth.getSession();
+                verifiedSession = result.data.session;
+                verifyError = result.error;
+                
+                // #region agent log
+                try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:95',message:'Resultado getSession após processAuthTokens',data:{attempt,hasSession:!!verifiedSession,hasError:!!verifyError,errorMessage:verifyError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
+                // #endregion
+                
+                if (verifiedSession && !verifyError) {
+                  if (__DEV__) {
+                    logger.debug(`[ResetPassword] Sessão encontrada na tentativa ${attempt}!`);
+                  }
+                  break;
+                }
+                
+                if (attempt < 3) {
+                  if (__DEV__) {
+                    logger.debug(`[ResetPassword] Sessão não encontrada, aguardando 500ms antes de tentar novamente...`);
+                  }
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+              }
+              
+              if (!verifiedSession || verifyError) {
+                if (__DEV__) {
+                  logger.error('[ResetPassword] Sessão não encontrada após 3 tentativas:', {
+                    hasSession: !!verifiedSession,
+                    error: verifyError?.message,
+                  });
+                }
+                setError('Erro ao processar link de recuperação. Tente novamente.');
+                setIsValidating(false);
+                return 'ERROR_DEFINED';
+              }
+              
+              if (__DEV__) { 
+                logger.debug('[ResetPassword] ✓ Sessão verificada com sucesso!', {
+                  userEmail: verifiedSession.user?.email,
+                  userId: verifiedSession.user?.id,
+                });
+              }
+              
               setIsValidating(false);
               return true;
             } else {
-              console.warn('[ResetPassword] Falha ao processar tokens da URL');
+              if (__DEV__) {
+                logger.warn('[ResetPassword] Falha ao processar tokens da URL');
+              }
             }
-          } catch (e: any) {
+          } catch (e: unknown) {
             // Verifica se é um erro do Supabase (link expirado/inválido)
-            if (e?.message?.startsWith('SUPABASE_ERROR:')) {
-              const errorParts = e.message.split(':');
+            const error = e as { message?: string };
+            if (error?.message?.startsWith('SUPABASE_ERROR:')) {
+              const errorParts = error.message.split(':');
               const errorCode = errorParts[1];
               const errorDescription = errorParts.slice(2).join(':') || 'Link inválido ou expirado';
               
-              console.error('[ResetPassword] Erro do Supabase detectado:', { errorCode, errorDescription });
+              if (__DEV__) {
+                logger.error('[ResetPassword] Erro do Supabase detectado:', { errorCode, errorDescription });
+              }
               
               // Define mensagem de erro apropriada
               if (errorCode === 'otp_expired' || errorCode === 'access_denied') {
@@ -87,19 +191,41 @@ const ResetPasswordScreen: React.FC = () => {
             throw e; // Re-lança se não for erro do Supabase
           }
         } else {
-          console.warn('[ResetPassword] URL não contém # - pode estar truncada ou modificada');
+          if (__DEV__) {
+            logger.warn('[ResetPassword] URL não contém # - pode estar truncada ou modificada');
+          }
           // Tenta processar mesmo sem #, caso a URL tenha sido modificada
           try {
             const success = await processAuthTokensFromUrl(url);
             if (success) {
-              console.log('[ResetPassword] Tokens processados com sucesso (sem #)!');
+              if (__DEV__) { logger.debug('[ResetPassword] Tokens processados com sucesso (sem #)!');
+              }
+              
+              // Aguarda um pouco para garantir que a sessão foi persistida
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+              // Verifica se a sessão foi realmente configurada
+              const { data: { session: verifiedSession }, error: verifyError } = await supabase.auth.getSession();
+              if (!verifiedSession || verifyError) {
+                if (__DEV__) {
+                  logger.error('[ResetPassword] Sessão não encontrada após processar tokens (sem #):', {
+                    hasSession: !!verifiedSession,
+                    error: verifyError?.message,
+                  });
+                }
+                setError('Erro ao processar link de recuperação. Tente novamente.');
+                setIsValidating(false);
+                return 'ERROR_DEFINED';
+              }
+              
               setIsValidating(false);
               return true;
             }
-          } catch (e: any) {
+          } catch (e: unknown) {
             // Verifica se é um erro do Supabase
-            if (e?.message?.startsWith('SUPABASE_ERROR:')) {
-              const errorParts = e.message.split(':');
+            const error = e as { message?: string };
+            if (error?.message?.startsWith('SUPABASE_ERROR:')) {
+              const errorParts = error.message.split(':');
               const errorCode = errorParts[1];
               const errorDescription = errorParts.slice(2).join(':') || 'Link inválido ou expirado';
               
@@ -115,13 +241,24 @@ const ResetPasswordScreen: React.FC = () => {
           }
         }
       } catch (e) {
-        console.error('[ResetPassword] Erro ao processar URL:', e);
+        if (__DEV__) {
+          logger.error('[ResetPassword] Erro ao processar URL:', e);
+        }
       }
 
       return false;
     };
 
     const processDeepLinkAndValidate = async () => {
+      // #region agent log
+      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:139',message:'processDeepLinkAndValidate INICIADO',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
+      // #endregion
+      
+      if (__DEV__) {
+        logger.debug('[ResetPassword] ========== processDeepLinkAndValidate INICIADO ==========');
+        console.log('[DEBUG] processDeepLinkAndValidate iniciado');
+      }
+      
       if (!isSupabaseConfigured) {
         setError('Erro de configuração.');
         setIsValidating(false);
@@ -132,12 +269,20 @@ const ResetPasswordScreen: React.FC = () => {
         // IMPORTANTE: Verifica primeiro se já há uma sessão válida
         // Isso pode acontecer se o _layout.tsx já processou o deep link antes do componente montar
         
+        // #region agent log
+        try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:150',message:'Verificando sessão existente ANTES de processar deep link',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
+        // #endregion
+        
         let existingSession = null;
         for (let i = 0; i < 3; i++) {
           const { data: { session: currentSession } } = await supabase.auth.getSession();
           if (currentSession) {
             existingSession = currentSession;
-            console.log('[ResetPassword] Sessão existente encontrada ANTES de processar deep link (tentativa', i + 1, ')');
+            // #region agent log
+            try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:155',message:'Sessão existente encontrada ANTES de processar',data:{attempt:i+1,userEmail:currentSession.user?.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
+            // #endregion
+            if (__DEV__) { logger.debug('[ResetPassword] Sessão existente encontrada ANTES de processar deep link (tentativa', i + 1, ')');
+            }
             break;
           }
           if (i < 2) {
@@ -147,14 +292,25 @@ const ResetPasswordScreen: React.FC = () => {
         
         // Se já há uma sessão válida, não precisa processar o deep link
         if (existingSession) {
-          console.log('[ResetPassword] Sessão já existe, não precisa processar deep link');
+          if (__DEV__) { logger.debug('[ResetPassword] Sessão já existe, não precisa processar deep link');
+          }
           setIsValidating(false);
           return;
         }
         
         // Primeiro, tenta pegar a URL inicial (deep link que abriu o app - cold start)
         const initialUrl = await Linking.getInitialURL();
-        console.log('[ResetPassword] URL inicial (getInitialURL):', initialUrl);
+        
+        // #region agent log
+        try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:172',message:'getInitialURL retornou',data:{hasUrl:!!initialUrl,urlLength:initialUrl?.length,urlPreview:initialUrl?.substring(0,80),isResetPassword:initialUrl?.includes('reset-password')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
+        // #endregion
+        
+        if (__DEV__) {
+          logger.debug('[ResetPassword] ========== getInitialURL RESULTADO ==========');
+          logger.debug('[ResetPassword] URL inicial (getInitialURL):', initialUrl);
+          console.log('[DEBUG] getInitialURL:', initialUrl);
+          console.log('[DEBUG] URL contém reset-password:', initialUrl?.includes('reset-password'));
+        }
 
         // Ignora URLs do Expo dev server - só processa URLs de reset-password
         const shouldProcessInitialUrl = initialUrl && 
@@ -184,7 +340,9 @@ const ResetPasswordScreen: React.FC = () => {
         // Também verifica getInitialURL novamente após o delay, pois quando a Activity é reiniciada
         // pelo deep link, pode haver um delay antes de getInitialURL retornar a URL
         if (!initialUrl) {
-          console.log('[ResetPassword] Sem URL inicial - verificando getInitialURL periodicamente por 3s...');
+          if (__DEV__) {
+            logger.debug('[ResetPassword] Sem URL inicial - verificando getInitialURL periodicamente por 3s...');
+          }
           
           // Verifica getInitialURL periodicamente durante 3 segundos
           // Quando a Activity é reiniciada pelo deep link, getInitialURL pode retornar a URL após um delay
@@ -199,51 +357,68 @@ const ResetPasswordScreen: React.FC = () => {
             
             if (checkUrl && checkUrl.includes('reset-password') && !checkUrl.includes('expo-development-client')) {
               foundUrl = checkUrl;
-              console.log('[ResetPassword] URL encontrada na verificação', i + 1, ', processando...');
+              if (__DEV__) {
+                logger.debug('[ResetPassword] URL encontrada na verificação', i + 1, ', processando...');
+              }
               break;
             }
           }
           
           if (foundUrl) {
             const urlProcessed = await processUrl(foundUrl);
-            if (urlProcessed === true) {
-              hasProcessedRef.current = true;
-              return;
-            }
-            if (urlProcessed === 'ERROR_DEFINED') {
+            if (urlProcessed === true || urlProcessed === 'ERROR_DEFINED') {
               hasProcessedRef.current = true;
               return;
             }
           } else {
-            console.log('[ResetPassword] Nenhuma URL encontrada após', totalWaitTime, 'ms de verificação periódica');
+            if (__DEV__) {
+              logger.debug('[ResetPassword] Nenhuma URL encontrada após', totalWaitTime, 'ms de verificação periódica');
+            }
           }
         }
         
+        if (__DEV__) {
+          logger.debug('[ResetPassword] Verificando se já existe sessão válida...');
+        }
+        
         let session = null;
-        for (let i = 0; i < 3; i++) {
-          const { data: { session: currentSession } } = await supabase.auth.getSession();
-          if (currentSession) {
+        for (let i = 0; i < 5; i++) {
+          const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+          if (currentSession && !sessionError) {
             session = currentSession;
-            console.log('[ResetPassword] Sessão existente encontrada (tentativa', i + 1, ')');
+            if (__DEV__) {
+              logger.debug('[ResetPassword] Sessão existente encontrada (tentativa', i + 1, '):', {
+                userEmail: currentSession.user?.email,
+                userId: currentSession.user?.id,
+              });
+            }
             break;
           }
-          if (i < 2) {
+          if (i < 4) {
+            if (__DEV__) {
+              logger.debug('[ResetPassword] Sessão não encontrada na tentativa', i + 1, ', aguardando 500ms...');
+            }
             // Aguarda um pouco antes de tentar novamente
             await new Promise(resolve => setTimeout(resolve, 500));
           }
         }
         
         if (session) {
+          if (__DEV__) {
+            logger.debug('[ResetPassword] ✓ Sessão válida encontrada! Permitindo reset de senha.');
+          }
           setIsValidating(false);
           return;
         }
 
         // Sem sessão e sem tokens válidos
-        console.error('[ResetPassword] Nenhuma sessão encontrada após processar URL');
+        if (__DEV__) {
+          logger.error('[ResetPassword] ✗ Nenhuma sessão encontrada após todas as tentativas');
+        }
         setError('Link inválido ou expirado. Solicite um novo link de recuperação.');
         setIsValidating(false);
       } catch (e) {
-        console.error('[ResetPassword] Erro:', e);
+        logger.error('[ResetPassword] Erro:', e);
         const processed = handleError(e, 'auth');
         setError(processed.userMessage);
         setIsValidating(false);
@@ -254,17 +429,21 @@ const ResetPasswordScreen: React.FC = () => {
     // Isso garante que o listener esteja ativo quando a Activity é reiniciada pelo deep link
     
     const subscription = Linking.addEventListener('url', async (event) => {
-      console.log('[ResetPassword] Deep link recebido (app aberto):', event.url);
+      // #region agent log
+      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:273',message:'Deep link listener acionado',data:{hasUrl:!!event.url,urlLength:event.url?.length,urlPreview:event.url?.substring(0,80),isResetPassword:event.url?.includes('reset-password')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
+      // #endregion
+      
+      logger.debug('[ResetPassword] Deep link recebido (app aberto):', event.url);
       
       // Ignora URLs do Expo dev server
       if (event.url && event.url.includes('expo-development-client')) {
-        console.log('[ResetPassword] URL do Expo dev server ignorada no listener:', event.url);
+        logger.debug('[ResetPassword] URL do Expo dev server ignorada no listener:', event.url);
         // Tenta obter a URL real do getInitialURL quando recebe URL do Expo dev server
         // Isso pode acontecer quando o app está aberto e a Activity é reiniciada
         try {
           const realUrl = await Linking.getInitialURL();
           if (realUrl && realUrl.includes('reset-password') && !realUrl.includes('expo-development-client')) {
-            console.log('[ResetPassword] URL real encontrada via getInitialURL:', realUrl);
+            logger.debug('[ResetPassword] URL real encontrada via getInitialURL:', realUrl);
             // Reseta o flag para permitir processamento
             hasProcessedRef.current = false;
             setIsValidating(true);
@@ -276,13 +455,13 @@ const ResetPasswordScreen: React.FC = () => {
             return;
           }
         } catch (error) {
-          console.warn('[ResetPassword] Erro ao obter URL real:', error);
+          logger.warn('[ResetPassword] Erro ao obter URL real:', error);
         }
         return;
       }
       
       if (event.url && event.url.includes('reset-password')) {
-        console.log('[ResetPassword] Processando deep link do listener...');
+        logger.debug('[ResetPassword] Processando deep link do listener...');
         // Reseta o flag para permitir processamento novamente
         hasProcessedRef.current = false;
         // Reseta o estado de validação e erro para processar o novo link
@@ -295,7 +474,7 @@ const ResetPasswordScreen: React.FC = () => {
           hasProcessedRef.current = true;
         }
       } else {
-        console.warn('[ResetPassword] Deep link recebido mas não é reset-password:', event.url);
+        logger.warn('[ResetPassword] Deep link recebido mas não é reset-password:', event.url);
       }
     });
 
@@ -326,7 +505,7 @@ const ResetPasswordScreen: React.FC = () => {
           const checkUrl = await Linking.getInitialURL();
           
           if (checkUrl && checkUrl.includes('reset-password') && !checkUrl.includes('expo-development-client')) {
-            console.log('[ResetPassword] URL encontrada na verificação contínua (check', continuousCheckCount, '), processando...');
+            logger.debug('[ResetPassword] URL encontrada na verificação contínua (check', continuousCheckCount, '), processando...');
             // Para a verificação contínua
             if (continuousCheckInterval) {
               clearInterval(continuousCheckInterval);
@@ -342,7 +521,7 @@ const ResetPasswordScreen: React.FC = () => {
             }
           }
         } catch (error) {
-          console.warn('[ResetPassword] Erro na verificação contínua:', error);
+          logger.warn('[ResetPassword] Erro na verificação contínua:', error);
         }
       }, 300); // Verifica a cada 300ms
     };
@@ -395,33 +574,42 @@ const ResetPasswordScreen: React.FC = () => {
       
       // Verifica se há sessão antes de tentar alterar a senha
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-      console.log('[ResetPassword] Verificando sessão antes de alterar:', {
+      logger.debug('[ResetPassword] Verificando sessão antes de alterar:', {
         hasSession: !!currentSession,
         userEmail: currentSession?.user?.email,
         sessionError: sessionError?.message,
       });
       
-      if (!currentSession) {
-        const errorMsg = sessionError?.message || 'Sessão expirada. Solicite um novo link de recuperação.';
-        setError(errorMsg);
-        showError(errorMsg);
-        setLoading(false);
-        return;
+      if (!currentSession || sessionError) {
+        // Tenta uma última vez obter a sessão antes de desistir
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const { data: { session: retrySession }, error: retryError } = await supabase.auth.getSession();
+        
+        if (!retrySession || retryError) {
+          const errorMsg = 'Sessão expirada. Solicite um novo link de recuperação.';
+          setError(errorMsg);
+          showError(errorMsg);
+          setLoading(false);
+          return;
+        }
+        
+        // Se conseguiu na segunda tentativa, usa essa sessão
+        logger.debug('[ResetPassword] Sessão recuperada na segunda tentativa');
       }
 
-      console.log('[ResetPassword] Tentando alterar senha...');
+      logger.debug('[ResetPassword] Tentando alterar senha...');
       const { data, error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
-      console.log('[ResetPassword] Resultado updateUser:', {
+      logger.debug('[ResetPassword] Resultado updateUser:', {
         hasData: !!data,
         hasUser: !!data?.user,
         updateError: updateError?.message,
       });
 
       if (updateError) {
-        console.error('[ResetPassword] Erro ao alterar senha:', updateError);
+        logger.error('[ResetPassword] Erro ao alterar senha:', updateError);
         
         // Trata erro específico de senha igual à antiga
         if (updateError.message?.includes('New password should be different from the old password') || 
@@ -442,14 +630,14 @@ const ResetPasswordScreen: React.FC = () => {
 
       // Verifica se realmente alterou (data deve ter user)
       if (!data?.user) {
-        console.error('[ResetPassword] updateUser retornou sem user!');
+        logger.error('[ResetPassword] updateUser retornou sem user!');
         setError('Erro ao alterar senha. Tente novamente.');
         showError('Erro ao alterar senha. Tente novamente.');
         setLoading(false);
         return;
       }
 
-      console.log('[ResetPassword] Senha alterada com sucesso!');
+      logger.debug('[ResetPassword] Senha alterada com sucesso!');
       // Sucesso - senha alterada
       showSuccess('Senha alterada com sucesso!');
       setLoading(false);
@@ -462,16 +650,17 @@ const ResetPasswordScreen: React.FC = () => {
       try {
         await supabase.auth.signOut();
       } catch (error) {
-        console.warn('[ResetPassword] Erro ao fazer signOut (ignorado):', error);
+        logger.warn('[ResetPassword] Erro ao fazer signOut (ignorado):', error);
       }
       
       // Redireciona imediatamente para login
       router.replace('/(auth)/login');
-    } catch (e: any) {
-      console.error('[ResetPassword] Exceção ao alterar senha:', e);
+    } catch (e: unknown) {
+      logger.error('[ResetPassword] Exceção ao alterar senha:', e);
+      const error = e as { message?: string };
       // Se o erro é "Auth session missing", significa que não há sessão válida
       // NÃO assumimos que a senha foi alterada - mostramos erro
-      const errorMessage = e?.message || String(e);
+      const errorMessage = error?.message || String(e);
       if (errorMessage.includes('Auth session missing') || errorMessage.includes('session missing')) {
         setError('Sessão expirada. Solicite um novo link de recuperação.');
         showError('Sessão expirada. Solicite um novo link de recuperação.');

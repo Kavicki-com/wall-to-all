@@ -1,4 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase';
+import { logger } from '../lib/logger';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Flag para indicar que estamos em uma sessão de recuperação de senha
 // Isso permite pular a busca de user_role durante o reset de senha
@@ -34,63 +36,94 @@ export const getIsRecoverySession = (): boolean => {
  */
 export const extractAuthParams = (url: string): Record<string, string | boolean> | null => {
   try {
+    if (__DEV__) {
+      logger.debug('[DeepLinking] extractAuthParams - Iniciando extração');
+      logger.debug('[DeepLinking] extractAuthParams - URL length:', url.length);
+    }
+    
     // Procura por fragmento (#) na URL
     const hashIndex = url.indexOf('#');
-    console.log('[DeepLinking] extractAuthParams - hashIndex:', hashIndex, 'url length:', url.length);
+    if (__DEV__) { 
+      logger.debug('[DeepLinking] extractAuthParams - hashIndex:', hashIndex);
+    }
+    
     if (hashIndex === -1) {
-      console.log('[DeepLinking] extractAuthParams - Nenhum hash encontrado na URL');
+      if (__DEV__) { 
+        logger.warn('[DeepLinking] extractAuthParams - ✗ Nenhum hash (#) encontrado na URL');
+      }
       return null;
     }
 
     // Decodifica o fragment para tratar %26 como &
     const fragment = decodeURIComponent(url.substring(hashIndex + 1));
-    console.log('[DeepLinking] extractAuthParams - Fragment decodificado (primeiros 100 chars):', fragment.substring(0, 100));
+    if (__DEV__) { logger.debug('[DeepLinking] extractAuthParams - Fragment decodificado (primeiros 100 chars):', fragment.substring(0, 100));
+    }
     const params: Record<string, string> = {};
 
     // Parse dos parâmetros do fragmento
     const pairs = fragment.split('&');
-    console.log('[DeepLinking] extractAuthParams - Número de pares encontrados:', pairs.length);
+    if (__DEV__) { logger.debug('[DeepLinking] extractAuthParams - Número de pares encontrados:', pairs.length);
+    }
     pairs.forEach((pair, index) => {
       const [key, value] = pair.split('=');
       if (key && value) {
         const decodedKey = decodeURIComponent(key);
         const decodedValue = decodeURIComponent(value);
         params[decodedKey] = decodedValue;
-        if (index < 3) { // Log apenas os primeiros 3 para não poluir
-          console.log(`[DeepLinking] extractAuthParams - Par ${index}: ${decodedKey} = ${decodedValue.substring(0, 50)}...`);
+        if (__DEV__ && index < 3) { // Log apenas os primeiros 3 para não poluir
+          logger.debug(`[DeepLinking] extractAuthParams - Par ${index}: ${decodedKey} = ${decodedValue.substring(0, 50)}...`);
         }
       }
     });
 
-    console.log('[DeepLinking] extractAuthParams - Params extraídos:', {
-      keys: Object.keys(params),
-      hasAccessToken: !!params.access_token,
-      hasRefreshToken: !!params.refresh_token,
-      hasType: !!params.type,
-      hasError: !!params.error,
-      errorCode: params.error_code,
-    });
+    if (__DEV__) { logger.debug('[DeepLinking] extractAuthParams - Params extraídos:', {
+        keys: Object.keys(params),
+        hasAccessToken: !!params.access_token,
+        hasRefreshToken: !!params.refresh_token,
+        hasType: !!params.type,
+        hasError: !!params.error,
+        errorCode: params.error_code,
+      });
+    }
 
     // Verifica se a URL contém erros do Supabase (link expirado/inválido)
     if (params.error || params.error_code) {
-      console.log('[DeepLinking] extractAuthParams - URL contém erro do Supabase:', {
-        error: params.error,
-        errorCode: params.error_code,
-        errorDescription: params.error_description,
-      });
+      if (__DEV__) { 
+        logger.error('[DeepLinking] extractAuthParams - ✗ URL contém erro do Supabase:', {
+          error: params.error,
+          errorCode: params.error_code,
+          errorDescription: params.error_description,
+        });
+      }
       // Retorna um objeto especial indicando erro
       return { __error: true, error: params.error, error_code: params.error_code, error_description: params.error_description };
     }
 
     // Verifica se tem os tokens necessários
     if (params.access_token && params.refresh_token) {
+      if (__DEV__) {
+        logger.debug('[DeepLinking] extractAuthParams - ✓ Tokens extraídos com sucesso!', {
+          hasAccessToken: true,
+          hasRefreshToken: true,
+          hasType: !!params.type,
+          type: params.type,
+        });
+      }
       return params;
     }
 
-    console.log('[DeepLinking] extractAuthParams - Faltando tokens! access_token:', !!params.access_token, 'refresh_token:', !!params.refresh_token);
+    if (__DEV__) { 
+      logger.error('[DeepLinking] extractAuthParams - ✗ Faltando tokens!', {
+        hasAccessToken: !!params.access_token, 
+        hasRefreshToken: !!params.refresh_token,
+        foundKeys: Object.keys(params),
+      });
+    }
     return null;
   } catch (error) {
-    console.error('[DeepLinking] Erro ao extrair parâmetros:', error);
+    if (__DEV__) {
+      logger.error('[DeepLinking] Erro ao extrair parâmetros:', error);
+    }
     return null;
   }
 };
@@ -100,22 +133,46 @@ export const extractAuthParams = (url: string): Record<string, string | boolean>
  * Retorna true se a sessão foi configurada com sucesso
  */
 export const processAuthTokensFromUrl = async (url: string): Promise<boolean> => {
+  // #region agent log
+  try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:135',message:'processAuthTokensFromUrl ENTRADA',data:{urlLength:url.length,hasHash:url.includes('#'),urlPreview:url.substring(0,80)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
+  // #endregion
+  
+  if (__DEV__) {
+    logger.debug('[DeepLinking] ========== processAuthTokensFromUrl CHAMADO ==========');
+    console.log('[DEBUG] processAuthTokensFromUrl URL:', url.substring(0, 100));
+  }
+  
   if (!isSupabaseConfigured) {
-    console.log('[DeepLinking] Supabase não configurado');
+    // #region agent log
+    try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:137',message:'Supabase não configurado',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
+    // #endregion
+    if (__DEV__) { 
+      logger.error('[DeepLinking] Supabase não configurado!');
+    }
     return false;
   }
 
-  console.log('[DeepLinking] Processando URL:', url);
+  if (__DEV__) { 
+    logger.debug('[DeepLinking] === PROCESSANDO TOKENS DA URL ===');
+    logger.debug('[DeepLinking] URL (primeiros 100 chars):', url.substring(0, 100) + '...');
+  }
 
   const params = extractAuthParams(url);
+  
+  // #region agent log
+  try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:149',message:'extractAuthParams retornou',data:{hasParams:!!params,isError:params?.__error,hasAccessToken:!!params?.access_token,hasRefreshToken:!!params?.refresh_token,type:params?.type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
+  // #endregion
+  
   if (!params) {
-    console.log('[DeepLinking] Nenhum token de autenticação encontrado na URL');
+    if (__DEV__) { 
+      logger.warn('[DeepLinking] ✗ Nenhum token de autenticação encontrado na URL');
+    }
     return false;
   }
 
   // Verifica se a URL contém erro do Supabase
   if (params.__error) {
-    console.error('[DeepLinking] URL contém erro do Supabase:', {
+    logger.error('[DeepLinking] URL contém erro do Supabase:', {
       error: params.error,
       error_code: params.error_code,
       error_description: params.error_description,
@@ -129,46 +186,58 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
   const refreshToken = typeof params.refresh_token === 'string' ? params.refresh_token : null;
   const type = typeof params.type === 'string' ? params.type : undefined;
 
-  console.log('[DeepLinking] Params extraídos:', {
-    hasAccessToken: !!accessToken,
-    hasRefreshToken: !!refreshToken,
-    accessTokenLength: accessToken?.length,
-    refreshTokenLength: refreshToken?.length,
-    type: type,
-  });
+  if (__DEV__) { logger.debug('[DeepLinking] Params extraídos:', {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      accessTokenLength: accessToken?.length,
+      refreshTokenLength: refreshToken?.length,
+      type: type,
+    });
+  }
 
   try {
-    console.log('[DeepLinking] Configurando sessão com tokens...');
-    console.log('[DeepLinking] Tipo:', type);
+    if (__DEV__) { 
+      logger.debug('[DeepLinking] Configurando sessão com tokens...');
+      logger.debug('[DeepLinking] Tipo de sessão:', type || 'normal');
+      logger.debug('[DeepLinking] Access token length:', accessToken?.length);
+      logger.debug('[DeepLinking] Refresh token length:', refreshToken?.length);
+    }
 
     // Se for uma sessão de recuperação, define a flag para pular busca de user_role
     if (type === 'recovery') {
       setIsRecoverySession(true);
-      console.log('[DeepLinking] Sessão de recuperação detectada - pulando busca de user_role');
-      
-      // Limpa qualquer sessão anterior antes de configurar a nova sessão de recovery
-      // Isso evita conflitos quando o app está aberto e um novo link é processado
-      // IMPORTANTE: Sempre faz signOut antes de processar recovery, mesmo que não detecte sessão
-      // porque o Supabase pode ter uma sessão em cache que não é retornada por getSession()
-      try {
-        const { data: currentSession, error: sessionError } = await supabase.auth.getSession();
-        
-        // Sempre faz signOut antes de processar recovery, mesmo se não detectar sessão
-        // Isso garante que não há sessão em cache interferindo
-        console.log('[DeepLinking] Limpando sessão anterior antes de processar link de recovery...');
-        await supabase.auth.signOut();
-        // Aguarda um pouco para garantir que a limpeza foi processada
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (cleanupError) {
-        console.warn('[DeepLinking] Erro ao limpar sessão anterior (pode não existir):', cleanupError);
-        // Continua mesmo se a limpeza falhar
+      if (__DEV__) { 
+        logger.debug('[DeepLinking] ✓ Sessão de RECUPERAÇÃO detectada - pulando busca de user_role');
+      }
+    } else {
+      if (__DEV__) {
+        logger.debug('[DeepLinking] Sessão normal (não é recovery)');
       }
     }
 
     // Configura a sessão com os tokens do link
     if (!accessToken || !refreshToken) {
-      console.error('[DeepLinking] Tokens inválidos ou ausentes');
+      if (__DEV__) {
+        logger.error('[DeepLinking] ✗ Tokens inválidos ou ausentes:', {
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
+        });
+      }
       return false;
+    }
+
+    if (__DEV__) {
+      logger.debug('[DeepLinking] Chamando setSession...');
+    }
+
+    // #region agent log
+    try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:194',message:'ANTES setSession',data:{isRecovery:type==='recovery',accessTokenLength:accessToken?.length,refreshTokenLength:refreshToken?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
+    // #endregion
+
+    if (__DEV__) {
+      logger.debug('[DeepLinking] ========== CHAMANDO setSession ==========');
+      console.log('[DEBUG] setSession - isRecovery:', type === 'recovery');
+      console.log('[DEBUG] setSession - accessToken length:', accessToken?.length);
     }
 
     const { data, error } = await supabase.auth.setSession({
@@ -176,65 +245,164 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
       refresh_token: refreshToken,
     });
 
-    console.log('[DeepLinking] Resultado setSession:', {
-      hasData: !!data,
-      hasSession: !!data?.session,
-      hasUser: !!data?.session?.user,
-      error: error?.message,
-      errorCode: error?.code,
-      errorStatus: error?.status,
-    });
+    // #region agent log
+    try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:200',message:'DEPOIS setSession',data:{hasData:!!data,hasSession:!!data?.session,hasUser:!!data?.session?.user,hasError:!!error,errorMessage:error?.message,userEmail:data?.session?.user?.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
+    // #endregion
+
+    if (__DEV__) {
+      logger.debug('[DeepLinking] ========== setSession RESULTADO ==========');
+      console.log('[DEBUG] setSession resultado - hasError:', !!error);
+      console.log('[DEBUG] setSession resultado - hasSession:', !!data?.session);
+      console.log('[DEBUG] setSession resultado - error:', error?.message);
+      if (error) {
+        console.error('[DEBUG] setSession ERRO:', error);
+      }
+    }
+
+    if (__DEV__) { logger.debug('[DeepLinking] Resultado setSession:', {
+        hasData: !!data,
+        hasSession: !!data?.session,
+        hasUser: !!data?.session?.user,
+        userEmail: data?.session?.user?.email,
+        error: error?.message,
+        errorCode: error?.code,
+        errorStatus: error?.status,
+        isRecovery: type === 'recovery',
+      });
+    }
 
     if (error) {
-      console.error('[DeepLinking] Erro ao configurar sessão:', error);
-      console.error('[DeepLinking] Detalhes do erro:', {
-        message: error.message,
-        code: error.code,
-        status: error.status,
-        name: error.name,
-      });
+      if (__DEV__) {
+        logger.error('[DeepLinking] ✗ Erro ao configurar sessão:', error);
+        logger.error('[DeepLinking] Detalhes do erro:', {
+          message: error.message,
+          code: error.code,
+          status: error.status,
+          name: error.name,
+        });
+      }
       return false;
     }
 
-    console.log('[DeepLinking] Sessão configurada com sucesso!');
-    console.log('[DeepLinking] Usuário:', data.session?.user?.email);
+    if (!data?.session) {
+      if (__DEV__) {
+        logger.error('[DeepLinking] ✗ setSession retornou sem erro mas sem sessão!');
+      }
+      return false;
+    }
+
+    if (__DEV__) { 
+      logger.debug('[DeepLinking] ✓ Sessão configurada com sucesso!');
+      logger.debug('[DeepLinking] Email:', data.session.user?.email);
+      logger.debug('[DeepLinking] User ID:', data.session.user?.id);
+    }
 
     // Verifica se a sessão foi realmente persistida após setSession
     // Em produção, pode haver um delay na persistência
     const verifySession = async () => {
+      // #region agent log
+      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:226',message:'verifySession - primeira tentativa',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
+      // #endregion
+      
       const { data: { session: verifiedSession }, error: verifyError } = await supabase.auth.getSession();
+      
+      // #region agent log
+      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:230',message:'verifySession - resultado primeira tentativa',data:{hasSession:!!verifiedSession,hasError:!!verifyError,errorMessage:verifyError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
+      // #endregion
+      
       if (verifyError) {
-        console.error('[DeepLinking] Erro ao verificar sessão após setSession:', verifyError);
+        logger.error('[DeepLinking] Erro ao verificar sessão após setSession:', verifyError);
         return false;
       }
       if (!verifiedSession) {
-        console.warn('[DeepLinking] Sessão não encontrada após setSession - pode haver delay na persistência');
+        if (__DEV__) {
+          logger.warn('[DeepLinking] Sessão não encontrada após setSession - pode haver delay na persistência');
+        }
         // Aguarda um pouco e tenta novamente
         await new Promise(resolve => setTimeout(resolve, 500));
         const { data: { session: retrySession } } = await supabase.auth.getSession();
+        
+        // #region agent log
+        try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:241',message:'verifySession - resultado retry',data:{hasSession:!!retrySession},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
+        // #endregion
+        
         if (!retrySession) {
-          console.error('[DeepLinking] Sessão ainda não encontrada após retry');
+          logger.error('[DeepLinking] Sessão ainda não encontrada após retry');
           return false;
         }
-        console.log('[DeepLinking] Sessão encontrada após retry');
+        if (__DEV__) { logger.debug('[DeepLinking] Sessão encontrada após retry');
+        }
       }
       return true;
     };
 
     const sessionPersisted = await verifySession();
     if (!sessionPersisted) {
-      console.error('[DeepLinking] Sessão não foi persistida corretamente');
+      if (__DEV__) {
+        logger.error('[DeepLinking] ✗ Sessão não foi persistida corretamente');
+      }
       return false;
     }
 
+    if (__DEV__) {
+      logger.debug('[DeepLinking] ✓ Sessão persistida e verificada com sucesso!');
+    }
+
+    // Detectar se é OAuth do Google e salvar dados no AsyncStorage
+    // Isso permite pular a etapa de dados pessoais no signup
+    if (data?.session?.user) {
+      const user = data.session.user;
+      const provider = user.app_metadata?.provider;
+      
+      if (provider === 'google') {
+        if (__DEV__) {
+          logger.debug('[DeepLinking] OAuth Google detectado, salvando dados no AsyncStorage');
+        }
+        
+        try {
+          // Salvar flag indicando que é OAuth Google
+          await AsyncStorage.setItem('oauth_google_signup', 'true');
+          
+          // Salvar dados do Google para usar no signup
+          const oauthData = {
+            full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
+            email: user.email || '',
+            avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+            provider: 'google',
+            user_id: user.id,
+          };
+          
+          await AsyncStorage.setItem('oauth_google_data', JSON.stringify(oauthData));
+          
+          if (__DEV__) {
+            logger.debug('[DeepLinking] Dados OAuth salvos:', {
+              full_name: oauthData.full_name,
+              email: oauthData.email,
+              has_avatar: !!oauthData.avatar_url,
+            });
+          }
+        } catch (storageError) {
+          logger.error('[DeepLinking] Erro ao salvar dados OAuth no AsyncStorage:', storageError);
+          // Não bloqueia o fluxo, apenas loga o erro
+        }
+      }
+    }
+
+    if (__DEV__) {
+      logger.debug('[DeepLinking] === PROCESSAMENTO DE TOKENS CONCLUÍDO COM SUCESSO ===');
+    }
     return true;
-  } catch (error: any) {
-    console.error('[DeepLinking] Exceção ao processar tokens:', error);
-    console.error('[DeepLinking] Detalhes da exceção:', {
-      message: error?.message,
-      code: error?.code,
-      stack: error?.stack,
-    });
+  } catch (error: unknown) {
+    if (__DEV__) {
+      logger.error('[DeepLinking] ✗ Exceção ao processar tokens:', error);
+      if (error && typeof error === 'object') {
+        logger.error('[DeepLinking] Detalhes da exceção:', {
+          message: 'message' in error ? error.message : undefined,
+          code: 'code' in error ? error.code : undefined,
+          stack: 'stack' in error ? error.stack : undefined,
+        });
+      }
+    }
     return false;
   }
 };

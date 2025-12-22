@@ -12,9 +12,9 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeGoBack } from '../../lib/router-utils';
-import { supabase } from '../../lib/supabase';
 import {
   IconCheckbox,
   IconCheckboxOutline,
@@ -30,6 +30,7 @@ import { Icon } from '../../components/ui/Icon';
 import ScreenContainer from '../../components/layout/ScreenContainer';
 import SignupHeaderMerchant from '../../components/auth/SignupHeaderMerchant';
 import { CustomButton } from '../../components/CustomButton';
+import { logger } from '../../lib/logger';
 
 type BusinessTimeOption = {
   value: string;
@@ -80,9 +81,6 @@ type WorkDaysState = {
 const MerchantSignupBusinessScreen: React.FC = () => {
   const router = useRouter();
   const safeGoBack = useSafeGoBack('/(auth)/merchant-signup-address');
-  const params = useLocalSearchParams<{ userId?: string; addressData?: string }>();
-  const userId = params.userId as string | undefined;
-  const addressData = params.addressData ? JSON.parse(params.addressData as string) : null;
 
   const [businessName, setBusinessName] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
@@ -153,31 +151,67 @@ const MerchantSignupBusinessScreen: React.FC = () => {
   );
 
   const handleContinue = async () => {
-    const { data, error: userError } = await supabase.auth.getUser();
-    const currentUser = data?.user;
-    
-    if (userError || !currentUser) {
-      if (userId) {
-        setError('Sessão expirada. Por favor, faça login novamente.');
-        setTimeout(() => {
-          router.replace('/(auth)/login');
-        }, 2000);
-        return;
-      }
-      setError('Você precisa estar logado para continuar. Por favor, volte e faça o cadastro novamente.');
-      return;
-    }
-
-    const userIdToUse = currentUser.id;
-
     if (!businessName) {
       setError('Informe o nome do seu negócio.');
       return;
     }
 
+    // Validar categoria obrigatória
+    if (!selectedCategory) {
+      setError('Selecione uma categoria para o seu negócio.');
+      return;
+    }
+
+    // Validar pelo menos um método de pagamento
+    if (!pix && !card && !cash) {
+      setError('Selecione pelo menos um método de pagamento.');
+      return;
+    }
+
+    // Validar pelo menos um dia de funcionamento ativo
+    const hasActiveDay = Object.values(workDays).some(day => day.active);
+    if (!hasActiveDay) {
+      setError('Selecione pelo menos um dia de funcionamento.');
+      return;
+    }
+
+    // Validar horários (início deve ser anterior ao fim)
+    for (const [dayKey, dayData] of Object.entries(workDays)) {
+      if (dayData.active) {
+        const start = dayData.start.split(':').map(Number);
+        const end = dayData.end.split(':').map(Number);
+        const startMinutes = start[0] * 60 + start[1];
+        const endMinutes = end[0] * 60 + end[1];
+        if (startMinutes >= endMinutes) {
+          const dayLabel = WEEK_DAYS.find(d => d.key === dayKey)?.label || dayKey;
+          setError(`Horário inválido para ${dayLabel}. O horário de início deve ser anterior ao horário de fim.`);
+          return;
+        }
+      }
+    }
+
     try {
       setLoading(true);
       setError(null);
+
+      // Buscar dados salvos anteriormente
+      const draftKey = 'merchant_signup_draft';
+      const stored = await AsyncStorage.getItem(draftKey);
+      
+      if (!stored) {
+        setError('Dados do cadastro não encontrados. Por favor, volte e preencha novamente.');
+        return;
+      }
+
+      let draftData;
+      try {
+        draftData = JSON.parse(stored);
+      } catch (parseError) {
+        logger.error('[MerchantSignupBusiness] Erro ao fazer parse do draft:', parseError);
+        await AsyncStorage.removeItem(draftKey);
+        setError('Dados do cadastro corrompidos. Por favor, volte e preencha novamente.');
+        return;
+      }
 
       const workDaysJson: Record<string, { start: string; end: string }> = {};
       Object.entries(workDays).forEach(([dayKey, dayData]) => {
@@ -195,80 +229,38 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         cash: cash,
       };
 
-      let bannerUrl: string | null = null;
-      if (bannerImage) {
-        bannerUrl = await uploadBannerToSupabase(userIdToUse);
-        if (bannerImage && !bannerUrl) {
-          const shouldContinue = await new Promise<boolean>((resolve) => {
-            Alert.alert(
-              'Erro no upload',
-              'Não foi possível fazer upload da foto de capa. Deseja continuar sem a foto de capa?',
-              [
-                { text: 'Cancelar', onPress: () => resolve(false), style: 'cancel' },
-                { text: 'Continuar', onPress: () => resolve(true) },
-              ]
-            );
-          });
-          if (!shouldContinue) {
-            setLoading(false);
-            return;
-          }
-        }
-      }
+      // Salvar URIs locais das imagens (upload será feito na tela de loading)
+      const businessData = {
+        business_name: businessName,
+        category_id: selectedCategory?.id || null,
+        description: description || null,
+        business_time: businessTime?.label || null,
+        lunch_break_start: hasLunchBreak && lunchTime ? lunchTime.start : null,
+        lunch_break_end: hasLunchBreak && lunchTime ? lunchTime.end : null,
+        work_days: Object.keys(workDaysJson).length > 0 ? workDaysJson : null,
+        accepted_payment_methods: acceptedPaymentMethods,
+        // Salvar URIs locais das imagens para upload posterior
+        banner_image_uri: bannerImage || null,
+        logo_image_uri: logoImage || null,
+      };
 
-      let logoUrl: string | null = null;
-      if (logoImage) {
-        logoUrl = await uploadLogoToSupabase(userIdToUse);
-        if (logoImage && !logoUrl) {
-          const shouldContinue = await new Promise<boolean>((resolve) => {
-            Alert.alert(
-              'Erro no upload',
-              'Não foi possível fazer upload do logotipo. Deseja continuar sem o logo?',
-              [
-                { text: 'Cancelar', onPress: () => resolve(false), style: 'cancel' },
-                { text: 'Continuar', onPress: () => resolve(true) },
-              ]
-            );
-          });
-          if (!shouldContinue) {
-            setLoading(false);
-            return;
-          }
-        }
-      }
+      // Adicionar dados do negócio ao draft
+      const updatedDraft = {
+        ...draftData,
+        ...businessData,
+      };
 
-      const { data, error: companyError } = await supabase
-        .from('business_profiles')
-        .insert({
-          owner_id: userIdToUse,
-          business_name: businessName,
-          category_id: selectedCategory?.id || null,
-          description: description || null,
-          address: addressData?.address || null,
-          banner_url: bannerUrl || null,
-          logo_url: logoUrl || null,
-          business_time: businessTime?.label || null,
-          lunch_break_start: hasLunchBreak && lunchTime ? lunchTime.start : null,
-          lunch_break_end: hasLunchBreak && lunchTime ? lunchTime.end : null,
-          work_days: Object.keys(workDaysJson).length > 0 ? workDaysJson : null,
-          accepted_payment_methods: acceptedPaymentMethods,
-        })
-        .select('id')
-        .single();
-
-      if (companyError) {
-        setError(companyError.message);
-        return;
-      }
-
-      const companyId = data?.id as string;
+      // Salvar dados atualizados no AsyncStorage
+      await AsyncStorage.setItem(draftKey, JSON.stringify(updatedDraft));
 
       router.push({
         pathname: '/(auth)/merchant-signup-services',
-        params: { userId: userIdToUse, companyId },
       });
-    } catch (e: any) {
-      setError(e?.message ?? 'Erro ao salvar dados do negócio.');
+    } catch (e: unknown) {
+      const errorMessage = e && typeof e === 'object' && 'message' in e && typeof e.message === 'string' 
+        ? e.message 
+        : 'Erro ao salvar dados do negócio.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -305,7 +297,38 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setBannerImage(result.assets[0].uri);
+        const imageUri = result.assets[0].uri;
+        
+        // Validar formato da imagem
+        const fileExt = imageUri.split('.').pop()?.toLowerCase() || '';
+        const allowedFormats = ['jpg', 'jpeg', 'png', 'webp'];
+        if (!allowedFormats.includes(fileExt)) {
+          Alert.alert(
+            'Formato não suportado',
+            'Por favor, selecione uma imagem nos formatos JPG, PNG ou WEBP.'
+          );
+          return;
+        }
+
+        // Validar tamanho da imagem (5MB máximo)
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(imageUri);
+          if (fileInfo.exists && 'size' in fileInfo) {
+            const fileSizeMB = fileInfo.size / (1024 * 1024);
+            if (fileSizeMB > 5) {
+              Alert.alert(
+                'Imagem muito grande',
+                'A imagem deve ter no máximo 5MB. Por favor, selecione uma imagem menor.'
+              );
+              return;
+            }
+          }
+        } catch (fileError) {
+          // Se não conseguir verificar tamanho, continua (pode ser web ou outro caso)
+          logger.warn('Não foi possível verificar tamanho da imagem:', fileError);
+        }
+
+        setBannerImage(imageUri);
       }
     } catch (error) {
       handleError(error, 'general');
@@ -341,145 +364,42 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setLogoImage(result.assets[0].uri);
+        const imageUri = result.assets[0].uri;
+        
+        // Validar formato da imagem
+        const fileExt = imageUri.split('.').pop()?.toLowerCase() || '';
+        const allowedFormats = ['jpg', 'jpeg', 'png', 'webp'];
+        if (!allowedFormats.includes(fileExt)) {
+          Alert.alert(
+            'Formato não suportado',
+            'Por favor, selecione uma imagem nos formatos JPG, PNG ou WEBP.'
+          );
+          return;
+        }
+
+        // Validar tamanho da imagem (5MB máximo)
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(imageUri);
+          if (fileInfo.exists && 'size' in fileInfo) {
+            const fileSizeMB = fileInfo.size / (1024 * 1024);
+            if (fileSizeMB > 5) {
+              Alert.alert(
+                'Imagem muito grande',
+                'A imagem deve ter no máximo 5MB. Por favor, selecione uma imagem menor.'
+              );
+              return;
+            }
+          }
+        } catch (fileError) {
+          // Se não conseguir verificar tamanho, continua (pode ser web ou outro caso)
+          logger.warn('Não foi possível verificar tamanho da imagem:', fileError);
+        }
+
+        setLogoImage(imageUri);
       }
     } catch (error) {
       handleError(error, 'general');
       Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
-    }
-  };
-
-  const uploadBannerToSupabase = async (_userIdParam?: string): Promise<string | null> => {
-    if (!bannerImage) return null;
-
-    try {
-      setBannerUploading(true);
-
-      const { data, error: authError } = await supabase.auth.getUser();
-      const currentUser = data?.user;
-      
-      if (authError || !currentUser) {
-        throw new Error('Usuário não autenticado. Faça login novamente.');
-      }
-
-      const authenticatedUserId = currentUser.id;
-      const fileExt = bannerImage.split('.').pop() || 'jpg';
-      const fileName = `${authenticatedUserId}-${Date.now()}.${fileExt}`;
-      const filePath = `business-banners/${fileName}`;
-
-      // Verificar se o arquivo existe antes de ler
-      const fileInfo = await FileSystem.getInfoAsync(bannerImage);
-      if (!fileInfo.exists) {
-        throw new Error('Arquivo de imagem não encontrado. Por favor, selecione a imagem novamente.');
-      }
-
-      let base64: string;
-      try {
-        base64 = await FileSystem.readAsStringAsync(bannerImage, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } catch (fileError) {
-        handleError(fileError, 'general');
-        throw new Error('Não foi possível ler o arquivo de imagem. Verifique se o arquivo não está corrompido.');
-      }
-
-      const byteCharacters = atob(base64);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-
-      const { error: uploadError } = await supabase.storage
-        .from('business-assets')
-        .upload(filePath, byteArray, {
-          contentType: `image/${fileExt}`,
-          upsert: false,
-        });
-
-      if (uploadError) {
-        handleError(uploadError, 'general');
-        throw uploadError;
-      }
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('business-assets').getPublicUrl(filePath);
-
-      return publicUrl;
-    } catch (error: unknown) {
-      handleError(error, 'general');
-      Alert.alert('Erro', 'Não foi possível fazer upload da foto de capa.');
-      return null;
-    } finally {
-      setBannerUploading(false);
-    }
-  };
-
-  const uploadLogoToSupabase = async (_userIdParam?: string): Promise<string | null> => {
-    if (!logoImage) return null;
-
-    try {
-      setLogoUploading(true);
-
-      const { data, error: authError } = await supabase.auth.getUser();
-      const currentUser = data?.user;
-      
-      if (authError || !currentUser) {
-        throw new Error('Usuário não autenticado. Faça login novamente.');
-      }
-
-      const authenticatedUserId = currentUser.id;
-      const fileExt = logoImage.split('.').pop() || 'jpg';
-      const fileName = `${authenticatedUserId}-${Date.now()}.${fileExt}`;
-      const filePath = `business-logos/${fileName}`;
-
-      // Verificar se o arquivo existe antes de ler
-      const fileInfo = await FileSystem.getInfoAsync(logoImage);
-      if (!fileInfo.exists) {
-        throw new Error('Arquivo de imagem não encontrado. Por favor, selecione a imagem novamente.');
-      }
-
-      let base64: string;
-      try {
-        base64 = await FileSystem.readAsStringAsync(logoImage, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } catch (fileError) {
-        handleError(fileError, 'general');
-        throw new Error('Não foi possível ler o arquivo de imagem. Verifique se o arquivo não está corrompido.');
-      }
-
-      const byteCharacters = atob(base64);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-
-      const { error: uploadError } = await supabase.storage
-        .from('business-assets')
-        .upload(filePath, byteArray, {
-          contentType: `image/${fileExt}`,
-          upsert: false,
-        });
-
-      if (uploadError) {
-        handleError(uploadError, 'general');
-        throw uploadError;
-      }
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('business-assets').getPublicUrl(filePath);
-
-      return publicUrl;
-    } catch (error: unknown) {
-      handleError(error, 'general');
-      Alert.alert('Erro', 'Não foi possível fazer upload do logotipo.');
-      return null;
-    } finally {
-      setLogoUploading(false);
     }
   };
 

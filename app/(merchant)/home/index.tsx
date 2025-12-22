@@ -19,6 +19,7 @@ import ScreenContainer from '../../../components/layout/ScreenContainer';
 import ServiceCategoryCard from '../../../components/ServiceCategoryCard';
 import AppointmentCard from '../../../components/appointments/AppointmentCard';
 import { CustomButton } from '../../../components/CustomButton';
+import { logger } from '../../../lib/logger';
 
 type BusinessProfile = {
   id: string;
@@ -57,11 +58,15 @@ const MerchantHomeScreen: React.FC = () => {
 
   useEffect(() => {
     loadBusinessAndServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadBusinessAndServices é estável (useCallback), não precisa estar nas dependências
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadBusinessAndServices();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // loadBusinessAndServices é estável (useCallback), não precisa estar nas dependências
     }, [])
   );
 
@@ -74,7 +79,7 @@ const MerchantHomeScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
+        logger.debug('Usuário não autenticado');
         setLoading(false);
         return;
       }
@@ -93,7 +98,7 @@ const MerchantHomeScreen: React.FC = () => {
             [{ text: 'OK', onPress: () => router.push('/(merchant)/profile/edit') }]
           );
         } else if (businessError) {
-          console.error('Erro ao buscar negócio:', businessError);
+          logger.error('Erro ao buscar negócio:', businessError);
         }
         setLoading(false);
         return;
@@ -116,7 +121,7 @@ const MerchantHomeScreen: React.FC = () => {
         .limit(5);
 
       if (servicesError) {
-        console.error('Erro ao buscar serviços:', servicesError);
+        logger.error('Erro ao buscar serviços:', servicesError);
       } else if (servicesData) {
         const servicesWithRatings = await Promise.all(
           (servicesData as Service[]).map(async (service) => {
@@ -164,7 +169,7 @@ const MerchantHomeScreen: React.FC = () => {
         .limit(50);
 
       if (appointmentsError) {
-        console.error('Erro ao buscar agendamentos do lojista:', appointmentsError);
+        logger.error('Erro ao buscar agendamentos do lojista:', appointmentsError);
       } else if (appointmentsData) {
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
         
@@ -176,7 +181,7 @@ const MerchantHomeScreen: React.FC = () => {
         setAppointments(todayAppointments as Appointment[]);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
       Alert.alert(
         'Erro ao carregar',
         'Não foi possível carregar os dados. Verifique sua conexão e tente novamente.',
@@ -188,9 +193,19 @@ const MerchantHomeScreen: React.FC = () => {
     }
   };
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadBusinessAndServices();
+    try {
+      await loadBusinessAndServices();
+    } catch (error) {
+      // Erro já é tratado dentro de loadBusinessAndServices
+      // Aqui apenas garantimos que o estado seja resetado
+      logger.error('Erro ao atualizar dados:', error);
+    } finally {
+      // O loadBusinessAndServices já reseta o refreshing no finally,
+      // mas garantimos aqui também por segurança
+      setRefreshing(false);
+    }
   };
 
   const handleShareProfile = () => {

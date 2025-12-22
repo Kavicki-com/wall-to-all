@@ -175,6 +175,9 @@ const styles = StyleSheet.create({
   welcomeNote: {
     paddingTop: 0,
     paddingBottom: 0,
+    width: '90%',
+    maxWidth: 342,
+    alignSelf: 'flex-start',
   },
   welcomeTitle: {
     fontSize: 20,
@@ -187,7 +190,7 @@ const styles = StyleSheet.create({
   form: {
     width: '90%',
     maxWidth: 342,
-    alignSelf: 'center',
+    alignSelf: 'flex-start',
     gap: 16,
   },
   inputSection: {

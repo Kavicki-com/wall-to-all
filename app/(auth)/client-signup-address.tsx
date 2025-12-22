@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,15 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeGoBack } from '../../lib/router-utils';
-import { supabase } from '../../lib/supabase';
 import { CustomInput } from '../../components/ui/CustomInput';
 import { useToast } from '../../components/ui/ToastProvider';
 import { handleError } from '../../lib/errorHandler';
 import ScreenContainer from '../../components/layout/ScreenContainer';
 import SignupHeaderClient from '../../components/auth/SignupHeaderClient';
 import { CustomButton } from '../../components/CustomButton';
+import { logger } from '../../lib/logger';
 
 const ClientSignupAddressScreen: React.FC = () => {
   const router = useRouter();
@@ -32,7 +33,31 @@ const ClientSignupAddressScreen: React.FC = () => {
   const [cidade, setCidade] = useState('');
   const [estado, setEstado] = useState('');
 
+  const draftKey = 'client_signup_draft';
+
+  // Carregar draft na montagem inicial
+  useEffect(() => {
+    const loadDraft = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(draftKey);
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        setCep(parsed.cep || '');
+        setEndereco(parsed.endereco || '');
+        setComplemento(parsed.complemento || '');
+        setNumero(parsed.numero || '');
+        setBairro(parsed.bairro || '');
+        setCidade(parsed.cidade || '');
+        setEstado(parsed.estado || '');
+      } catch {
+        // ignore draft errors
+      }
+    };
+    loadDraft();
+  }, []);
+
   // Resetar campos quando a tela é focada (quando volta de outras telas)
+  // O draft só é carregado no useEffect acima na montagem inicial
   useFocusEffect(
     React.useCallback(() => {
       setCep('');
@@ -66,14 +91,61 @@ const ClientSignupAddressScreen: React.FC = () => {
 
   const fetchAddressByCEP = async (cepValue: string) => {
     try {
-      const response = await fetch(`https://viacep.com.br/ws/${cepValue}/json/`);
+      const url = `https://viacep.com.br/ws/${cepValue}/json/`;
+      
+      let response: Response;
+      let timeoutId: NodeJS.Timeout | null = null;
+      try {
+        // Adicionar timeout de 10 segundos para evitar que fique travado
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+        
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      } catch (fetchError: unknown) {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        // Se foi timeout, não propagar o erro - usuário pode preencher manualmente
+        if (fetchError && typeof fetchError === 'object' && 'name' in fetchError && fetchError.name === 'AbortError') {
+          if (__DEV__) {
+            logger.warn('[ViaCEP] Timeout ao buscar CEP. Preencha o endereço manualmente.');
+          }
+          return;
+        }
+        throw fetchError;
+      }
       
       if (!response.ok) {
-        console.error(`Erro ao buscar CEP: HTTP ${response.status}`);
+        try {
+          await response.text();
+        } catch {
+          // Ignora erro ao ler body
+        }
+        // ViaCEP temporariamente indisponível - usuário pode preencher manualmente
+        // Usar console.warn em vez de console.error para não poluir logs (é um erro esperado de API externa)
+        if (__DEV__) {
+          logger.warn(`[ViaCEP] Serviço temporariamente indisponível (HTTP ${response.status}). Preencha o endereço manualmente.`);
+        }
         return;
       }
 
-      const data = await response.json();
+      let data: { erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string };
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        throw jsonError;
+      }
 
       if (!data.erro) {
         setEndereco(data.logradouro || '');
@@ -82,14 +154,25 @@ const ClientSignupAddressScreen: React.FC = () => {
         setEstado(data.uf || '');
       }
     } catch (error) {
-      console.error('Erro ao buscar CEP:', error);
+      // Erro de rede/timeout - usuário pode preencher manualmente
+      // Usar console.warn em vez de console.error para não poluir logs (é um erro esperado)
+      if (__DEV__) {
+        logger.warn('[ViaCEP] Erro ao buscar CEP. Preencha o endereço manualmente:', error);
+      }
       // Não mostrar alerta para não interromper o fluxo do usuário
     }
   };
 
 
   const handleContinue = async () => {
-    if (!cep || !endereco || !numero || !bairro || !cidade || !estado) {
+    // Validar CEP: deve ter 8 dígitos numéricos
+    const cepDigits = cep.replace(/\D/g, '');
+    if (!cepDigits || cepDigits.length !== 8) {
+      setError('CEP deve conter 8 dígitos.');
+      return;
+    }
+
+    if (!endereco || !numero || !bairro || !cidade || !estado) {
       setError('Preencha todos os campos obrigatórios.');
       return;
     }
@@ -98,28 +181,41 @@ const ClientSignupAddressScreen: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setError('Usuário não autenticado.');
+      // Buscar dados pessoais salvos anteriormente
+      const stored = await AsyncStorage.getItem(draftKey);
+      
+      if (!stored) {
+        setError('Dados do cadastro não encontrados. Por favor, volte e preencha novamente.');
         return;
       }
 
-      // Atualizar/criar client_profile com endereço
-      const { error: updateError } = await supabase
-        .from('client_profiles')
-        .upsert({
-          owner_id: user.id,
-          address: `${endereco}, ${numero}${complemento ? ` - ${complemento}` : ''}, ${bairro}, ${cidade} - ${estado}, CEP: ${cep}`,
-        }, {
-          onConflict: 'owner_id'
-        });
+      let draftData;
+      try {
+        draftData = JSON.parse(stored);
+      } catch (parseError) {
+        logger.error('[ClientSignupAddress] Erro ao fazer parse do draft:', parseError);
+        await AsyncStorage.removeItem(draftKey);
+        setError('Dados do cadastro corrompidos. Por favor, volte e preencha novamente.');
+        return;
+      }
 
-      if (updateError) throw updateError;
+      // Adicionar dados de endereço ao draft
+      const updatedDraft = {
+        ...draftData,
+        address: `${endereco}, ${numero}${complemento ? ` - ${complemento}` : ''}, ${bairro}, ${cidade} - ${estado}, CEP: ${cep}`,
+        cep,
+        endereco,
+        numero,
+        complemento,
+        bairro,
+        cidade,
+        estado,
+      };
 
-      // Navegar para loading screen
+      // Salvar dados atualizados no AsyncStorage
+      await AsyncStorage.setItem(draftKey, JSON.stringify(updatedDraft));
+
+      // Navegar para loading screen (onde o usuário será criado)
       router.replace('/(auth)/client-signup-loading');
     } catch (err) {
       const processed = handleError(err, 'signup');

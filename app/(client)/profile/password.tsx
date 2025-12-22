@@ -18,7 +18,6 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import { handleError } from '../../../lib/errorHandler';
 
 const ChangePasswordScreen: React.FC = () => {
-  const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

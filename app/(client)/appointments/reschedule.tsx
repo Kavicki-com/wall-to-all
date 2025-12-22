@@ -11,6 +11,7 @@ import {
   Dimensions,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { useToast } from '../../../components/ui/ToastProvider';
@@ -32,6 +33,7 @@ import { safeGoBack } from '../../../lib/router-utils';
 import { validateTime, validateDate } from '../../../lib/validations';
 import { RESCHEDULE_DEFAULTS } from '../../../lib/constants';
 import { applyAcceptedReschedules } from '../../../lib/utils';
+import { logger } from '../../../lib/logger';
 
 type Appointment = {
   id: string;
@@ -67,6 +69,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ appointmentId: string; reason?: string }>();
   const { showError } = useToast();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
@@ -89,6 +92,8 @@ const RescheduleAppointmentScreen: React.FC = () => {
   // novamente a partir de outro agendamento.
   useEffect(() => {
     loadAppointmentData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadAppointmentData é estável (useCallback), não precisa estar nas dependências
   }, [params.appointmentId, params.reason]);
 
   useEffect(() => {
@@ -99,6 +104,8 @@ const RescheduleAppointmentScreen: React.FC = () => {
       setSelectedTime(null);
       setTimesToShow(RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadAvailableTimes é estável (useCallback), não precisa estar nas dependências
   }, [selectedDate, appointment]);
 
   // Resetar campos quando a tela é focada (exceto se vier com reason nos params)
@@ -358,8 +365,6 @@ const RescheduleAppointmentScreen: React.FC = () => {
       const slotEndTime = `${String(nextHour).padStart(2, '0')}:00`;
 
       let type: 'available' | 'occupied' | 'lunch' = 'available';
-      const slotStart = new Date(`${dateString}T${timeString}:00`);
-      const slotEnd = new Date(`${dateString}T${slotEndTime}:00`);
 
       // Verificar se está no horário de almoço
       if (lunchBreakStart && lunchBreakEnd) {
@@ -543,6 +548,9 @@ const RescheduleAppointmentScreen: React.FC = () => {
       }
 
       // Enviar notificação para o merchant
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:548',message:'Iniciando processo de notificação para merchant',data:{appointmentId:params.appointmentId,rescheduleId:rescheduleData.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+      // #endregion
       try {
         // Buscar dados do merchant e cliente
         const { data: businessData } = await supabase
@@ -551,13 +559,24 @@ const RescheduleAppointmentScreen: React.FC = () => {
           .eq('id', appointment.business.id)
           .single();
 
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:554',message:'Business data buscado',data:{hasBusinessData:!!businessData,ownerId:businessData?.owner_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+        // #endregion
+
         const { data: clientData } = await supabase
           .from('profiles')
           .select('full_name')
           .eq('id', user.id)
           .single();
 
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:563',message:'Client data buscado',data:{hasClientData:!!clientData,clientName:clientData?.full_name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+        // #endregion
+
         if (businessData?.owner_id && clientData?.full_name) {
+          // #region agent log
+          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:565',message:'Condição satisfeita, chamando notifyRescheduleRequested',data:{ownerId:businessData.owner_id,appointmentId:parseInt(params.appointmentId),rescheduleId:rescheduleData.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+          // #endregion
           await notifyRescheduleRequested(
             businessData.owner_id,
             parseInt(params.appointmentId),
@@ -565,10 +584,17 @@ const RescheduleAppointmentScreen: React.FC = () => {
             clientData.full_name,
             newStartTime.toISOString()
           );
+        } else {
+          // #region agent log
+          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:575',message:'Condição NÃO satisfeita - notificação NÃO será enviada ao merchant',data:{hasBusinessData:!!businessData,hasOwnerId:!!businessData?.owner_id,hasClientData:!!clientData,hasClientName:!!clientData?.full_name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+          // #endregion
         }
       } catch (notifError) {
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:577',message:'Exceção ao enviar notificação para merchant',data:{error:notifError?.toString(),errorMessage:notifError instanceof Error?notifError.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+        // #endregion
         // Não bloquear o fluxo se a notificação falhar
-        console.warn('Erro ao enviar notificação de reagendamento:', notifError);
+        logger.warn('Erro ao enviar notificação de reagendamento:', notifError);
       }
 
       // Resetar campos após sucesso antes de mostrar o modal
@@ -698,6 +724,12 @@ const RescheduleAppointmentScreen: React.FC = () => {
         fontSize: 16,
         fontFamily: 'Montserrat_700Bold',
         color: '#000000',
+        marginBottom: 4,
+      },
+      serviceName: {
+        fontSize: 14,
+        fontFamily: 'Montserrat_700Bold',
+        color: '#474747',
         marginBottom: 0,
       },
       section: {
@@ -726,13 +758,11 @@ const RescheduleAppointmentScreen: React.FC = () => {
         backgroundColor: '#FEFEFE',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
         paddingTop: 24,
         paddingBottom: 0,
-        maxHeight: Dimensions.get('window').height * 0.9,
         width: '100%',
-        flex: 1,
         ...Platform.select({
           ios: {
             shadowColor: '#1D1D1D',
@@ -750,18 +780,20 @@ const RescheduleAppointmentScreen: React.FC = () => {
       },
       modalScrollContent: {
         gap: 24,
-        paddingBottom: 120,
+        paddingBottom: 24,
         paddingTop: 0,
         paddingHorizontal: 0,
         width: '100%',
       },
       // Confirmation Modal Styles
       confirmationOverlay: {
-        flex: 1,
+        ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 24,
+        paddingHorizontal: 24,
+        paddingTop: 24,
+        paddingBottom: 0,
       },
       confirmationModalContainer: {
         backgroundColor: '#FEFEFE',
@@ -771,6 +803,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
         maxWidth: 400,
         alignItems: 'center',
         gap: 16,
+        marginBottom: 0,
         ...Platform.select({
           ios: {
             shadowColor: '#1D1D1D',
@@ -834,6 +867,9 @@ const RescheduleAppointmentScreen: React.FC = () => {
     >
         <View style={styles.content}>
           <Text style={styles.mainTitle}>Selecione o Melhor dia e horário</Text>
+          {appointment?.service?.name && (
+            <Text style={styles.serviceName}>{appointment.service.name}</Text>
+          )}
 
           {/* Date Selection */}
           <View style={styles.section}>
@@ -933,7 +969,13 @@ const RescheduleAppointmentScreen: React.FC = () => {
             <View style={StyleSheet.absoluteFill} />
           </TouchableWithoutFeedback>
           <TouchableWithoutFeedback>
-            <View style={styles.modalContent}>
+            <View style={[
+              styles.modalContent,
+              {
+                height: Dimensions.get('window').height * 0.82,
+                maxHeight: Dimensions.get('window').height * 0.82,
+              }
+            ]}>
                 <ScrollView
                   style={styles.modalScrollView}
                   contentContainerStyle={styles.modalScrollContent}
@@ -1012,7 +1054,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
                     setSelectedTime(null);
                     router.replace(`/(client)/appointments/${params.appointmentId}`);
                   }}
-                  style={{ borderRadius: 24, width: '90%', maxWidth: 256, alignSelf: 'center' }}
+                  style={{ borderRadius: 24, width: '90%', maxWidth: 256, alignSelf: 'center', marginVertical: 0 }}
                 />
               </View>
             </TouchableWithoutFeedback>

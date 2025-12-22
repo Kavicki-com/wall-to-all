@@ -43,29 +43,7 @@ export type BusinessCardProps = {
  * 4 cifrões ($$$$): acima de R$ 200,00
  * 5 cifrões ($$$$$): acima de R$ 300,00
  */
-const getPriceLevel = (services: Array<{ price?: number }>): number => {
-  if (!services || services.length === 0) return 1;
-
-  // Filtra preços válidos
-  const prices = services
-    .map((s) => s.price)
-    .filter((p): p is number => p !== undefined && p > 0);
-
-  if (prices.length === 0) return 1;
-
-  // Calcula média
-  const avg = prices.reduce((sum, p) => sum + p, 0) / prices.length;
-
-  if (avg > 300) return 5; // $$$$$
-  if (avg > 200) return 4; // $$$$
-  if (avg > 100) return 3; // $$$
-  
-  // Regra: até 50 reais é nível 2. 
-  // O intervalo 51-100 cairá aqui como segurança antes de virar nível 3
-  if (avg > 30) return 2;  // $$
-
-  return 1; // $ (até 30)
-};
+import { getPriceLevel } from '../lib/utils';
 
 export const BusinessCard: React.FC<BusinessCardProps> = ({
   id,

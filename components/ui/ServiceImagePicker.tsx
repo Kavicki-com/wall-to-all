@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
+import { logger } from '../../lib/logger';
 
 import { Icon } from './Icon'; 
 
@@ -55,7 +56,7 @@ export default function ServiceImagePicker({
         onImagesChange([...images, newImage]);
       }
     } catch (err) {
-      console.error('Erro ao selecionar imagem:', err);
+      logger.error('Erro ao selecionar imagem:', err);
       Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
     }
   };

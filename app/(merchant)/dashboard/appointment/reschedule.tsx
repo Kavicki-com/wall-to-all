@@ -18,6 +18,8 @@ import { InlineLink } from '../../../../components/appointments/InlineLink';
 import { format } from 'date-fns';
 import { useSafeGoBack } from '../../../../lib/router-utils';
 import { applyAcceptedReschedules } from '../../../../lib/utils';
+import { logger } from '../../../../lib/logger';
+import RescheduleConfirmModal from './reschedule-confirm';
 
 type Appointment = {
   id: string;
@@ -58,9 +60,12 @@ const MerchantRescheduleScreen: React.FC = () => {
   const [markedDates, setMarkedDates] = useState<string[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [datesToShow, setDatesToShow] = useState(6); // Mostrar 6 datas inicialmente
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     loadAppointmentData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadAppointmentData é estável (useCallback), não precisa estar nas dependências
   }, []);
 
   // Atualizar justificativa quando os parâmetros mudarem (quando vier de confirm.tsx)
@@ -81,15 +86,14 @@ const MerchantRescheduleScreen: React.FC = () => {
   );
 
   useEffect(() => {
-    console.log('[Reschedule] useEffect triggered. selectedDate:', selectedDate, 'appointment:', !!appointment);
     if (selectedDate && appointment) {
-      console.log('[Reschedule] Chamando loadAvailableTimes...');
       loadAvailableTimes();
     } else {
-      console.log('[Reschedule] Limpando timeSlots - selectedDate ou appointment não disponível');
       setTimeSlots([]);
       setSelectedTime(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadAvailableTimes é estável (useCallback), não precisa estar nas dependências
   }, [selectedDate, appointment]);
 
   const loadAppointmentData = async () => {
@@ -97,7 +101,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       setLoading(true);
 
       if (!params.appointmentId) {
-        console.error('ID do agendamento não fornecido');
+        logger.error('ID do agendamento não fornecido');
         router.replace('/(merchant)/dashboard');
         return;
       }
@@ -121,7 +125,7 @@ const MerchantRescheduleScreen: React.FC = () => {
         // PGRST116 significa que não há perfil (0 linhas) - isso é esperado em alguns casos
         // Não logamos esse erro específico pois é tratado adequadamente
         if (businessError && businessError.code !== 'PGRST116') {
-          console.error('Erro ao buscar negócio:', businessError);
+          logger.error('Erro ao buscar negócio:', businessError);
         }
         router.replace('/(merchant)/dashboard');
         return;
@@ -141,7 +145,7 @@ const MerchantRescheduleScreen: React.FC = () => {
         .single();
 
       if (error || !appointmentData) {
-        console.error('Erro ao buscar agendamento:', error);
+        logger.error('Erro ao buscar agendamento:', error);
         router.replace('/(merchant)/dashboard');
         return;
       }
@@ -149,7 +153,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       setAppointment(appointmentData as Appointment);
       await generateAvailableDates(appointmentData as Appointment);
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
       router.replace('/(merchant)/dashboard');
     } finally {
       setLoading(false);
@@ -166,7 +170,7 @@ const MerchantRescheduleScreen: React.FC = () => {
         .single();
 
       if (businessError || !businessProfile) {
-        console.error('[Reschedule] Erro ao buscar work_days:', businessError);
+        logger.error('[Reschedule] Erro ao buscar work_days:', businessError);
         // Se não conseguir buscar, usar work_days do appointment
         const workDays = apt.business.work_days;
         if (workDays) {
@@ -180,7 +184,7 @@ const MerchantRescheduleScreen: React.FC = () => {
         try {
           workDays = JSON.parse(workDays);
         } catch (e) {
-          console.error('[Reschedule] Erro ao fazer parse do work_days:', e);
+          logger.error('[Reschedule] Erro ao fazer parse do work_days:', e);
           // Se falhar, tentar usar work_days do appointment
           workDays = apt.business.work_days;
         }
@@ -195,7 +199,7 @@ const MerchantRescheduleScreen: React.FC = () => {
         generateDatesFromWorkDays(workDays);
       }
     } catch (error) {
-      console.error('[Reschedule] Erro ao gerar datas disponíveis:', error);
+      logger.error('[Reschedule] Erro ao gerar datas disponíveis:', error);
     }
   };
 
@@ -235,12 +239,12 @@ const MerchantRescheduleScreen: React.FC = () => {
 
   const loadAvailableTimes = async () => {
     if (!selectedDate || !appointment) {
-      console.log('[Reschedule] loadAvailableTimes: selectedDate ou appointment não disponível');
+      logger.debug('[Reschedule] loadAvailableTimes: selectedDate ou appointment não disponível');
       return;
     }
 
     try {
-      console.log('[Reschedule] loadAvailableTimes iniciado para data:', selectedDate);
+      logger.debug('[Reschedule] loadAvailableTimes iniciado para data:', selectedDate);
       setLoadingTimes(true);
       const dateString = selectedDate.toISOString().split('T')[0];
 
@@ -252,13 +256,13 @@ const MerchantRescheduleScreen: React.FC = () => {
         .single();
 
       if (businessError || !businessProfile) {
-        console.error('[Reschedule] Erro ao buscar horários de funcionamento:', businessError);
+        logger.error('[Reschedule] Erro ao buscar horários de funcionamento:', businessError);
         setTimeSlots([]);
         setLoadingTimes(false);
         return;
       }
 
-      console.log('[Reschedule] businessProfile retornado:', JSON.stringify(businessProfile, null, 2));
+      logger.debug('[Reschedule] businessProfile retornado:', JSON.stringify(businessProfile, null, 2));
       
       // work_days pode ser uma string JSON ou um objeto
       let workDays = businessProfile.work_days;
@@ -266,7 +270,7 @@ const MerchantRescheduleScreen: React.FC = () => {
         try {
           workDays = JSON.parse(workDays);
         } catch (e) {
-          console.error('[Reschedule] Erro ao fazer parse do work_days:', e);
+          logger.error('[Reschedule] Erro ao fazer parse do work_days:', e);
           setTimeSlots([]);
           setLoadingTimes(false);
           return;
@@ -279,7 +283,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       }
       
       if (!workDays) {
-        console.log('[Reschedule] work_days não encontrado');
+        logger.debug('[Reschedule] work_days não encontrado');
         setTimeSlots([]);
         setLoadingTimes(false);
         return;
@@ -297,12 +301,12 @@ const MerchantRescheduleScreen: React.FC = () => {
       const dayName = dayNames[selectedDate.getDay()];
       const workDay = workDays[dayName];
 
-      console.log('[Reschedule] Dia selecionado:', dayName, 'para data:', dateString);
-      console.log('[Reschedule] workDay encontrado:', workDay);
-      console.log('[Reschedule] workDays completo:', JSON.stringify(workDays, null, 2));
+      logger.debug('[Reschedule] Dia selecionado:', dayName, 'para data:', dateString);
+      logger.debug('[Reschedule] workDay encontrado:', workDay);
+      logger.debug('[Reschedule] workDays completo:', JSON.stringify(workDays, null, 2));
 
       if (!workDay) {
-        console.log('[Reschedule] Dia não está disponível no work_days');
+        logger.debug('[Reschedule] Dia não está disponível no work_days');
         setTimeSlots([]);
         setLoadingTimes(false);
         return;
@@ -314,15 +318,15 @@ const MerchantRescheduleScreen: React.FC = () => {
       const endTime = workDay.end;
 
       if (!startTime || !endTime || typeof startTime !== 'string' || typeof endTime !== 'string') {
-        console.log('[Reschedule] workDay não tem start ou end válidos:', workDay);
-        console.log('[Reschedule] Tipo de start:', typeof startTime, 'Valor:', startTime);
-        console.log('[Reschedule] Tipo de end:', typeof endTime, 'Valor:', endTime);
+        logger.debug('[Reschedule] workDay não tem start ou end válidos:', workDay);
+        logger.debug('[Reschedule] Tipo de start:', typeof startTime, 'Valor:', startTime);
+        logger.debug('[Reschedule] Tipo de end:', typeof endTime, 'Valor:', endTime);
         setTimeSlots([]);
         setLoadingTimes(false);
         return;
       }
 
-      console.log('[Reschedule] Horário de funcionamento encontrado:', startTime, '-', endTime);
+      logger.debug('[Reschedule] Horário de funcionamento encontrado:', startTime, '-', endTime);
 
       // Buscar appointments existentes usando start_time e end_time
       // Limite de 50 appointments por dia (suficiente para verificar conflitos)
@@ -336,13 +340,13 @@ const MerchantRescheduleScreen: React.FC = () => {
         .neq('id', params.appointmentId)
         .limit(50);
 
-      console.log('[Reschedule] Appointments existentes encontrados:', existingAppointments?.length || 0);
+      logger.debug('[Reschedule] Appointments existentes encontrados:', existingAppointments?.length || 0);
       if (existingAppointments && existingAppointments.length > 0) {
-        console.log('[Reschedule] Detalhes dos appointments:', JSON.stringify(existingAppointments, null, 2));
+        logger.debug('[Reschedule] Detalhes dos appointments:', JSON.stringify(existingAppointments, null, 2));
         existingAppointments.forEach((apt, index) => {
           const aptStart = new Date(apt.start_time);
           const aptEnd = new Date(apt.end_time);
-          console.log(`[Reschedule] Appointment ${index + 1}:`, {
+          logger.debug(`[Reschedule] Appointment ${index + 1}:`, {
             start: aptStart.toISOString(),
             end: aptEnd.toISOString(),
             startHour: aptStart.getHours(),
@@ -351,7 +355,7 @@ const MerchantRescheduleScreen: React.FC = () => {
           });
         });
       } else {
-        console.log('[Reschedule] NENHUM appointment existente encontrado para esta data!');
+        logger.debug('[Reschedule] NENHUM appointment existente encontrado para esta data!');
       }
 
       // Aplicar reagendamentos aceitos aos appointments existentes
@@ -367,34 +371,34 @@ const MerchantRescheduleScreen: React.FC = () => {
       // Se for maior que 480 (8 horas), provavelmente está em milissegundos ou em formato incorreto
       // Serviços normais não duram mais que 8 horas
       if (serviceDuration > 480) {
-        console.warn('[Reschedule] serviceDuration parece estar em formato incorreto:', serviceDuration);
+        logger.warn('[Reschedule] serviceDuration parece estar em formato incorreto:', serviceDuration);
         // Tentar converter de milissegundos
         const convertedFromMs = Math.round(serviceDuration / 1000 / 60);
         // Se a conversão resultar em um valor razoável (menos de 8 horas), usar
         if (convertedFromMs > 0 && convertedFromMs <= 480) {
           serviceDuration = convertedFromMs;
-          console.log('[Reschedule] serviceDuration convertido de ms para minutos:', serviceDuration);
+          logger.debug('[Reschedule] serviceDuration convertido de ms para minutos:', serviceDuration);
         } else {
           // Se ainda for muito grande, pode estar em segundos
           const convertedFromSeconds = Math.round(serviceDuration / 60);
           if (convertedFromSeconds > 0 && convertedFromSeconds <= 480) {
             serviceDuration = convertedFromSeconds;
-            console.log('[Reschedule] serviceDuration convertido de segundos para minutos:', serviceDuration);
+            logger.debug('[Reschedule] serviceDuration convertido de segundos para minutos:', serviceDuration);
           } else {
             // Se nada funcionar, usar um valor padrão razoável (60 minutos)
-            console.warn('[Reschedule] serviceDuration inválido, usando padrão de 60 minutos');
+            logger.warn('[Reschedule] serviceDuration inválido, usando padrão de 60 minutos');
             serviceDuration = 60;
           }
         }
       }
       
-      console.log('[Reschedule] serviceDuration final (minutos):', serviceDuration);
+      logger.debug('[Reschedule] serviceDuration final (minutos):', serviceDuration);
       
       // Obter horário de almoço se existir
       const lunchBreakStart = businessProfile.lunch_break_start;
       const lunchBreakEnd = businessProfile.lunch_break_end;
       
-      console.log('[Reschedule] Horário de almoço:', lunchBreakStart, '-', lunchBreakEnd);
+      logger.debug('[Reschedule] Horário de almoço:', lunchBreakStart, '-', lunchBreakEnd);
       
       const slots = generateTimeSlots(
         startTime,
@@ -406,16 +410,16 @@ const MerchantRescheduleScreen: React.FC = () => {
         lunchBreakEnd,
       );
       
-      console.log('[Reschedule] Slots retornados de generateTimeSlots:', slots.length);
-      console.log('[Reschedule] Primeiros 3 slots:', slots.slice(0, 3));
+      logger.debug('[Reschedule] Slots retornados de generateTimeSlots:', slots.length);
+      logger.debug('[Reschedule] Primeiros 3 slots:', slots.slice(0, 3));
       setTimeSlots(slots);
-      console.log('[Reschedule] loadAvailableTimes concluído. Slots definidos:', slots.length);
+      logger.debug('[Reschedule] loadAvailableTimes concluído. Slots definidos:', slots.length);
     } catch (error) {
-      console.error('[Reschedule] Erro ao carregar horários:', error);
+      logger.error('[Reschedule] Erro ao carregar horários:', error);
       setTimeSlots([]);
     } finally {
       setLoadingTimes(false);
-      console.log('[Reschedule] loadAvailableTimes finalizado. loadingTimes = false');
+      logger.debug('[Reschedule] loadAvailableTimes finalizado. loadingTimes = false');
     }
   };
 
@@ -428,17 +432,17 @@ const MerchantRescheduleScreen: React.FC = () => {
     lunchBreakStart?: string | null,
     lunchBreakEnd?: string | null,
   ): TimeSlot[] => {
-    console.log('[Reschedule] generateTimeSlots chamado com:', { startTime, endTime, serviceDuration, dateString });
-    console.log('[Reschedule] existingAppointments:', existingAppointments?.length || 0);
+    logger.debug('[Reschedule] generateTimeSlots chamado com:', { startTime, endTime, serviceDuration, dateString });
+    logger.debug('[Reschedule] existingAppointments:', existingAppointments?.length || 0);
     
     const slots: TimeSlot[] = [];
     const [startHour] = startTime.split(':').map(Number);
     const [endHour] = endTime.split(':').map(Number);
 
-    console.log('[Reschedule] Horas extraídas - startHour:', startHour, 'endHour:', endHour);
+    logger.debug('[Reschedule] Horas extraídas - startHour:', startHour, 'endHour:', endHour);
 
     if (isNaN(startHour) || isNaN(endHour)) {
-      console.error('[Reschedule] Erro ao parsear horários:', { startTime, endTime });
+      logger.error('[Reschedule] Erro ao parsear horários:', { startTime, endTime });
       return [];
     }
 
@@ -523,8 +527,8 @@ const MerchantRescheduleScreen: React.FC = () => {
       currentHour += 1;
     }
 
-    console.log('[Reschedule] Total de slots gerados:', slots.length);
-    console.log('[Reschedule] Slots disponíveis:', slots.filter(s => s.available).length);
+    logger.debug('[Reschedule] Total de slots gerados:', slots.length);
+    logger.debug('[Reschedule] Slots disponíveis:', slots.filter(s => s.available).length);
     
     return slots;
   };
@@ -534,14 +538,14 @@ const MerchantRescheduleScreen: React.FC = () => {
     const dateString = format(date, 'yyyy-MM-dd');
     const isAvailable = markedDates.includes(dateString);
     
-    console.log('[Reschedule] handleDateSelect chamado. Data:', dateString, 'Disponível:', isAvailable);
+    logger.debug('[Reschedule] handleDateSelect chamado. Data:', dateString, 'Disponível:', isAvailable);
     
     if (isAvailable) {
-      console.log('[Reschedule] Definindo selectedDate:', dateString);
+      logger.debug('[Reschedule] Definindo selectedDate:', dateString);
       setSelectedDate(date);
       setSelectedTime(null);
     } else {
-      console.log('[Reschedule] Data não está disponível:', dateString);
+      logger.debug('[Reschedule] Data não está disponível:', dateString);
     }
   };
 
@@ -554,31 +558,32 @@ const MerchantRescheduleScreen: React.FC = () => {
 
   const handleSuggestNewTime = () => {
     if (!selectedDate || !selectedTime || !appointment) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:560',message:'handleSuggestNewTime chamado - abrindo modal',data:{selectedDate:selectedDate?.toISOString().split('T')[0],selectedTime,appointmentId:params.appointmentId,justification},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
+    setShowConfirmModal(true);
+  };
 
-    const dateString = selectedDate.toISOString().split('T')[0];
+  const handleModalClose = () => {
+    setShowConfirmModal(false);
+  };
 
-    // Navegar para a tela de confirmação final
-    router.push({
-      pathname: '/(merchant)/dashboard/appointment/reschedule-confirm',
-      params: {
-        appointmentId: params.appointmentId,
-        date: dateString,
-        time: selectedTime,
-        justification: justification || '',
-      },
-    });
+  const handleModalSuccess = () => {
+    setShowConfirmModal(false);
+    // Opcional: navegar de volta ou atualizar a tela
+    router.back();
   };
 
   const availableTimeSlots = timeSlots.filter((slot) => slot.available && slot.type === 'available');
   
-  console.log('[Reschedule] === ESTADO ATUAL ===');
-  console.log('[Reschedule] timeSlots total:', timeSlots.length);
-  console.log('[Reschedule] timeSlots detalhes:', timeSlots.map(s => ({ time: s.time, available: s.available, type: s.type })));
-  console.log('[Reschedule] availableTimeSlots filtrados:', availableTimeSlots.length);
-  console.log('[Reschedule] availableTimeSlots detalhes:', availableTimeSlots.map(s => ({ time: s.time, available: s.available, type: s.type })));
-  console.log('[Reschedule] selectedDate:', selectedDate);
-  console.log('[Reschedule] loadingTimes:', loadingTimes);
-  console.log('[Reschedule] ====================');
+  logger.debug('[Reschedule] === ESTADO ATUAL ===');
+  logger.debug('[Reschedule] timeSlots total:', timeSlots.length);
+  logger.debug('[Reschedule] timeSlots detalhes:', timeSlots.map(s => ({ time: s.time, available: s.available, type: s.type })));
+  logger.debug('[Reschedule] availableTimeSlots filtrados:', availableTimeSlots.length);
+  logger.debug('[Reschedule] availableTimeSlots detalhes:', availableTimeSlots.map(s => ({ time: s.time, available: s.available, type: s.type })));
+  logger.debug('[Reschedule] selectedDate:', selectedDate);
+  logger.debug('[Reschedule] loadingTimes:', loadingTimes);
+  logger.debug('[Reschedule] ====================');
   
   // Converter datas disponíveis em PillItem[]
   const datePillItems: PillItem[] = availableDates.map((date) => ({
@@ -719,6 +724,23 @@ const MerchantRescheduleScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Reschedule Confirm Modal */}
+        {selectedDate && selectedTime && (
+          <>
+            {/* #region agent log */}
+            {(() => { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:730',message:'Renderizando RescheduleConfirmModal',data:{showConfirmModal,selectedDate:selectedDate?.toISOString().split('T')[0],selectedTime,appointmentId:params.appointmentId,hasJustification:!!justification},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{}); return null; })()}
+            {/* #endregion */}
+            <RescheduleConfirmModal
+              visible={showConfirmModal}
+              onClose={handleModalClose}
+              appointmentId={params.appointmentId}
+              date={selectedDate.toISOString().split('T')[0]}
+              time={selectedTime}
+              justification={justification || ''}
+              onSuccess={handleModalSuccess}
+            />
+          </>
+        )}
     </ScreenContainer>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { handleError } from '../../../lib/errorHandler';
+import { useDebounce } from '../../../lib/hooks/useDebounce';
+import { logger } from '../../../lib/logger';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import AppHeader from '../../../components/layout/AppHeader';
 import SearchBar from '../../../components/SearchBar';
@@ -70,6 +72,10 @@ const SearchResultsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Debounce para evitar múltiplas requisições durante digitação
+  const debouncedSearch = useDebounce(search, 400);
+  const debouncedCategory = useDebounce(selectedCategory, 400);
+
   // Atualiza estados quando query / categoria vindas da URL mudarem
   useEffect(() => {
     setSearch(params.q || '');
@@ -77,11 +83,14 @@ const SearchResultsScreen: React.FC = () => {
     setSelectedCategoryId(null);
   }, [params.q, params.category]);
 
+  // Usar valores debounced para busca
   useEffect(() => {
     performSearch();
-  }, [search, selectedCategory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // performSearch é estável (useCallback), não precisa estar nas dependências
+  }, [debouncedSearch, debouncedCategory]);
 
-  const performSearch = async () => {
+  const performSearch = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -151,18 +160,18 @@ const SearchResultsScreen: React.FC = () => {
         // Pegar business_ids únicos dos serviços encontrados
         businessIds = [
           ...new Set(
-            (svcRes.data as any[])
-              .map((svc: any) => svc.business_id)
-              .filter(Boolean),
+            (svcRes.data as { business_id?: string }[])
+              .map((svc) => svc.business_id)
+              .filter((id): id is string => Boolean(id)),
           ),
         ];
       } else if ((!trimmedSearch || isCategoryOnlySearch) && categoryId && svcRes.data) {
         // Se só tiver categoria (ou for busca apenas por categoria), pegar business_ids dos serviços da categoria
         businessIds = [
           ...new Set(
-            (svcRes.data as any[])
-              .map((svc: any) => svc.business_id)
-              .filter(Boolean),
+            (svcRes.data as { business_id?: string }[])
+              .map((svc) => svc.business_id)
+              .filter((id): id is string => Boolean(id)),
           ),
         ];
       }
@@ -204,46 +213,71 @@ const SearchResultsScreen: React.FC = () => {
       }
 
       // Tratar serviços com ratings / score
-      if (svcRes.data) {
-        const svcWithRatings = await Promise.all(
-          (svcRes.data as any[]).map(async (svc: any) => {
-            const [reviewRes, appointRes] = await Promise.all([
-              supabase.from('reviews').select('rating').eq('service_id', svc.id),
-              supabase
-                .from('appointments')
-                .select('id')
-                .eq('service_id', svc.id)
-                .in('status', ['pending', 'confirmed', 'completed']),
-            ]);
+      // CORREÇÃO N+1: Buscar todos os reviews e appointments de uma vez
+      if (svcRes.data && svcRes.data.length > 0) {
+        const serviceIds = (svcRes.data as { id: string }[]).map(svc => svc.id);
 
-            const reviews = reviewRes.data || [];
-            const appointments = appointRes.data || [];
+        // Buscar todos os dados de uma vez (2 queries em vez de 2*N)
+        const [allReviewsRes, allAppointmentsRes] = await Promise.all([
+          supabase
+            .from('reviews')
+            .select('service_id, rating')
+            .in('service_id', serviceIds),
+          supabase
+            .from('appointments')
+            .select('service_id, id')
+            .in('service_id', serviceIds)
+            .in('status', ['pending', 'confirmed', 'completed']),
+        ]);
 
-            const rating =
-              reviews.length > 0
-                ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
-                  reviews.length
-                : undefined;
-            const reviewCount = reviews.length || 0;
-            const appointmentCount = appointments.length || 0;
+        // Criar maps para lookup rápido
+        const reviewsMap = (allReviewsRes.data || []).reduce((acc, review) => {
+          if (!review.service_id) return acc;
+          if (!acc[review.service_id]) {
+            acc[review.service_id] = [];
+          }
+          acc[review.service_id].push(review);
+          return acc;
+        }, {} as Record<string, typeof allReviewsRes.data>);
 
-            const baseScore = rating
-              ? rating * 0.6 +
-                Math.min(reviewCount / 10, 1) * 0.2 +
-                Math.min(appointmentCount / 5, 1) * 0.2
-              : 0;
-            const featuredBonus = svc.is_featured ? 2.0 : 0;
-            const score = baseScore + featuredBonus;
+        const appointmentsMap = (allAppointmentsRes.data || []).reduce((acc, appointment) => {
+          if (!appointment.service_id) return acc;
+          if (!acc[appointment.service_id]) {
+            acc[appointment.service_id] = [];
+          }
+          acc[appointment.service_id].push(appointment);
+          return acc;
+        }, {} as Record<string, typeof allAppointmentsRes.data>);
 
-            return {
-              ...(svc as Service),
-              rating,
-              review_count: reviewCount,
-              appointment_count: appointmentCount,
-              recommendation_score: score,
-            } as Service;
-          }),
-        );
+        // Processar em memória
+        const svcWithRatings = (svcRes.data as { id: string; business_id?: string; is_featured?: boolean }[]).map((svc) => {
+          const reviews = reviewsMap[svc.id] || [];
+          const appointments = appointmentsMap[svc.id] || [];
+
+          const rating =
+            reviews.length > 0
+              ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
+                reviews.length
+              : undefined;
+          const reviewCount = reviews.length;
+          const appointmentCount = appointments.length;
+
+          const baseScore = rating
+            ? rating * 0.6 +
+              Math.min(reviewCount / 10, 1) * 0.2 +
+              Math.min(appointmentCount / 5, 1) * 0.2
+            : 0;
+          const featuredBonus = svc.is_featured ? 2.0 : 0;
+          const score = baseScore + featuredBonus;
+
+          return {
+            ...(svc as Service),
+            rating,
+            review_count: reviewCount,
+            appointment_count: appointmentCount,
+            recommendation_score: score,
+          } as Service;
+        });
 
         svcWithRatings.sort((a, b) => {
           if (a.is_featured && !b.is_featured) return -1;
@@ -263,11 +297,21 @@ const SearchResultsScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [search, selectedCategory]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    performSearch();
+    try {
+      await performSearch();
+    } catch (error) {
+      // Erro já é tratado dentro de performSearch
+      // Aqui apenas garantimos que o estado seja resetado
+      logger.error('Erro ao atualizar busca:', error);
+    } finally {
+      // O performSearch já reseta o refreshing no finally,
+      // mas garantimos aqui também por segurança
+      setRefreshing(false);
+    }
   };
 
   const handleServicePress = (svc: Service) => {

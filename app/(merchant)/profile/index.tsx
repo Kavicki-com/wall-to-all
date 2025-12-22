@@ -3,9 +3,9 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   FlatList,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
@@ -16,13 +16,17 @@ import ServiceCard from '../../../components/ServiceCard';
 import BricksBackground from '../../../components/profile/BricksBackground';
 import ProfileHero from '../../../components/profile/ProfileHero';
 import RatingsRowCard from '../../../components/profile/RatingsRowCard';
+import ProfileAddressCard from '../../../components/profile/ProfileAddressCard';
 import OperatingHoursCard from '../../../components/profile/OperatingHoursCard';
 import PaymentMethodsCard from '../../../components/profile/PaymentMethodsCard';
 import SectionTitle from '../../../components/ui/SectionTitle';
+import { Icon } from '../../../components/ui/Icon';
 import { CustomButton } from '../../../components/CustomButton';
+import { getPriceRange } from '../../../lib/utils';
+import { logger } from '../../../lib/logger';
 
 type Service = {
-  id: string;
+  id: number;
   name: string;
   description: string | null;
   price: number;
@@ -47,7 +51,6 @@ const MerchantProfileScreen: React.FC = () => {
     if (businessProfile && !profileLoading) {
       loadBusinessData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessProfile?.id, profileLoading]);
 
   const loadBusinessData = async () => {
@@ -59,7 +62,7 @@ const MerchantProfileScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user || !businessProfile) {
-        console.log('Usuário não autenticado ou perfil não disponível');
+        logger.debug('Usuário não autenticado ou perfil não disponível');
         setLoading(false);
         return;
       }
@@ -72,7 +75,7 @@ const MerchantProfileScreen: React.FC = () => {
           .order('created_at', { ascending: false });
 
         if (servicesError) {
-          console.error('Erro ao buscar serviços:', servicesError);
+          logger.error('Erro ao buscar serviços:', servicesError);
         }
 
         const { data: reviewsData, error: reviewsError } = await supabase
@@ -94,7 +97,7 @@ const MerchantProfileScreen: React.FC = () => {
 
         if (servicesData) {
           const servicesWithRatings = await Promise.all(
-            (servicesData as Service[]).map(async (service) => {
+            servicesData.map(async (service) => {
               const { data: serviceReviews } = await supabase
                 .from('reviews')
                 .select('rating')
@@ -117,24 +120,10 @@ const MerchantProfileScreen: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const getPriceRange = (services: Service[]) => {
-    if (services.length === 0) return '$----';
-    const prices = services.map((s) => s.price).filter((p) => p > 0);
-    if (prices.length === 0) return '$----';
-
-    const avg = prices.reduce((sum, p) => sum + p, 0) / prices.length;
-
-    if (avg < 50) return '$----';
-    if (avg < 100) return '$$---';
-    if (avg < 200) return '$$$--';
-    if (avg < 400) return '$$$$-';
-    return '$$$$$';
   };
 
   const renderServiceCard = ({ item }: { item: Service }) => (
@@ -175,14 +164,17 @@ const MerchantProfileScreen: React.FC = () => {
 
   return (
     <View style={{ flex: 1 }}>
-      <BricksBackground fillScreen={true} />
       <ScreenContainer 
         scroll={true}
         hasHeader={false}
+        hasTabBar={false}
         backgroundColor="transparent"
         horizontalPadding={0}
         contentContainerStyle={styles.scrollContent}
       >
+        <View style={styles.backgroundContainer}>
+          <BricksBackground fillScreen={true} useStoreBackground={true} />
+        </View>
         <View style={styles.topSection}>
           <ProfileHero
             bannerUrl={businessProfile.banner_url || null}
@@ -197,16 +189,16 @@ const MerchantProfileScreen: React.FC = () => {
           />
         </View>
 
+        {businessProfile.address && <ProfileAddressCard address={businessProfile.address} />}
         <OperatingHoursCard hours={formatWorkDays(businessProfile.work_days || null)} />
         
         <PaymentMethodsCard methods={paymentMethods} />
-        
-        <TouchableOpacity
-          style={styles.editProfileButton}
-          activeOpacity={0.8}
+
+        <TouchableOpacity 
+          style={styles.editProfileLink} 
           onPress={() => router.push('/(merchant)/profile/edit')}
         >
-          <Text style={styles.editProfileButtonText}>Editar Perfil</Text>
+          <Text style={styles.editProfileText}>Editar Perfil</Text>
         </TouchableOpacity>
 
         <View style={styles.servicesSection}>
@@ -215,7 +207,7 @@ const MerchantProfileScreen: React.FC = () => {
             <FlatList
               data={services}
               renderItem={renderServiceCard}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id.toString()}
               scrollEnabled={false}
               contentContainerStyle={{ gap: 16 }}
             />
@@ -224,11 +216,7 @@ const MerchantProfileScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Spacer para empurrar o botão para o fundo se houver espaço */}
-        <View style={{ flex: 1 }} />
-        
-        {/* Container do botão fora da servicesSection */}
-        <View style={styles.footerButtonContainer}>
+        <View style={styles.bottomButtonContainer}>
           <CustomButton
             title="Cadastrar novo serviço"
             variant="outline"
@@ -257,31 +245,48 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 24,
+    paddingBottom: 40,
+  },
+  backgroundContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
   },
   topSection: {
     gap: 0,
-  },
-  editProfileButton: {
-    marginHorizontal: 24,
-    marginBottom: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 24,
-  },
-  editProfileButtonText: {
-    fontSize: 16,
-    fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    zIndex: 1,
   },
   servicesSection: {
     marginHorizontal: 24,
-    // Removido marginBottom grande daqui para controlar no footer
-    marginBottom: 8,
+    marginBottom: 16,
+    zIndex: 1,
+    marginTop: 8,
   },
   serviceCard: {
     width: '100%',
+    borderWidth: 1,
+    borderColor: '#0F0F0F',
+  },
+  editProfileLink: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    zIndex: 1,
+  },
+  editProfileText: {
+    fontSize: 14,
+    fontFamily: 'Montserrat_700Bold',
+    color: '#000E3D',
+    textDecorationLine: 'none',
+  },
+  bottomButtonContainer: {
+    marginHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 32,
+    zIndex: 1,
   },
   emptyServicesText: {
     fontSize: 14,
@@ -296,10 +301,5 @@ const styles = StyleSheet.create({
     color: '#E5102E',
     textAlign: 'center',
     marginTop: 24,
-  },
-  footerButtonContainer: {
-    paddingHorizontal: 24,
-    marginTop: 32,
-    marginBottom: 16,
   },
 });

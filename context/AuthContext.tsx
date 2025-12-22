@@ -4,6 +4,7 @@ import { supabase, clearInvalidAuthTokens, isSupabaseConfigured } from '../lib/s
 import { handleError } from '../lib/errorHandler';
 import { AUTH_TIMEOUTS } from '../lib/constants';
 import { getIsRecoverySession } from '../lib/useDeepLinking';
+import { logger } from '../lib/logger';
 
 type UserRole = 'client' | 'merchant' | null;
 
@@ -84,7 +85,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         handleError(error, 'auth');
       } else {
         // Log silencioso para timeout - não mostra erro visual
-        console.warn('[AuthContext] Timeout ao buscar user_role (pode ser durante reset de senha)');
+        if (__DEV__) {
+          logger.warn('[AuthContext] Timeout ao buscar user_role (pode ser durante reset de senha)');
+        }
       }
       return null;
     }
@@ -110,7 +113,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }, AUTH_TIMEOUTS.INITIALIZATION);
 
         let currentSession: Session | null = null;
-        let sessionError: any = null;
+        let sessionError: unknown = null;
 
         try {
           const result = await supabase.auth.getSession();
@@ -162,7 +165,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (currentSession?.user?.id) {
           // Se for sessão de recuperação, não busca user_role (não é necessário)
           if (getIsRecoverySession()) {
-            console.log('[AuthContext] Sessão de recuperação detectada (init) - pulando busca de user_role');
+            if (__DEV__) { logger.debug('[AuthContext] Sessão de recuperação detectada (init) - pulando busca de user_role');
+            }
             setUserRole(null);
             setProfileError(null);
           } else {
@@ -218,6 +222,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const {
         data: { subscription: authSubscription },
       } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        // #region agent log
+        try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:224',message:'onAuthStateChange evento',data:{event,hasSession:!!newSession,userEmail:newSession?.user?.email,isRecovery:getIsRecoverySession()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{}); } catch(e) {}
+        // #endregion
+        
         try {
           if (event === 'TOKEN_REFRESHED' && !newSession) {
             await clearInvalidTokens();
@@ -228,11 +236,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
 
           setSession(newSession);
+          
+          // #region agent log
+          try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:236',message:'setSession chamado no AuthContext',data:{event,hasSession:!!newSession,userEmail:newSession?.user?.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{}); } catch(e) {}
+          // #endregion
 
           if (newSession?.user?.id) {
             // Se for sessão de recuperação, não busca user_role (não é necessário)
             if (getIsRecoverySession()) {
-              console.log('[AuthContext] Sessão de recuperação detectada - pulando busca de user_role');
+              if (__DEV__) { logger.debug('[AuthContext] Sessão de recuperação detectada - pulando busca de user_role');
+              }
               setUserRole(null);
               setProfileError(null);
             } else {
@@ -281,6 +294,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         subscription.unsubscribe();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // clearInvalidTokens é estável (função importada), não precisa estar nas dependências
   }, []);
 
   const value: AuthContextType = {

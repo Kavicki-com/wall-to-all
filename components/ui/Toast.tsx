@@ -49,6 +49,8 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
     return () => {
       clearTimeout(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // dismiss, opacityAnim, slideAnim são estáveis, toast.duration não deve triggerar re-render
   }, []);
 
   const dismiss = () => {

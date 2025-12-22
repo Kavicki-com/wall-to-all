@@ -13,6 +13,7 @@ import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
 import ServiceCard from '../../../components/ServiceCard';
 import { safeGoBack } from '../../../lib/router-utils';
+import { logger } from '../../../lib/logger';
 
 type Service = {
   id: string;
@@ -44,6 +45,8 @@ const ScheduleServiceScreen: React.FC = () => {
 
   useEffect(() => {
     loadServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadServices é estável (useCallback), não precisa estar nas dependências
   }, [params.businessId]);
 
   const loadServices = async () => {
@@ -51,13 +54,13 @@ const ScheduleServiceScreen: React.FC = () => {
       setLoading(true);
 
       if (!params.businessId) {
-        console.error('businessId não fornecido');
+        logger.error('businessId não fornecido');
         setLoading(false);
         return;
       }
 
-      // Buscar nome da loja
-      const { data: businessData } = await supabase
+      // Buscar nome da loja (não usado diretamente, mas mantido para possível uso futuro)
+      await supabase
         .from('business_profiles')
         .select('business_name')
         .eq('id', params.businessId)
@@ -73,12 +76,12 @@ const ScheduleServiceScreen: React.FC = () => {
         .order('name', { ascending: true });
 
       if (error) {
-        console.error('Erro ao buscar serviços:', error);
+        logger.error('Erro ao buscar serviços:', error);
       } else if (servicesData) {
         setServices(servicesData as Service[]);
       }
     } catch (error) {
-      console.error('Erro ao carregar serviços:', error);
+      logger.error('Erro ao carregar serviços:', error);
     } finally {
       setLoading(false);
     }
@@ -106,7 +109,12 @@ const ScheduleServiceScreen: React.FC = () => {
     const shouldReduceOpacity = hasSelection && !isSelected;
 
     // Estilos condicionais para seleção
-    const containerStyle: any = {
+    const containerStyle: {
+      marginBottom: number;
+      opacity?: number;
+      borderColor?: string;
+      borderWidth?: number;
+    } = {
       marginBottom: 16,
     };
 

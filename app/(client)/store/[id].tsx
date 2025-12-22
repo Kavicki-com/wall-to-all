@@ -5,6 +5,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +26,9 @@ import ProfileAddressCard from '../../../components/profile/ProfileAddressCard';
 import OperatingHoursCard from '../../../components/profile/OperatingHoursCard';
 import PaymentMethodsCard from '../../../components/profile/PaymentMethodsCard';
 import SectionTitle from '../../../components/ui/SectionTitle';
+import { logger } from '../../../lib/logger';
+import ReviewModal from '../../../components/reviews/ReviewModal';
+import { useAuth } from '../../../context/AuthContext';
 
 type BusinessProfile = {
   id: string;
@@ -68,24 +73,45 @@ const StoreProfileScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const businessId = params.id;
+  const { session } = useAuth();
+  const clientId = session?.user?.id || null;
 
-  const insets = useSafeAreaInsets();
+  // #region agent log
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:72',message:'StoreProfileScreen component mounting',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:76',message:'businessId extracted from params',data:{businessId,businessIdType:typeof businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:78',message:'Auth context values',data:{hasSession:!!session,clientId,clientIdType:typeof clientId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  }, [businessId, session, clientId]);
+  // #endregion
+
   const [loading, setLoading] = useState(true);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [reviewStats, setReviewStats] = useState<ReviewStats>({ average_rating: 0, total_reviews: 0 });
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
 
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:85',message:'useEffect triggered for loadBusinessData',data:{businessId,hasBusinessId:!!businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (businessId) {
       loadBusinessData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadBusinessData é estável (useCallback), não precisa estar nas dependências
   }, [businessId]);
 
   const loadBusinessData = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:86',message:'loadBusinessData called',data:{businessId,businessIdType:typeof businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (!businessId) return;
 
     try {
       setLoading(true);
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:92',message:'Starting business profile query',data:{businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
@@ -100,7 +126,10 @@ const StoreProfileScreen: React.FC = () => {
         .single();
 
       if (businessError) {
-        console.error('Erro ao buscar perfil do negócio:', businessError);
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:104',message:'Business profile query error',data:{error:businessError.message,code:businessError.code,businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        logger.error('Erro ao buscar perfil do negócio:', businessError);
         setLoading(false);
         return;
       }
@@ -124,7 +153,7 @@ const StoreProfileScreen: React.FC = () => {
           .order('created_at', { ascending: false });
 
         if (servicesError) {
-          console.error('Erro ao buscar serviços:', servicesError);
+          logger.error('Erro ao buscar serviços:', servicesError);
         } else if (servicesData) {
           const serviceIds = (servicesData as Service[]).map((service) => service.id);
           let ratingsMap: Record<string, { sum: number; count: number }> = {};
@@ -180,7 +209,7 @@ const StoreProfileScreen: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
     } finally {
       setLoading(false);
     }
@@ -270,7 +299,7 @@ const StoreProfileScreen: React.FC = () => {
         <View style={styles.backgroundContainer}>
           <BricksBackground 
             fillScreen={true}
-            opacity={0.08}
+            useStoreBackground={true}
           />
         </View>
         {/* Top section: Hero and Ratings */}
@@ -285,6 +314,7 @@ const StoreProfileScreen: React.FC = () => {
             averageRating={reviewStats.average_rating}
             totalReviews={reviewStats.total_reviews}
             priceRange={priceRange}
+            onViewReviews={() => router.push(`/(client)/store/${businessId}/reviews`)}
           />
         </View>
         {/* Address */}
@@ -327,6 +357,17 @@ const StoreProfileScreen: React.FC = () => {
             title="Avaliar"
             variant="outline"
             onPress={() => {
+              if (!clientId) {
+                Alert.alert('Atenção', 'Você precisa estar autenticado para avaliar', [
+                  { text: 'OK' },
+                  {
+                    text: 'Fazer login',
+                    onPress: () => router.push('/(auth)/login'),
+                  },
+                ]);
+                return;
+              }
+              setReviewModalVisible(true);
             }}
             rightIcon={<Icon name="kid_star" family="MaterialSymbols" size={24} color="#000E3D" />}
             style={styles.outlineButton}
@@ -334,6 +375,17 @@ const StoreProfileScreen: React.FC = () => {
           />
         </View>
       </ScreenContainer>
+
+      <ReviewModal
+        visible={reviewModalVisible}
+        onClose={() => setReviewModalVisible(false)}
+        businessId={businessId}
+        clientId={clientId}
+        onReviewSubmitted={() => {
+          // Recarregar dados após avaliação
+          loadBusinessData();
+        }}
+      />
     </View>
   );
 };

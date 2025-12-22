@@ -15,6 +15,7 @@ import {
   IconCash,
 } from '../../lib/icons';
 import { Icon } from '../ui/Icon';
+import { logger } from '../../lib/logger';
 
 export type PaymentMethod = 'pix' | 'card' | 'cash';
 
@@ -187,8 +188,8 @@ const MerchantRescheduleConfirmCard: React.FC<MerchantRescheduleConfirmCardProps
       <TouchableOpacity
         style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
         onPress={() => {
-          console.log('[MerchantRescheduleConfirmCard] Botão Enviar pressionado');
-          console.log('[MerchantRescheduleConfirmCard] isSubmitting:', isSubmitting);
+          logger.debug('[MerchantRescheduleConfirmCard] Botão Enviar pressionado');
+          logger.debug('[MerchantRescheduleConfirmCard] isSubmitting:', isSubmitting);
           if (!isSubmitting) {
             onSubmit();
           }

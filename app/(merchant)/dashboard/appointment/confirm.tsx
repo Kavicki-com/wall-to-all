@@ -20,6 +20,7 @@ import { calculateAppointmentPrice } from '../../../../lib/utils';
 import { useSafeGoBack } from '../../../../lib/router-utils';
 import { format, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { logger } from '../../../../lib/logger';
 
 type Appointment = {
   id: string;
@@ -60,6 +61,8 @@ const MerchantRescheduleConfirmScreen: React.FC = () => {
 
   useEffect(() => {
     loadAppointmentData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadAppointmentData é estável (useCallback), não precisa estar nas dependências
   }, []);
 
   // Resetar campos quando a tela é focada (quando volta de outras telas)
@@ -97,7 +100,7 @@ const MerchantRescheduleConfirmScreen: React.FC = () => {
 
       if (businessError || !businessData) {
         if (businessError && businessError.code !== 'PGRST116') {
-          console.error('Erro ao buscar negócio:', businessError);
+          logger.error('Erro ao buscar negócio:', businessError);
         }
         router.replace('/(merchant)/dashboard');
         return;
@@ -118,7 +121,7 @@ const MerchantRescheduleConfirmScreen: React.FC = () => {
         .single();
 
       if (error || !appointmentData) {
-        console.error('Erro ao buscar agendamento:', error);
+        logger.error('Erro ao buscar agendamento:', error);
         Alert.alert('Erro', 'Não foi possível carregar o agendamento.');
         router.replace('/(merchant)/dashboard');
         return;
@@ -126,7 +129,7 @@ const MerchantRescheduleConfirmScreen: React.FC = () => {
 
       setAppointment(appointmentData as Appointment);
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
       Alert.alert('Erro', 'Ocorreu um erro ao carregar os dados.');
       router.replace('/(merchant)/dashboard');
     } finally {

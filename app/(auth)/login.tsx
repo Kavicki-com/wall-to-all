@@ -20,9 +20,15 @@ import {
   LogoWallToAllTypography,
   GoogleLogo,
 } from '../../lib/assets';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import { processAuthTokensFromUrl } from '../../lib/useDeepLinking';
 import { IconAccountCircle } from '../../lib/icons';
 import { CustomInput } from '../../components/ui/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
+import { useRateLimit } from '../../lib/hooks/useRateLimit';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const LoginScreen: React.FC = () => {
   const router = useRouter();
@@ -34,9 +40,17 @@ const LoginScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resettingPassword, setResettingPassword] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  // Rate limiting: 5 tentativas por 15 minutos por email
+  const rateLimitKey = email.toLowerCase().trim() || 'anonymous';
+  const { canExecute, reset, getInfo } = useRateLimit(
+    `login_${rateLimitKey}`,
+    5, // máximo de 5 tentativas
+    15 * 60 * 1000 // 15 minutos
+  );
 
   useEffect(() => {
     if (session && loading) {
@@ -67,6 +81,19 @@ const LoginScreen: React.FC = () => {
       return;
     }
 
+    // Verificar rate limit antes de tentar login
+    const canProceed = await canExecute();
+    if (!canProceed) {
+      const rateLimitInfo = await getInfo();
+      if (rateLimitInfo?.isLimited) {
+        const remainingMinutes = Math.ceil((rateLimitInfo.resetAt - Date.now()) / 60000);
+        const errorMessage = `Muitas tentativas de login. Aguarde ${remainingMinutes} minuto(s) antes de tentar novamente.`;
+        setError(errorMessage);
+        showError(errorMessage);
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -81,6 +108,9 @@ const LoginScreen: React.FC = () => {
         setLoading(false);
         return;
       }
+
+      // Login bem-sucedido: resetar rate limit
+      await reset();
     } catch (e) {
       const processed = handleError(e, 'login');
       setError(processed.userMessage);
@@ -93,22 +123,17 @@ const LoginScreen: React.FC = () => {
     router.push('/(auth)/user-type-selection');
   };
 
-  const handleForgotPasswordPress = async () => {
+  const handleForgotPasswordPress = () => {
+    router.push('/(auth)/forgot-password');
+  };
+
+  const handleGooglePress = async () => {
+    if (googleLoading || loading) {
+      return;
+    }
+
     setError(null);
     setInfo(null);
-
-    if (!email) {
-      setError('Informe seu e-mail.');
-      showError('Informe seu e-mail.');
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError('E-mail inválido. Verifique o formato.');
-      showError('E-mail inválido. Verifique o formato.');
-      return;
-    }
 
     if (!isSupabaseConfigured) {
       setError('Erro de configuração.');
@@ -117,34 +142,76 @@ const LoginScreen: React.FC = () => {
     }
 
     try {
-      setResettingPassword(true);
-      const redirectUrl = 'walltoall://reset-password';
+      setGoogleLoading(true);
+      // Usa o scheme diretamente como string (mesmo padrão usado em reset-password)
+      const redirectTo = 'walltoall://auth/callback';
       
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl,
-      });
+      // #region agent log
+      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:195',message:'Redirect URL generated',data:{redirectTo},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{}); } catch(e) {}
+      // #endregion
 
-      if (resetError) {
-        const processed = handleError(resetError, 'auth');
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+        },
+      });
+      
+      // #region agent log
+      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:203',message:'OAuth response',data:{hasError:!!oauthError,hasData:!!data,hasUrl:!!data?.url,oauthUrl:data?.url?.substring(0,150)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{}); } catch(e) {}
+      // #endregion
+
+      if (oauthError) {
+        const processed = handleError(oauthError, 'auth');
         setError(processed.userMessage);
         showError(processed.userMessage);
-        setResettingPassword(false);
         return;
       }
 
-      const successMessage = 'E-mail de recuperação enviado! Verifique sua caixa de entrada.';
-      setInfo(successMessage);
-      showSuccess(successMessage);
-      setResettingPassword(false);
+      if (!data?.url) {
+        const message = 'Não foi possível iniciar o login com Google.';
+        setError(message);
+        showError(message);
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+
+      if (result.type === 'success' && result.url) {
+        try {
+          const success = await processAuthTokensFromUrl(result.url);
+          
+          if (success) {
+            // Mostrar feedback de sucesso
+            showSuccess('Conta Google conectada com sucesso!');
+            setInfo('Complete seu cadastro para acessar o app.');
+            
+            if (__DEV__) {
+              // #region agent log
+              try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:231',message:'OAuth success',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{}); } catch(e) {}
+              // #endregion
+            }
+          } else {
+            const message = 'Não foi possível conectar com Google.';
+            setError(message);
+            showError(message);
+          }
+        } catch (error) {
+          const processed = handleError(error, 'auth');
+          setError(processed.userMessage);
+          showError(processed.userMessage);
+        }
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        setInfo('Login com Google cancelado.');
+      }
     } catch (e) {
       const processed = handleError(e, 'auth');
       setError(processed.userMessage);
       showError(processed.userMessage);
-      setResettingPassword(false);
+    } finally {
+      setGoogleLoading(false);
     }
-  };
-
-  const handleGooglePress = async () => {
   };
 
   return (
@@ -204,13 +271,9 @@ const LoginScreen: React.FC = () => {
                       onPress={handleForgotPasswordPress} 
                       activeOpacity={0.7} 
                       style={styles.forgotPasswordButton}
-                      disabled={resettingPassword}
                     >
-                      <Text style={[
-                        styles.forgotPasswordText,
-                        resettingPassword && styles.forgotPasswordTextDisabled
-                      ]}>
-                        {resettingPassword ? 'Enviando...' : 'Esqueceu sua senha?'}
+                      <Text style={styles.forgotPasswordText}>
+                        Esqueceu sua senha?
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -252,6 +315,8 @@ const LoginScreen: React.FC = () => {
                   width="100%"
                   style={[styles.googleButtonOverride, styles.buttonSpacing]}
                   textStyle={styles.googleButtonText}
+                  isLoading={googleLoading}
+                  disabled={googleLoading || loading}
                 />
               </View>
             </View>
@@ -322,9 +387,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
     color: '#FEFEFE',
-  },
-  forgotPasswordTextDisabled: {
-    opacity: 0.6,
   },
   messageContainer: {
     width: '100%',

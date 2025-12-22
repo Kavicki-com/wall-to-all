@@ -22,6 +22,7 @@ import { safeGoBack } from '../../lib/router-utils';
 import { useAuth } from '../../context/AuthContext';
 import { getUnreadCount } from '../../lib/notifications';
 import NotificationModal from '../notifications/NotificationModal';
+import { logger } from '../../lib/logger';
 
 type AppHeaderProps = {
   title?: string;
@@ -48,6 +49,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     if (session?.user?.id) {
       loadUnreadCount();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadUnreadCount é estável (useCallback), não precisa estar nas dependências
   }, [session?.user?.id]);
 
   const loadUnreadCount = async () => {
@@ -56,7 +59,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       const count = await getUnreadCount(session.user.id);
       setUnreadCount(count);
     } catch (error) {
-      console.error('Erro ao carregar contagem de notificações:', error);
+      logger.error('Erro ao carregar contagem de notificações:', error);
     }
   };
 

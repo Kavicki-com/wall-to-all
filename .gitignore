@@ -63,3 +63,10 @@ Thumbs.db
 # Editor
 .cursor/
 ARCHITECTURE.md
+
+.env.local
+
+.env.local
+
+# Backup files
+*.backup

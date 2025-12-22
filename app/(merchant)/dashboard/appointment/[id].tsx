@@ -244,6 +244,7 @@ const AppointmentDetailScreen: React.FC = () => {
       stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Dependência apenas de params.id para evitar loops: loadAppointment e startPolling são funções estáveis
   }, [params.id]);
 
   // Recarregar dados quando a tela recebe foco (quando volta de outras telas)
@@ -472,17 +473,6 @@ const AppointmentDetailScreen: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colorMap: Record<string, string> = {
-      pending: '#FFA500',
-      confirmed: '#4CAF50',
-      cancelled: '#E5102E',
-      completed: '#474747',
-      rescheduled: '#000E3D',
-    };
-    return colorMap[status] || '#474747';
-  };
-
   const getPaymentMethodLabel = (method: string) => {
     const methodMap: Record<string, string> = {
       pix: 'PIX',
@@ -536,19 +526,6 @@ const AppointmentDetailScreen: React.FC = () => {
     );
   }
 
-  // Processar imagens do serviço
-  let imagesArray: string[] = [];
-  if (appointment.service.photos) {
-    if (typeof appointment.service.photos === 'string') {
-      try {
-        imagesArray = JSON.parse(appointment.service.photos);
-      } catch {
-        imagesArray = [appointment.service.photos];
-      }
-    } else if (Array.isArray(appointment.service.photos)) {
-      imagesArray = appointment.service.photos;
-    }
-  }
   const appointmentDate = new Date(appointment.start_time);
   const isTodayDate = isToday(appointmentDate);
   const dateLabel = isTodayDate

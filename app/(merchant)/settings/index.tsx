@@ -14,6 +14,7 @@ import {
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
 import { useBusinessProfile } from '../../../context/BusinessProfileContext';
+import { logger } from '../../../lib/logger';
 
 const SettingsScreen: React.FC = () => {
   const router = useRouter();
@@ -87,7 +88,7 @@ const SettingsScreen: React.FC = () => {
               Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');
               router.replace('/(auth)/login');
             } catch (error) {
-              console.error('Erro ao excluir conta:', error);
+              logger.error('Erro ao excluir conta:', error);
               Alert.alert('Erro', 'Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
             }
           },

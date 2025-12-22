@@ -19,9 +19,11 @@ const UserTypeSelectionScreen: React.FC = () => {
   const safeGoBack = useSafeGoBack('/(auth)/login');
   const [selectedType, setSelectedType] = useState<UserType | null>(null);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!selectedType) return;
 
+    // Sempre redirecionar para a tela de dados pessoais
+    // A tela de dados pessoais irá pré-preencher os campos se for OAuth
     if (selectedType === 'merchant') {
       router.replace('/(auth)/merchant-signup-personal');
     } else {

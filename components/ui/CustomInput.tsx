@@ -66,14 +66,14 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   const isDisabled = disabled || readOnly;
 
   // Handlers para controlar o foco e estilo da borda
-  const handleFocus = (e: any) => {
+  const handleFocus = (e: unknown) => {
     setIsFocused(true);
-    if (onFocus) onFocus(e);
+    if (onFocus) onFocus(e as Parameters<typeof onFocus>[0]);
   };
 
-  const handleBlur = (e: any) => {
+  const handleBlur = (e: unknown) => {
     setIsFocused(false);
-    if (onBlur) onBlur(e);
+    if (onBlur) onBlur(e as Parameters<typeof onBlur>[0]);
   };
 
   // Determina a cor da borda baseada no estado

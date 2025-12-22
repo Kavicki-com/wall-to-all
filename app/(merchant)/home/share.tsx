@@ -8,7 +8,6 @@ import {
   FlatList,
   Share,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../../lib/supabase';
 import { formatWorkDays } from '../../../lib/workDaysUtils';
 import { handleError } from '../../../lib/errorHandler';
@@ -21,8 +20,10 @@ import RatingsRowCard from '../../../components/profile/RatingsRowCard';
 import ProfileAddressCard from '../../../components/profile/ProfileAddressCard';
 import OperatingHoursCard from '../../../components/profile/OperatingHoursCard';
 import PaymentMethodsCard from '../../../components/profile/PaymentMethodsCard';
-import ProfileActions from '../../../components/profile/ProfileActions';
 import SectionTitle from '../../../components/ui/SectionTitle';
+import { getPriceRange } from '../../../lib/utils';
+import { CustomButton } from '../../../components/CustomButton';
+import { Icon } from '../../../components/ui/Icon';
 
 type Service = {
   id: string;
@@ -44,7 +45,6 @@ type ReviewStats = {
 };
 
 const ShareProfileScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
   const { businessProfile, loading: profileLoading } = useBusinessProfile();
   const [loading, setLoading] = useState(true);
   const [services, setServices] = useState<Service[]>([]);
@@ -56,6 +56,8 @@ const ShareProfileScreen: React.FC = () => {
       loadBusinessData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadBusinessData é estável (useCallback), não precisa estar nas dependências
+    // Só deve executar quando businessProfile?.id ou profileLoading mudam
   }, [businessProfile?.id, profileLoading]);
 
   const loadBusinessData = async () => {
@@ -147,19 +149,6 @@ const ShareProfileScreen: React.FC = () => {
     }
   };
 
-  const getPriceRange = (services: Service[]) => {
-    if (services.length === 0) return '$----';
-    const prices = services.map((s) => s.price).filter((p) => p > 0);
-    if (prices.length === 0) return '$----';
-
-    const avg = prices.reduce((sum, p) => sum + p, 0) / prices.length;
-
-    if (avg < 50) return '$----';
-    if (avg < 100) return '$$---';
-    if (avg < 200) return '$$$--';
-    if (avg < 400) return '$$$$-';
-    return '$$$$$';
-  };
 
   const handleShare = async () => {
     if (!businessProfile) return;
@@ -226,20 +215,19 @@ const ShareProfileScreen: React.FC = () => {
   const paymentMethods = businessProfile.accepted_payment_methods || {};
   const priceRange = getPriceRange(services);
 
-  // Calcula o paddingBottom: safe area bottom + 9px para os botões ficarem a 9px da margem inferior
-  const paddingBottom = Math.max(insets.bottom, 0) + 9;
-
   return (
     <View style={{ flex: 1 }}>
-      <BricksBackground fillScreen={true} />
       <ScreenContainer 
         scroll={true}
         hasHeader={false}
         hasTabBar={false}
         backgroundColor="transparent"
         horizontalPadding={0}
-        contentContainerStyle={{ ...styles.scrollContent, paddingBottom }}
+        contentContainerStyle={styles.scrollContent}
       >
+        <View style={styles.backgroundContainer}>
+          <BricksBackground fillScreen={true} useStoreBackground={true} />
+        </View>
         {/* Top section: Hero and Ratings */}
         <View style={styles.topSection}>
           <ProfileHero
@@ -276,12 +264,27 @@ const ShareProfileScreen: React.FC = () => {
           )}
         </View>
         {/* Action buttons */}
-        <ProfileActions
-          onShare={handleShare}
-          onReview={() => {
-            // Navegar para tela de avaliações quando implementada
-          }}
-        />
+        <View style={styles.actionsContainer}>
+          <CustomButton
+            title="Compartilhar"
+            variant="primary"
+            onPress={handleShare}
+            rightIcon={<Icon name="ios_share" family="MaterialSymbols" size={24} color="#FEFEFE" />}
+            style={styles.primaryButton}
+            width="100%"
+          />
+
+          <CustomButton
+            title="Avaliar"
+            variant="outline"
+            onPress={() => {
+              // Navegar para tela de avaliações quando implementada
+            }}
+            rightIcon={<Icon name="kid_star" family="MaterialSymbols" size={24} color="#000E3D" />}
+            style={styles.outlineButton}
+            width="100%"
+          />
+        </View>
       </ScreenContainer>
     </View>
   );
@@ -302,15 +305,46 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
   },
+  backgroundContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
   topSection: {
     gap: 0,
+    zIndex: 1,
   },
   servicesSection: {
     marginHorizontal: 24,
-    marginBottom: 6,
+    marginBottom: 16,
+    zIndex: 1,
   },
   serviceCard: {
     width: '100%',
+  },
+  actionsContainer: {
+    marginHorizontal: 24,
+    marginTop: 16,
+    marginBottom: 24,
+    gap: 9,
+    zIndex: 1,
+  },
+  primaryButton: {
+    borderRadius: 24,
+    height: 48,
+    shadowColor: '#1D1D1D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.24,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  outlineButton: {
+    borderRadius: 24,
+    height: 48,
+    marginTop: 0,
   },
   emptyServicesText: {
     fontSize: 14,

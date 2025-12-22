@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CustomInput } from '../../components/ui/CustomInput';
 import { useToast } from '../../components/ui/ToastProvider';
 import { handleError } from '../../lib/errorHandler';
@@ -13,11 +13,13 @@ import ScreenContainer from '../../components/layout/ScreenContainer';
 import SignupHeaderClient from '../../components/auth/SignupHeaderClient';
 import { CustomButton } from '../../components/CustomButton';
 import { validateEmail } from '../../lib/validations';
-import { safeGoBack } from '../../lib/router-utils';
+import { useSafeGoBack } from '../../lib/router-utils';
+import { logger } from '../../lib/logger';
 
 const ClientSignupPersonalScreen: React.FC = () => {
   const router = useRouter();
   const { showError } = useToast();
+  const safeGoBack = useSafeGoBack('/(auth)/login');
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -26,6 +28,37 @@ const ClientSignupPersonalScreen: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOAuth, setIsOAuth] = useState(false);
+
+  // Verificar se é OAuth e pré-preencher dados
+  useEffect(() => {
+    const checkOAuthAndPrefill = async () => {
+      try {
+        const oauthFlag = await AsyncStorage.getItem('oauth_google_signup');
+        const oauthDataStr = await AsyncStorage.getItem('oauth_google_data');
+        
+        if (oauthFlag === 'true' && oauthDataStr) {
+          const oauthData = JSON.parse(oauthDataStr);
+          
+          // Pré-preencher campos com dados do Google
+          setFullName(oauthData.full_name || '');
+          setEmail(oauthData.email || '');
+          setConfirmEmail(oauthData.email || '');
+          setIsOAuth(true);
+          
+          if (__DEV__) {
+            logger.debug('[ClientSignupPersonal] OAuth detectado, campos pré-preenchidos');
+          }
+        }
+      } catch (error) {
+        if (__DEV__) {
+          logger.error('[ClientSignupPersonal] Erro ao verificar OAuth:', error);
+        }
+      }
+    };
+    
+    checkOAuthAndPrefill();
+  }, []);
 
   // Resetar campos quando a tela é focada (quando volta de outras telas)
   useFocusEffect(
@@ -51,11 +84,19 @@ const ClientSignupPersonalScreen: React.FC = () => {
     const trimmedName = fullName.trim();
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedConfirmEmail = confirmEmail.trim().toLowerCase();
-    const trimmedPassword = password.trim();
-    const trimmedConfirmPassword = confirmPassword.trim();
 
-    if (!trimmedName || !trimmedEmail || !trimmedPassword) {
-      setError('Preencha nome, e-mail e senha.');
+    if (!trimmedName || trimmedName.length < 3) {
+      setError('Nome deve ter pelo menos 3 caracteres.');
+      return;
+    }
+
+    if (!/[a-zA-ZÀ-ÿ]/.test(trimmedName)) {
+      setError('Nome deve conter pelo menos uma letra.');
+      return;
+    }
+
+    if (!trimmedEmail) {
+      setError('Preencha o e-mail.');
       return;
     }
 
@@ -69,54 +110,56 @@ const ClientSignupPersonalScreen: React.FC = () => {
       return;
     }
 
-    if (trimmedPassword !== trimmedConfirmPassword) {
-      setError('As senhas não coincidem.');
-      return;
-    }
+    // Validações de senha apenas se NÃO for OAuth
+    if (!isOAuth) {
+      const trimmedPassword = password.trim();
+      const trimmedConfirmPassword = confirmPassword.trim();
 
-    if (!isStrongPassword(trimmedPassword)) {
-      setError('Use senha com 8+ caracteres, letras, números e símbolo.');
-      return;
+      if (!trimmedPassword) {
+        setError('Preencha a senha.');
+        return;
+      }
+
+      if (trimmedPassword !== trimmedConfirmPassword) {
+        setError('As senhas não coincidem.');
+        return;
+      }
+
+      if (!isStrongPassword(trimmedPassword)) {
+        setError('Use senha com 8+ caracteres, letras, números e símbolo.');
+        return;
+      }
     }
 
     try {
       setLoading(true);
       setError(null);
 
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      // Buscar dados OAuth se existirem
+      let avatarUrl = null;
+      if (isOAuth) {
+        const oauthDataStr = await AsyncStorage.getItem('oauth_google_data');
+        if (oauthDataStr) {
+          const oauthData = JSON.parse(oauthDataStr);
+          avatarUrl = oauthData.avatar_url;
+        }
+      }
+
+      // Salvar dados pessoais no AsyncStorage ao invés de criar usuário
+      // O usuário só será criado na tela de loading após completar todo o fluxo
+      const draftKey = 'client_signup_draft';
+      const draftData = {
+        full_name: trimmedName,
         email: trimmedEmail,
-        password: trimmedPassword,
-        options: {
-          emailRedirectTo: 'walltoall://auth/login',
-          data: {
-            full_name: trimmedName,
-            user_type: 'client',
-            avatar_url: null,
-          },
-        },
-      });
+        password: isOAuth ? undefined : password.trim(),
+        user_type: 'client',
+        signup_started_at: new Date().toISOString(),
+        is_oauth: isOAuth,
+        oauth_provider: isOAuth ? 'google' : undefined,
+        avatar_url: avatarUrl,
+      };
 
-      if (signUpError) {
-        const processed = handleError(signUpError, 'signup');
-        setError(processed.userMessage);
-        showError(processed.userMessage);
-        return;
-      }
-
-      if (!data?.user) {
-        const message = 'Não foi possível criar o usuário.';
-        setError(message);
-        showError(message);
-        return;
-      }
-
-      const { data: sessionCheck } = await supabase.auth.getSession();
-      if (!sessionCheck?.session) {
-        const message = 'Conta criada. Confirme o e-mail e faça login para prosseguir.';
-        setError(message);
-        showError(message);
-        return;
-      }
+      await AsyncStorage.setItem(draftKey, JSON.stringify(draftData));
 
       router.push('/(auth)/client-signup-address');
     } catch (e) {
@@ -140,7 +183,7 @@ const ClientSignupPersonalScreen: React.FC = () => {
           steps={['Cadastro', 'Endereço']}
           currentStepIndex={0}
           showBackButton={true}
-          onPressBack={() => safeGoBack('/(auth)/user-type-selection')}
+          onPressBack={safeGoBack}
         />
       }
     >
@@ -161,6 +204,7 @@ const ClientSignupPersonalScreen: React.FC = () => {
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          editable={!isOAuth}
         />
 
         <CustomInput
@@ -170,25 +214,38 @@ const ClientSignupPersonalScreen: React.FC = () => {
           onChangeText={setConfirmEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          editable={!isOAuth}
         />
 
-        <CustomInput
-          label="Senha"
-          placeholder="***********"
-          isPassword
-          value={password}
-          onChangeText={setPassword}
-          helperText="Utilize letras, números e um caractere especial"
-        />
+        {/* Campos de senha apenas para cadastro por email */}
+        {!isOAuth && (
+          <>
+            <CustomInput
+              label="Senha"
+              placeholder="***********"
+              isPassword
+              value={password}
+              onChangeText={setPassword}
+              helperText="Utilize letras, números e um caractere especial"
+            />
 
-        <CustomInput
-          label="Confirmar Senha"
-          placeholder="***********"
-          isPassword
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          helperText="As senhas devem ser iguais"
-        />
+            <CustomInput
+              label="Confirmar Senha"
+              placeholder="***********"
+              isPassword
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              helperText="As senhas devem ser iguais"
+            />
+          </>
+        )}
+
+        {/* Mensagem informativa para OAuth */}
+        {isOAuth && (
+          <Text style={styles.oauthInfo}>
+            Dados vindos da sua conta Google. Você pode editar o nome se desejar.
+          </Text>
+        )}
 
         {!!error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -221,6 +278,14 @@ const styles = StyleSheet.create({
     color: '#E5102E',
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
+  },
+  oauthInfo: {
+    marginTop: 8,
+    color: '#4A90E2',
+    fontFamily: 'Montserrat_400Regular',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });
 

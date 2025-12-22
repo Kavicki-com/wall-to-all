@@ -15,6 +15,7 @@ import ScreenContainer from '../../../components/layout/ScreenContainer';
 import MonthCalendar from '../../../components/calendar/MonthCalendar';
 import { CustomButton } from '../../../components/CustomButton';
 import { safeGoBack } from '../../../lib/router-utils';
+import { logger } from '../../../lib/logger';
 
 type TimeSlot = {
   time: string;
@@ -36,6 +37,7 @@ const ScheduleTimeScreen: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState<Date>(initialDate);
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
   const [calendarResetKey, setCalendarResetKey] = useState(0);
+  const [serviceName, setServiceName] = useState<string | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -50,6 +52,8 @@ const ScheduleTimeScreen: React.FC = () => {
 
   useEffect(() => {
     loadAvailableTimes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadAvailableTimes é estável (useCallback), não precisa estar nas dependências
   }, [selectedDate, params.businessId, params.serviceId]);
 
   const loadAvailableTimes = async () => {
@@ -57,12 +61,15 @@ const ScheduleTimeScreen: React.FC = () => {
       setLoading(true);
 
       if (!params.businessId || !params.serviceId) {
-        console.error('Parâmetros faltando');
+        logger.error('Parâmetros faltando');
         setLoading(false);
         return;
       }
 
       const dateString = selectedDate.toISOString().split('T')[0];
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:59',message:'loadAvailableTimes ENTRY',data:{businessId:params.businessId,businessIdType:typeof params.businessId,serviceId:params.serviceId,serviceIdType:typeof params.serviceId,dateString,selectedDateISO:selectedDate.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+      // #endregion
 
       // Buscar horários de funcionamento da loja e duração do serviço
       const [businessResult, serviceResult] = await Promise.all([
@@ -73,16 +80,21 @@ const ScheduleTimeScreen: React.FC = () => {
           .single(),
         supabase
           .from('services')
-          .select('duration_minutes')
+          .select('duration_minutes, name')
           .eq('id', params.serviceId)
           .single(),
       ]);
 
       if (businessResult.error || !businessResult.data?.work_days) {
-        console.error('Erro ao buscar horários de funcionamento:', businessResult.error);
+        logger.error('Erro ao buscar horários de funcionamento:', businessResult.error);
         setTimeSlots([]);
         setLoading(false);
         return;
+      }
+
+      // Armazenar nome do serviço
+      if (serviceResult.data?.name) {
+        setServiceName(serviceResult.data.name);
       }
 
       // duration_minutes deve estar em minutos
@@ -92,21 +104,21 @@ const ScheduleTimeScreen: React.FC = () => {
       // Valores normais de duração em minutos: 15, 30, 60, 90, 120, etc.
       // Se for maior que 480 (8 horas), provavelmente está em milissegundos ou segundos
       if (serviceDuration > 480) {
-        console.warn('[ScheduleTime] serviceDuration parece estar em formato incorreto:', serviceDuration);
+        logger.warn('[ScheduleTime] serviceDuration parece estar em formato incorreto:', serviceDuration);
         // Tentar converter de milissegundos
         const convertedFromMs = Math.round(serviceDuration / 1000 / 60);
         if (convertedFromMs > 0 && convertedFromMs <= 480) {
           serviceDuration = convertedFromMs;
-          console.log('[ScheduleTime] serviceDuration convertido de ms para minutos:', serviceDuration);
+          logger.debug('[ScheduleTime] serviceDuration convertido de ms para minutos:', serviceDuration);
         } else {
           // Se ainda for muito grande, tentar converter de segundos
           const convertedFromSeconds = Math.round(serviceDuration / 60);
           if (convertedFromSeconds > 0 && convertedFromSeconds <= 480) {
             serviceDuration = convertedFromSeconds;
-            console.log('[ScheduleTime] serviceDuration convertido de segundos para minutos:', serviceDuration);
+            logger.debug('[ScheduleTime] serviceDuration convertido de segundos para minutos:', serviceDuration);
           } else {
             // Se nada funcionar, usar um valor padrão razoável (60 minutos)
-            console.warn('[ScheduleTime] serviceDuration inválido, usando padrão de 60 minutos');
+            logger.warn('[ScheduleTime] serviceDuration inválido, usando padrão de 60 minutos');
             serviceDuration = 60;
           }
         }
@@ -133,6 +145,9 @@ const ScheduleTimeScreen: React.FC = () => {
       }
 
       // Buscar appointments existentes para esta data
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:145',message:'BEFORE querying appointments',data:{businessId:params.businessId,dateString,queryStartTime:`${dateString}T00:00:00`,queryEndTime:`${dateString}T23:59:59`},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,E'})}).catch(()=>{});
+      // #endregion
       const { data: existingAppointments } = await supabase
         .from('appointments')
         .select('id, start_time, end_time')
@@ -141,10 +156,18 @@ const ScheduleTimeScreen: React.FC = () => {
         .lt('start_time', `${dateString}T23:59:59`)
         .in('status', ['pending', 'confirmed']);
       
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:153',message:'AFTER querying appointments - RAW data',data:{existingAppointmentsCount:existingAppointments?.length||0,existingAppointments:existingAppointments?.map(a=>({id:a.id,idType:typeof a.id,start_time:a.start_time,end_time:a.end_time}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // #endregion
+      
       // Aplicar reagendamentos aceitos aos appointments existentes
       const appointmentsWithReschedules = existingAppointments 
         ? await applyAcceptedReschedules(existingAppointments)
         : [];
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:161',message:'AFTER applyAcceptedReschedules',data:{appointmentsWithReschedulesCount:appointmentsWithReschedules.length,appointmentsWithReschedules:appointmentsWithReschedules.map(a=>({id:a.id,idType:typeof a.id,start_time:a.start_time,end_time:a.end_time}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
 
       // Obter horários de almoço
       const lunchBreakStart = businessResult.data?.lunch_break_start;
@@ -152,6 +175,9 @@ const ScheduleTimeScreen: React.FC = () => {
 
       // Gerar slots de horário baseado no horário de funcionamento
       // Usar appointments com reagendamentos aplicados
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:172',message:'BEFORE generateTimeSlots',data:{workDayStart:workDay.start,workDayEnd:workDay.end,appointmentsCount:appointmentsWithReschedules.length,serviceDuration,dateString,lunchBreakStart,lunchBreakEnd},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+      // #endregion
       const slots = generateTimeSlots(
         workDay.start,
         workDay.end,
@@ -161,9 +187,12 @@ const ScheduleTimeScreen: React.FC = () => {
         lunchBreakStart,
         lunchBreakEnd,
       );
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:186',message:'AFTER generateTimeSlots',data:{slotsCount:slots.length,availableCount:slots.filter(s=>s.available).length,occupiedCount:slots.filter(s=>s.type==='occupied').length,lunchCount:slots.filter(s=>s.type==='lunch').length,slots:slots.map(s=>({time:s.time,available:s.available,type:s.type}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,C'})}).catch(()=>{});
+      // #endregion
       setTimeSlots(slots);
     } catch (error) {
-      console.error('Erro ao carregar horários:', error);
+      logger.error('Erro ao carregar horários:', error);
       setTimeSlots([]);
     } finally {
       setLoading(false);
@@ -179,6 +208,9 @@ const ScheduleTimeScreen: React.FC = () => {
     lunchBreakStart?: string | null,
     lunchBreakEnd?: string | null,
   ): TimeSlot[] => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:190',message:'generateTimeSlots ENTRY',data:{startTime,endTime,existingAppointmentsCount:existingAppointments.length,existingAppointments:existingAppointments.map(a=>({start:a.start_time,end:a.end_time})),serviceDuration,dateString},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+    // #endregion
     const slots: TimeSlot[] = [];
     const [startHour] = startTime.split(':').map(Number);
     const [endHour] = endTime.split(':').map(Number);
@@ -196,8 +228,6 @@ const ScheduleTimeScreen: React.FC = () => {
 
       // Verificar se está ocupado por appointment existente
       let type: 'available' | 'occupied' | 'lunch' = 'available';
-      const slotStart = new Date(`${dateString}T${timeString}:00`);
-      const slotEnd = new Date(`${dateString}T${slotEndTime}:00`);
 
       // Verificar se está no horário de almoço
       if (lunchBreakStart && lunchBreakEnd) {
@@ -229,15 +259,35 @@ const ScheduleTimeScreen: React.FC = () => {
       const serviceEnd = new Date(serviceStart);
       serviceEnd.setMinutes(serviceEnd.getMinutes() + serviceDuration);
 
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:243',message:'Checking overlap for slot',data:{timeString,serviceStartISO:serviceStart.toISOString(),serviceEndISO:serviceEnd.toISOString(),serviceStartTime:serviceStart.getTime(),serviceEndTime:serviceEnd.getTime()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,C'})}).catch(()=>{});
+      // #endregion
+
+      const overlapDetails: any[] = [];
       const isOccupied = existingAppointments.some((apt) => {
         const aptStart = new Date(apt.start_time);
         const aptEnd = new Date(apt.end_time);
         
+        const aptDateString = aptStart.toISOString().split('T')[0];
+        const hasOverlap = (serviceStart.getTime() < aptEnd.getTime() && serviceEnd.getTime() > aptStart.getTime());
+        
+        overlapDetails.push({
+          aptStartISO: apt.start_time,
+          aptEndISO: apt.end_time,
+          aptStartTime: aptStart.getTime(),
+          aptEndTime: aptEnd.getTime(),
+          aptDateString,
+          hasOverlap,
+          matchesDate: aptDateString === dateString
+        });
+        
         // Verificar se há overlap entre o serviço (serviceStart até serviceEnd) e o appointment
-        return (
-          (serviceStart.getTime() < aptEnd.getTime() && serviceEnd.getTime() > aptStart.getTime())
-        );
+        return hasOverlap;
       });
+
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:268',message:'Overlap check result',data:{timeString,isOccupied,overlapDetails,dateString},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,C'})}).catch(()=>{});
+      // #endregion
 
       if (isOccupied) {
         type = 'occupied';
@@ -317,8 +367,8 @@ const ScheduleTimeScreen: React.FC = () => {
   };
 
   const handleDateSelect = (date: Date) => {
+    // Copiado do merchant: apenas atualizar selectedDate, sem atualizar currentMonth
     setSelectedDate(date);
-    setCurrentMonth(date);
   };
 
   return (
@@ -347,6 +397,9 @@ const ScheduleTimeScreen: React.FC = () => {
       ) : undefined}
     >
       <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
+      {serviceName && (
+        <Text style={styles.serviceName}>{serviceName}</Text>
+      )}
 
       {/* Calendar */}
       <MonthCalendar
@@ -450,6 +503,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#E5102E',
+    marginBottom: 4,
+  },
+  serviceName: {
+    fontSize: 14,
+    fontFamily: 'Montserrat_700Bold',
+    color: '#474747',
     marginBottom: 16,
   },
   dateHeader: {

@@ -2,6 +2,52 @@ import { supabase } from './supabase';
 import { handleError } from './errorHandler';
 
 /**
+ * Calcula o nível de preço (1-5) baseado na média dos preços dos serviços
+ * @param services - Array de serviços com propriedade price opcional
+ * @returns Número de 1 a 5 representando o nível de preço
+ */
+export const getPriceLevel = (services: Array<{ price?: number }>): number => {
+  if (!services || services.length === 0) return 1;
+
+  // Filtra preços válidos
+  const prices = services
+    .map((s) => s.price)
+    .filter((p): p is number => p !== undefined && p > 0);
+
+  if (prices.length === 0) return 1;
+
+  // Calcula média
+  const avg = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+
+  if (avg > 300) return 5; // $$$$$
+  if (avg > 200) return 4; // $$$$
+  if (avg > 100) return 3; // $$$
+  if (avg > 30) return 2;  // $$
+  
+  return 1; // $ (até 30)
+};
+
+/**
+ * Calcula a faixa de preço como string (ex: '$----', '$$---', '$$$--', '$$$$-', '$$$$$')
+ * @param services - Array de serviços com propriedade price
+ * @returns String representando a faixa de preço
+ */
+export const getPriceRange = (services: Array<{ price: number }>): string => {
+  if (!services || services.length === 0) return '$----';
+  
+  const prices = services.map((s) => s.price).filter((p) => p > 0);
+  if (prices.length === 0) return '$----';
+
+  const avg = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+
+  if (avg < 50) return '$----';
+  if (avg < 100) return '$$---';
+  if (avg < 200) return '$$$--';
+  if (avg < 400) return '$$$$-';
+  return '$$$$$';
+};
+
+/**
  * Aplica reagendamentos aceitos aos agendamentos
  * Se um agendamento tiver um reagendamento aceito, substitui start_time e end_time pelos valores do reagendamento
  * 
@@ -103,7 +149,7 @@ export const checkAppointmentConflicts = async (
   startTime: string,
   endTime: string,
   excludeAppointmentId?: string | number
-): Promise<{ hasConflict: boolean; error?: any }> => {
+): Promise<{ hasConflict: boolean; error?: unknown }> => {
   try {
     // Buscar agendamentos que podem conflitar
     let query = supabase

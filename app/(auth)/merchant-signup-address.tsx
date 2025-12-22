@@ -9,13 +9,13 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeGoBack } from '../../lib/router-utils';
-import { supabase } from '../../lib/supabase';
 import { CustomInput } from '../../components/ui/CustomInput';
 import { useToast } from '../../components/ui/ToastProvider';
 import { handleError } from '../../lib/errorHandler';
 import ScreenContainer from '../../components/layout/ScreenContainer';
 import SignupHeaderMerchant from '../../components/auth/SignupHeaderMerchant';
 import { CustomButton } from '../../components/CustomButton';
+import { logger } from '../../lib/logger';
 
 const MerchantSignupAddressScreen: React.FC = () => {
   const { showError } = useToast();
@@ -51,11 +51,30 @@ const MerchantSignupAddressScreen: React.FC = () => {
   };
 
   const fetchAddressByCEP = async (cepValue: string) => {
+    let timeoutId: NodeJS.Timeout | null = null;
     try {
-      const response = await fetch(`https://viacep.com.br/ws/${cepValue}/json/`);
+      // Adicionar timeout de 10 segundos para evitar que fique travado
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`https://viacep.com.br/ws/${cepValue}/json/`, {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+      
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       
       if (!response.ok) {
-        console.error(`Erro ao buscar CEP: HTTP ${response.status}`);
+        // ViaCEP temporariamente indisponível - usuário pode preencher manualmente
+        // Usar console.warn em vez de console.error para não poluir logs (é um erro esperado de API externa)
+        if (__DEV__) {
+          logger.warn(`[ViaCEP] Serviço temporariamente indisponível (HTTP ${response.status}). Preencha o endereço manualmente.`);
+        }
         return;
       }
 
@@ -67,8 +86,19 @@ const MerchantSignupAddressScreen: React.FC = () => {
         setCidade(data.localidade || '');
         setEstado(data.uf || '');
       }
-    } catch (error) {
-      console.error('Erro ao buscar CEP:', error);
+    } catch (error: unknown) {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      // Erro de rede/timeout - usuário pode preencher manualmente
+      // Usar console.warn em vez de console.error para não poluir logs (é um erro esperado)
+      if (__DEV__) {
+        if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
+          logger.warn('[ViaCEP] Timeout ao buscar CEP. Preencha o endereço manualmente.');
+        } else {
+          logger.warn('[ViaCEP] Erro ao buscar CEP. Preencha o endereço manualmente:', error);
+        }
+      }
       // Não mostrar alerta para não interromper o fluxo do usuário
     }
   };
@@ -111,9 +141,16 @@ const MerchantSignupAddressScreen: React.FC = () => {
   );
 
   const handleContinue = async () => {
-    const requiredFilled = cep && endereco && numero && bairro && cidade && estado;
-    if (!requiredFilled || cep.length < 9) {
-      setError('Preencha todos os campos obrigatórios com CEP válido.');
+    // Validar CEP: deve ter 8 dígitos numéricos
+    const cepDigits = cep.replace(/\D/g, '');
+    if (!cepDigits || cepDigits.length !== 8) {
+      setError('CEP deve conter 8 dígitos.');
+      return;
+    }
+
+    const requiredFilled = endereco && numero && bairro && cidade && estado;
+    if (!requiredFilled) {
+      setError('Preencha todos os campos obrigatórios.');
       return;
     }
 
@@ -121,12 +158,22 @@ const MerchantSignupAddressScreen: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      // Buscar dados pessoais salvos anteriormente
+      const mainDraftKey = 'merchant_signup_draft';
+      const stored = await AsyncStorage.getItem(mainDraftKey);
+      
+      if (!stored) {
+        setError('Dados do cadastro não encontrados. Por favor, volte e preencha novamente.');
+        return;
+      }
 
-      if (!user) {
-        setError('Usuário não autenticado.');
+      let draftData;
+      try {
+        draftData = JSON.parse(stored);
+      } catch (parseError) {
+        logger.error('[MerchantSignupAddress] Erro ao fazer parse do draft:', parseError);
+        await AsyncStorage.removeItem(mainDraftKey);
+        setError('Dados do cadastro corrompidos. Por favor, volte e preencha novamente.');
         return;
       }
 
@@ -135,8 +182,22 @@ const MerchantSignupAddressScreen: React.FC = () => {
         cep,
         cidade,
         estado,
+        endereco,
+        numero,
+        complemento,
+        bairro,
       };
 
+      // Adicionar dados de endereço ao draft principal
+      const updatedDraft = {
+        ...draftData,
+        ...addressData,
+      };
+
+      // Salvar dados atualizados no AsyncStorage
+      await AsyncStorage.setItem(mainDraftKey, JSON.stringify(updatedDraft));
+
+      // Limpar draft local de endereço
       try {
         await AsyncStorage.removeItem(draftKey);
       } catch {
@@ -145,10 +206,6 @@ const MerchantSignupAddressScreen: React.FC = () => {
 
       router.push({
         pathname: '/(auth)/merchant-signup-business',
-        params: { 
-          userId: user.id,
-          addressData: JSON.stringify(addressData),
-        },
       });
     } catch (err) {
       const processed = handleError(err, 'signup');

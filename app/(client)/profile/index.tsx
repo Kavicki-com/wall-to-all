@@ -17,6 +17,7 @@ import { BusinessCard } from '../../../components/BusinessCard';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import ServiceCategoryCard from '../../../components/ServiceCategoryCard';
 import { applyAcceptedReschedules } from '../../../lib/utils';
+import { logger } from '../../../lib/logger';
 
 type Service = {
   id: string;
@@ -91,6 +92,8 @@ const ClientProfileScreen: React.FC = () => {
     if (profile && !profileLoading) {
       loadProfile();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadProfile é estável (useCallback), não precisa estar nas dependências
   }, [profile?.id, profileLoading]);
 
   const loadProfile = async () => {
@@ -109,7 +112,7 @@ const ClientProfileScreen: React.FC = () => {
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
         .select(
-          `*,
+          `id, start_time, end_time, status, payment_method, service_id, business_id,
           service:services(name),
           business:business_profiles(business_name)`
         )
@@ -117,7 +120,9 @@ const ClientProfileScreen: React.FC = () => {
         .limit(10);
 
       if (appointmentsError) {
-        console.error('Erro ao buscar agendamentos:', appointmentsError);
+        if (__DEV__) {
+          logger.error('Erro ao buscar agendamentos:', appointmentsError);
+        }
       } else if (appointmentsData) {
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
         setAppointments(appointmentsWithReschedules as Appointment[]);
@@ -131,7 +136,7 @@ const ClientProfileScreen: React.FC = () => {
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select(`
-          *,
+          id, name, price, photos, category_id,
           categories:category_id (
             id,
             name
@@ -141,7 +146,9 @@ const ClientProfileScreen: React.FC = () => {
         .range(0, 9);
 
       if (servicesError) {
-        console.error('Erro ao buscar serviços:', servicesError);
+        if (__DEV__) {
+          logger.error('Erro ao buscar serviços:', servicesError);
+        }
       } else if (servicesData) {
         let ratingsMap: Record<string, { sum: number; count: number }> = {};
 
@@ -215,7 +222,9 @@ const ClientProfileScreen: React.FC = () => {
         setAverageRating(avg);
       }
     } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
+      if (__DEV__) {
+        logger.error('Erro ao carregar perfil:', error);
+      }
     } finally {
       setLoading(false);
     }

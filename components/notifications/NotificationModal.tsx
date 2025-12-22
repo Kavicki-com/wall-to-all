@@ -16,13 +16,13 @@ import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../../context/AuthContext';
+import { logger } from '../../lib/logger';
 import {
   fetchNotifications,
   markNotificationAsRead,
   clearAllNotifications,
   Notification,
 } from '../../lib/notifications';
-import { Icon } from '../ui/Icon';
 
 interface NotificationModalProps {
   visible: boolean;
@@ -46,18 +46,23 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
     if (visible && session?.user?.id) {
       loadNotifications();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadNotifications é estável (useCallback), não precisa estar nas dependências
   }, [visible, session?.user?.id]);
 
   const loadNotifications = async () => {
     if (!session?.user?.id) {
-      console.warn('loadNotifications: Usuário não autenticado');
+      if (__DEV__) {
+        logger.warn('loadNotifications: Usuário não autenticado');
+      }
       setNotifications([]);
       return;
     }
 
     try {
       setLoading(true);
-      console.log('Carregando notificações para usuário:', session.user.id);
+      if (__DEV__) { logger.debug('Carregando notificações para usuário:', session.user.id);
+      }
       
       // Buscar todas as notificações relevantes (solicitações e respostas)
       const data = await fetchNotifications(session.user.id, {
@@ -72,13 +77,16 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         ],
       });
       
-      console.log('Notificações carregadas:', data.length);
-      if (data.length > 0) {
-        console.log('Primeira notificação:', JSON.stringify(data[0], null, 2));
+      if (__DEV__) { logger.debug('Notificações carregadas:', data.length);
+        if (data.length > 0) {
+          logger.debug('Primeira notificação:', JSON.stringify(data[0], null, 2));
+        }
       }
       setNotifications(data);
     } catch (error) {
-      console.error('Erro ao carregar notificações:', error);
+      if (__DEV__) {
+        logger.error('Erro ao carregar notificações:', error);
+      }
       setNotifications([]);
     } finally {
       setLoading(false);
@@ -122,7 +130,9 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       onNotificationsUpdated?.();
     } catch (error) {
-      console.error('Erro ao limpar notificações:', error);
+      if (__DEV__) {
+        logger.error('Erro ao limpar notificações:', error);
+      }
     } finally {
       setClearing(false);
     }
@@ -135,27 +145,6 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       return format(date, "dd/MM/yyyy", { locale: ptBR });
     } catch {
       return '';
-    }
-  };
-
-  const getNotificationTypeLabel = (type: string) => {
-    switch (type) {
-      case 'reschedule_requested':
-        return 'Solicitação de Reagendamento';
-      case 'reschedule_suggested':
-        return 'Reagendamento Sugerido';
-      case 'appointment_requested':
-        return 'Solicitação de Agendamento';
-      case 'reschedule_accepted':
-        return 'Reagendamento Aceito';
-      case 'reschedule_rejected':
-        return 'Reagendamento Rejeitado';
-      case 'appointment_confirmed':
-        return 'Agendamento Confirmado';
-      case 'appointment_cancelled':
-        return 'Agendamento Cancelado';
-      default:
-        return 'Notificação';
     }
   };
 
@@ -270,7 +259,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   modalContainer: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#FEFEFE',
     width: '100%',
     height: SCREEN_HEIGHT * 0.8, // 80% da altura da tela
     borderTopLeftRadius: 24,
@@ -362,12 +351,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#9D4EDD',
+    backgroundColor: '#E5102E',
   },
   notificationMessage: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FFFFFF',
+    color: '#000E3D',
     flex: 1,
   },
   notificationFooter: {

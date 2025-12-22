@@ -14,6 +14,7 @@ import { safeGoBack } from '../../../lib/router-utils';
 import AppHeader from '../../../components/layout/AppHeader';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import SearchBar from '../../../components/SearchBar';
+import { logger } from '../../../lib/logger';
 
 type Category = {
   id: string;
@@ -91,15 +92,20 @@ const SearchingScreen: React.FC = () => {
       if (servError) throw servError;
 
       const formatted =
-        servData?.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          category_name: item.categories?.name,
-        })) ?? [];
+        servData?.map((item: { id: string; name: string; categories?: { name?: string } | { name?: string }[] }) => {
+          const categoryName = Array.isArray(item.categories) 
+            ? item.categories[0]?.name 
+            : item.categories?.name;
+          return {
+            id: item.id,
+            name: item.name,
+            category_name: categoryName,
+          };
+        }) ?? [];
 
       setServices(formatted);
     } catch (error) {
-      console.error('Erro ao carregar dados da busca:', error);
+      logger.error('Erro ao carregar dados da busca:', error);
     } finally {
       setLoading(false);
     }

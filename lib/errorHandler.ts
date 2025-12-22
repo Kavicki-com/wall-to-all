@@ -1,12 +1,40 @@
 import { Alert } from 'react-native';
 import { PostgrestError } from '@supabase/supabase-js';
 import { ErrorCategory, ErrorContext, getErrorMessage } from './errorMessages';
+import { logger } from '../lib/logger';
+
+/**
+ * Type guard para verificar se um erro tem propriedades de erro
+ */
+const isErrorLike = (error: unknown): error is { message?: string; code?: string; name?: string; stack?: string } => {
+  return typeof error === 'object' && error !== null;
+};
+
+/**
+ * Obtém a mensagem de erro de forma segura
+ */
+const getErrorMessageSafe = (error: unknown): string => {
+  if (isErrorLike(error)) {
+    return error.message || String(error);
+  }
+  return String(error);
+};
+
+/**
+ * Obtém o código de erro de forma segura
+ */
+const getErrorCodeSafe = (error: unknown): string => {
+  if (isErrorLike(error)) {
+    return error.code || '';
+  }
+  return '';
+};
 
 export interface ProcessedError {
   category: ErrorCategory;
   userMessage: string;
   shouldRetry: boolean;
-  originalError: any;
+  originalError: unknown;
   isNetworkError: boolean;
   isTimeout: boolean;
   isAuthError: boolean;
@@ -15,11 +43,11 @@ export interface ProcessedError {
 /**
  * Detecta se o erro é relacionado a rede/conexão
  */
-const isNetworkError = (error: any): boolean => {
+const isNetworkError = (error: unknown): boolean => {
   if (!error) return false;
 
-  const errorMessage = String(error.message || error.toString() || '').toLowerCase();
-  const errorCode = String(error.code || '').toLowerCase();
+  const errorMessage = getErrorMessageSafe(error).toLowerCase();
+  const errorCode = getErrorCodeSafe(error).toLowerCase();
 
   // Erros de rede comuns
   const networkIndicators = [
@@ -51,29 +79,29 @@ const isNetworkError = (error: any): boolean => {
 /**
  * Detecta se o erro é relacionado a timeout
  */
-const isTimeoutError = (error: any): boolean => {
+const isTimeoutError = (error: unknown): boolean => {
   if (!error) return false;
 
-  const errorMessage = String(error.message || error.toString() || '').toLowerCase();
-  const errorCode = String(error.code || '').toLowerCase();
+  const errorMessage = getErrorMessageSafe(error).toLowerCase();
+  const errorCode = getErrorCodeSafe(error).toLowerCase();
 
   return (
     errorMessage.includes('timeout') ||
     errorMessage.includes('timed out') ||
     errorCode.includes('timeout') ||
     errorCode.includes('etimedout') ||
-    error.message === 'Timeout ao buscar user_role'
+    getErrorMessageSafe(error) === 'Timeout ao buscar user_role'
   );
 };
 
 /**
  * Detecta se o erro é relacionado a autenticação
  */
-const isAuthError = (error: any): boolean => {
+const isAuthError = (error: unknown): boolean => {
   if (!error) return false;
 
-  const errorMessage = String(error.message || error.toString() || '').toLowerCase();
-  const errorCode = String(error.code || '').toLowerCase();
+  const errorMessage = getErrorMessageSafe(error).toLowerCase();
+  const errorCode = getErrorCodeSafe(error).toLowerCase();
 
   const authIndicators = [
     'invalid login credentials',
@@ -100,11 +128,11 @@ const isAuthError = (error: any): boolean => {
 /**
  * Detecta se o erro é relacionado a validação
  */
-const isValidationError = (error: any): boolean => {
+const isValidationError = (error: unknown): boolean => {
   if (!error) return false;
 
-  const errorMessage = String(error.message || error.toString() || '').toLowerCase();
-  const errorCode = String(error.code || '').toLowerCase();
+  const errorMessage = getErrorMessageSafe(error).toLowerCase();
+  const errorCode = getErrorCodeSafe(error).toLowerCase();
 
   const validationIndicators = [
     'validation',
@@ -128,11 +156,11 @@ const isValidationError = (error: any): boolean => {
 /**
  * Detecta se o erro é "não encontrado"
  */
-const isNotFoundError = (error: any): boolean => {
+const isNotFoundError = (error: unknown): boolean => {
   if (!error) return false;
 
-  const errorMessage = String(error.message || error.toString() || '').toLowerCase();
-  const errorCode = String(error.code || '').toLowerCase();
+  const errorMessage = getErrorMessageSafe(error).toLowerCase();
+  const errorCode = getErrorCodeSafe(error).toLowerCase();
 
   return (
     errorCode === 'PGRST116' || // PostgREST not found
@@ -145,11 +173,11 @@ const isNotFoundError = (error: any): boolean => {
 /**
  * Detecta se o erro é relacionado a permissões
  */
-const isPermissionError = (error: any): boolean => {
+const isPermissionError = (error: unknown): boolean => {
   if (!error) return false;
 
-  const errorMessage = String(error.message || error.toString() || '').toLowerCase();
-  const errorCode = String(error.code || '').toLowerCase();
+  const errorMessage = getErrorMessageSafe(error).toLowerCase();
+  const errorCode = getErrorCodeSafe(error).toLowerCase();
 
   const permissionIndicators = [
     'permission',
@@ -169,7 +197,7 @@ const isPermissionError = (error: any): boolean => {
 /**
  * Classifica o erro em uma categoria
  */
-const classifyError = (error: any): ErrorCategory => {
+const classifyError = (error: unknown): ErrorCategory => {
   if (isNetworkError(error)) {
     return 'network';
   }
@@ -195,7 +223,7 @@ const classifyError = (error: any): ErrorCategory => {
  * Processa um erro e retorna informações estruturadas
  */
 export const handleError = (
-  error: any,
+  error: unknown,
   context: ErrorContext = 'general'
 ): ProcessedError => {
   const category = classifyError(error);
@@ -210,26 +238,28 @@ export const handleError = (
   // Determina o nível de log baseado no tipo de erro
   // Erros esperados (como credenciais inválidas) usam console.warn
   // Erros inesperados usam console.error
+  const errorCode = getErrorCodeSafe(error);
+  const errorMessage = getErrorMessageSafe(error);
   const isExpectedError = 
-    (isAuth && (error?.code === 'invalid_credentials' || error?.message?.includes('Invalid login credentials'))) ||
+    (isAuth && (errorCode === 'invalid_credentials' || errorMessage.includes('Invalid login credentials'))) ||
     (category === 'validation' && context === 'login');
 
   if (isExpectedError) {
     // Log mais limpo para erros esperados (credenciais inválidas, etc)
     // Usa console.warn para não poluir o console com stack traces desnecessários
-    console.warn(`[ErrorHandler] ${context}: ${category} - ${error?.message || userMessage}`);
+    logger.warn(`[ErrorHandler] ${context}: ${category} - ${errorMessage || userMessage}`);
   } else {
     // Log detalhado para erros inesperados
     const errorInfo = {
       category,
-      code: error?.code,
-      message: error?.message || String(error),
+      code: errorCode,
+      message: errorMessage,
     };
-    console.error(`[ErrorHandler] ${context}:`, errorInfo);
+    logger.error(`[ErrorHandler] ${context}:`, errorInfo);
     
     // Log do erro completo apenas em desenvolvimento para debug
-    if (typeof __DEV__ !== 'undefined' && __DEV__ && error?.stack) {
-      console.debug('Stack trace:', error.stack);
+    if (typeof __DEV__ !== 'undefined' && __DEV__ && isErrorLike(error) && error.stack) {
+      logger.debug('Stack trace:', error.stack);
     }
   }
 
@@ -248,7 +278,7 @@ export const handleError = (
  * Exibe erro usando Alert (para erros críticos que requerem ação do usuário)
  */
 export const showErrorAlert = (
-  error: any,
+  error: unknown,
   context: ErrorContext = 'general',
   title: string = 'Erro'
 ): void => {
@@ -262,7 +292,7 @@ export const showErrorAlert = (
  * Se não estiver, usa Alert como fallback
  */
 export const showErrorToast = (
-  error: any,
+  error: unknown,
   context: ErrorContext = 'general'
 ): void => {
   const processed = handleError(error, context);

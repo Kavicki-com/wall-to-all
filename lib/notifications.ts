@@ -3,6 +3,7 @@
  */
 
 import { supabase } from './supabase';
+import { logger } from '../lib/logger';
 
 /**
  * Obtém a contagem de notificações não lidas para um usuário
@@ -20,16 +21,16 @@ export const getUnreadCount = async (userId: string): Promise<number> => {
     if (error) {
       // Se a tabela não existir, retornar 0
       if (error.code === '42P01') {
-        console.warn('Tabela de notificações não encontrada.');
+        logger.warn('Tabela de notificações não encontrada.');
         return 0;
       }
-      console.error('Erro ao buscar contagem de notificações:', error);
+      logger.error('Erro ao buscar contagem de notificações:', error);
       return 0;
     }
 
     return count || 0;
   } catch (err) {
-    console.warn('Erro ao buscar contagem de notificações (ignorado):', err);
+    logger.warn('Erro ao buscar contagem de notificações (ignorado):', err);
     return 0;
   }
 };
@@ -73,72 +74,44 @@ export const sendNotification = async (
   message: string,
   relatedAppointmentId?: number | null,
   relatedRescheduleId?: number | null
-): Promise<{ success: boolean; error?: any }> => {
+): Promise<{ success: boolean; error?: unknown }> => {
+  // #region agent log
+  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:70',message:'sendNotification chamado',data:{userId,type,hasTitle:!!title,hasMessage:!!message,relatedAppointmentId,relatedRescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SEND_NOTIF'})}).catch(()=>{});
+  // #endregion
   try {
-    const notificationData: any = {
-      user_id: userId,
-      type,
-      title,
-      message,
-      read: false,
-    };
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:100',message:'Usando função RPC insert_notification diretamente (bypass RLS)',data:{userId,type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SEND_NOTIF'})}).catch(()=>{});
+    // #endregion
+    // Usar função RPC insert_notification diretamente pois a política RLS só permite criar para si mesmo
+    // A função RPC tem SECURITY DEFINER e pode criar notificações para qualquer usuário
+    const { data: rpcData, error: rpcError } = await supabase.rpc('insert_notification', {
+      p_user_id: userId,
+      p_type: type,
+      p_title: title,
+      p_message: message,
+      p_related_appointment_id: relatedAppointmentId,
+      p_related_reschedule_id: relatedRescheduleId,
+    });
 
-    // Adicionar related_appointment_id se fornecido
-    if (relatedAppointmentId !== undefined && relatedAppointmentId !== null) {
-      notificationData.related_appointment_id = relatedAppointmentId;
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:112',message:'Resultado da função RPC insert_notification',data:{hasError:!!rpcError,errorCode:rpcError?.code,errorMessage:rpcError?.message,success:rpcData?.success,notificationId:rpcData?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SEND_NOTIF'})}).catch(()=>{});
+    // #endregion
+
+    if (rpcError) {
+      logger.error('Erro ao chamar função RPC insert_notification:', rpcError);
+      return { success: false, error: rpcError };
     }
 
-    // Adicionar related_reschedule_id se fornecido
-    if (relatedRescheduleId !== undefined && relatedRescheduleId !== null) {
-      notificationData.related_reschedule_id = relatedRescheduleId;
+    if (rpcData && rpcData.success) {
+      return { success: true };
     }
 
-    const { error } = await supabase
-      .from('notifications')
-      .insert(notificationData);
-
-    if (error) {
-      // Se as colunas não existirem, tentar fallback com related_id
-      if (error.code === 'PGRST204' || error.message?.includes('column')) {
-        // Fallback: usar related_id se as novas colunas não existirem
-        const fallbackData: any = {
-          user_id: userId,
-          type,
-          title,
-          message,
-          read: false,
-        };
-        
-        // Usar appointmentId como related_id se disponível (prioridade)
-        if (relatedAppointmentId !== undefined && relatedAppointmentId !== null) {
-          fallbackData.related_id = relatedAppointmentId;
-        } else if (relatedRescheduleId !== undefined && relatedRescheduleId !== null) {
-          fallbackData.related_id = relatedRescheduleId;
-        }
-
-        const { error: fallbackError } = await supabase
-          .from('notifications')
-          .insert(fallbackData);
-
-        if (fallbackError) {
-          console.warn('Erro ao enviar notificação (fallback também falhou):', fallbackError);
-          return { success: false, error: null };
-        }
-        return { success: true };
-      }
-      
-      if (error.code === '42P01') {
-        console.warn('Tabela de notificações não encontrada. Notificações desabilitadas.');
-        return { success: false, error: null };
-      }
-      
-      console.error('Erro ao enviar notificação:', error);
-      return { success: false, error };
-    }
-
-    return { success: true };
+    // Se chegou aqui, a função retornou mas com success: false
+    const error = rpcData?.error || 'Erro desconhecido na função insert_notification';
+    logger.error('Função insert_notification retornou success: false:', rpcData);
+    return { success: false, error };
   } catch (err) {
-    console.warn('Erro ao enviar notificação (ignorado):', err);
+    logger.warn('Erro ao enviar notificação (ignorado):', err);
     return { success: false, error: null };
   }
 };
@@ -158,6 +131,9 @@ export const notifyRescheduleAccepted = async (
   newStartTime: string,
   businessName: string
 ): Promise<void> => {
+  // #region agent log
+  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:155',message:'notifyRescheduleAccepted chamado',data:{targetUserId:clientId,appointmentId,rescheduleId,hasBusinessName:!!businessName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
+  // #endregion
   try {
     const date = new Date(newStartTime);
     const formattedDate = date.toLocaleDateString('pt-BR', {
@@ -170,8 +146,11 @@ export const notifyRescheduleAccepted = async (
       minute: '2-digit',
     });
 
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:174',message:'Chamando sendNotification para reschedule_accepted',data:{targetUserId:clientId,appointmentId,rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
+    // #endregion
     // Passar ambos os IDs: appointment_id e reschedule_id
-    await sendNotification(
+    const result = await sendNotification(
       clientId,
       'reschedule_accepted',
       'Reagendamento Aceito',
@@ -179,8 +158,14 @@ export const notifyRescheduleAccepted = async (
       appointmentId,
       rescheduleId
     );
-  } catch {
-    console.warn('Erro ao enviar notificação de reagendamento aceito (ignorado)');
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:182',message:'sendNotification retornou para reschedule_accepted',data:{success:result.success,hasError:!!result.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
+    // #endregion
+  } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:184',message:'Exceção capturada em notifyRescheduleAccepted',data:{error:error?.toString(),errorMessage:error instanceof Error?error.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
+    // #endregion
+    logger.warn('Erro ao enviar notificação de reagendamento aceito (ignorado)');
   }
 };
 
@@ -214,7 +199,7 @@ export const notifyRescheduleRejected = async (
       rescheduleId
     );
   } catch {
-    console.warn('Erro ao enviar notificação de reagendamento rejeitado (ignorado)');
+    logger.warn('Erro ao enviar notificação de reagendamento rejeitado (ignorado)');
   }
 };
 
@@ -233,6 +218,9 @@ export const notifyRescheduleRequested = async (
   clientName: string,
   newStartTime: string
 ): Promise<void> => {
+  // #region agent log
+  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:230',message:'notifyRescheduleRequested chamado',data:{merchantId,appointmentId,rescheduleId,clientName,hasNewStartTime:!!newStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+  // #endregion
   try {
     const date = new Date(newStartTime);
     const formattedDate = date.toLocaleDateString('pt-BR', {
@@ -245,8 +233,11 @@ export const notifyRescheduleRequested = async (
       minute: '2-digit',
     });
 
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:248',message:'Chamando sendNotification para merchant',data:{merchantId,appointmentId,rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+    // #endregion
     // Passar ambos os IDs: appointment_id e reschedule_id
-    await sendNotification(
+    const result = await sendNotification(
       merchantId,
       'reschedule_requested',
       'Nova Solicitação de Reagendamento',
@@ -254,8 +245,14 @@ export const notifyRescheduleRequested = async (
       appointmentId,
       rescheduleId
     );
-  } catch {
-    console.warn('Erro ao enviar notificação de reagendamento solicitado (ignorado)');
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:257',message:'sendNotification retornou para merchant',data:{success:result.success,hasError:!!result.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+    // #endregion
+  } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:260',message:'Exceção capturada em notifyRescheduleRequested',data:{error:error?.toString(),errorMessage:error instanceof Error?error.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
+    // #endregion
+    logger.warn('Erro ao enviar notificação de reagendamento solicitado (ignorado)');
   }
 };
 
@@ -274,6 +271,9 @@ export const notifyRescheduleSuggested = async (
   newStartTime: string,
   businessName: string
 ): Promise<void> => {
+  // #region agent log
+  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:271',message:'notifyRescheduleSuggested chamado',data:{clientId,appointmentId,rescheduleId,hasBusinessName:!!businessName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   try {
     const date = new Date(newStartTime);
     const formattedDate = date.toLocaleDateString('pt-BR', {
@@ -286,8 +286,11 @@ export const notifyRescheduleSuggested = async (
       minute: '2-digit',
     });
 
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:284',message:'Chamando sendNotification',data:{clientId,appointmentId,rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     // Passar ambos os IDs: appointment_id e reschedule_id
-    await sendNotification(
+    const result = await sendNotification(
       clientId,
       'reschedule_suggested',
       'Reagendamento Sugerido',
@@ -295,8 +298,14 @@ export const notifyRescheduleSuggested = async (
       appointmentId,
       rescheduleId
     );
-  } catch {
-    console.warn('Erro ao enviar notificação de reagendamento sugerido (ignorado)');
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:296',message:'sendNotification retornou',data:{success:result.success,hasError:!!result.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+  } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:300',message:'Exceção capturada em notifyRescheduleSuggested',data:{error:error?.toString(),errorMessage:error instanceof Error?error.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    logger.warn('Erro ao enviar notificação de reagendamento sugerido (ignorado)');
   }
 };
 
@@ -335,7 +344,7 @@ export const notifyAppointmentRequested = async (
       appointmentId
     );
   } catch {
-    console.warn('Erro ao enviar notificação de agendamento solicitado (ignorado)');
+    logger.warn('Erro ao enviar notificação de agendamento solicitado (ignorado)');
   }
 };
 
@@ -364,16 +373,16 @@ export const fetchNotifications = async (
 
     if (error) {
       if (error.code === '42P01') {
-        console.warn('Tabela de notificações não encontrada.');
+        logger.warn('Tabela de notificações não encontrada.');
         return [];
       }
-      console.error('Erro ao buscar notificações:', error);
+      logger.error('Erro ao buscar notificações:', error);
       return [];
     }
 
     return (data as Notification[]) || [];
   } catch (err) {
-    console.warn('Erro ao buscar notificações (ignorado):', err);
+    logger.warn('Erro ao buscar notificações (ignorado):', err);
     return [];
   }
 };
@@ -385,7 +394,7 @@ export const fetchNotifications = async (
  */
 export const markNotificationAsRead = async (
   notificationId: number
-): Promise<{ success: boolean; error?: any }> => {
+): Promise<{ success: boolean; error?: unknown }> => {
   try {
     const { error } = await supabase
       .from('notifications')
@@ -394,16 +403,16 @@ export const markNotificationAsRead = async (
 
     if (error) {
       if (error.code === '42P01') {
-        console.warn('Tabela de notificações não encontrada.');
+        logger.warn('Tabela de notificações não encontrada.');
         return { success: false, error: null };
       }
-      console.error('Erro ao marcar notificação como lida:', error);
+      logger.error('Erro ao marcar notificação como lida:', error);
       return { success: false, error };
     }
 
     return { success: true };
   } catch (err) {
-    console.warn('Erro ao marcar notificação como lida (ignorado):', err);
+    logger.warn('Erro ao marcar notificação como lida (ignorado):', err);
     return { success: false, error: null };
   }
 };
@@ -415,7 +424,7 @@ export const markNotificationAsRead = async (
  */
 export const clearAllNotifications = async (
   userId: string
-): Promise<{ success: boolean; error?: any }> => {
+): Promise<{ success: boolean; error?: unknown }> => {
   try {
     const { error } = await supabase
       .from('notifications')
@@ -425,16 +434,16 @@ export const clearAllNotifications = async (
 
     if (error) {
       if (error.code === '42P01') {
-        console.warn('Tabela de notificações não encontrada.');
+        logger.warn('Tabela de notificações não encontrada.');
         return { success: false, error: null };
       }
-      console.error('Erro ao limpar notificações:', error);
+      logger.error('Erro ao limpar notificações:', error);
       return { success: false, error };
     }
 
     return { success: true };
   } catch (err) {
-    console.warn('Erro ao limpar notificações (ignorado):', err);
+    logger.warn('Erro ao limpar notificações (ignorado):', err);
     return { success: false, error: null };
   }
 };

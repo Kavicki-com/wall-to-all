@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
+import { logger } from '../lib/logger';
+import type { Database } from '../supabase/types';
 
 const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -55,10 +57,10 @@ Veja o arquivo .env.example para um template de referência.
 ⚠️  O app continuará funcionando, mas as funcionalidades de autenticação não estarão disponíveis.
     `.trim();
     
-    console.error(errorMessage);
+    logger.error(errorMessage);
   }
   
-  console.warn('[Supabase] Usando valores padrão. Configure as credenciais para usar o Supabase.');
+  logger.warn('[Supabase] Usando valores padrão. Configure as credenciais para usar o Supabase.');
   
   // Usa valores padrão para evitar crash, mas o app não funcionará corretamente
   // O AuthContext tratará a ausência de credenciais
@@ -68,9 +70,15 @@ Veja o arquivo .env.example para um template de referência.
 const finalSupabaseUrl = isValidUrl ? supabaseUrl : 'https://placeholder.supabase.co';
 const finalSupabaseAnonKey = isValidKey ? supabaseAnonKey : 'placeholder-key';
 
-export const supabase = createClient(finalSupabaseUrl, finalSupabaseAnonKey, {
+// Type assertion necessário porque o tipo esperado pelo Supabase não corresponde exatamente ao AsyncStorage
+// mas a compatibilidade é garantida em runtime
+export const supabase = createClient<Database>(finalSupabaseUrl, finalSupabaseAnonKey, {
   auth: {
-    storage: AsyncStorage as any,
+    storage: AsyncStorage as unknown as {
+      getItem: (key: string) => Promise<string | null>;
+      setItem: (key: string, value: string) => Promise<void>;
+      removeItem: (key: string) => Promise<void>;
+    },
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
@@ -83,15 +91,24 @@ export const supabase = createClient(finalSupabaseUrl, finalSupabaseAnonKey, {
 export const isSupabaseConfigured = isValidUrl && isValidKey;
 
 // Função auxiliar para verificar se é erro de refresh token
-const isInvalidRefreshTokenError = (error: any): boolean => {
+const isInvalidRefreshTokenError = (error: unknown): boolean => {
   if (!error) return false;
-  const errorMessage = error.message || error.toString() || '';
+  
+  const isErrorLike = (e: unknown): e is { message?: string; code?: string; name?: string } => {
+    return typeof e === 'object' && e !== null;
+  };
+  
+  if (!isErrorLike(error)) {
+    return false;
+  }
+  
+  const errorMessage = error.message || String(error) || '';
   return (
     errorMessage.includes('Invalid Refresh Token') ||
     errorMessage.includes('Refresh Token Not Found') ||
     errorMessage.includes('refresh_token_not_found') ||
-    error?.code === 'refresh_token_not_found' ||
-    (error?.name === 'AuthApiError' && errorMessage.toLowerCase().includes('refresh'))
+    error.code === 'refresh_token_not_found' ||
+    (error.name === 'AuthApiError' && errorMessage.toLowerCase().includes('refresh'))
   );
 };
 
@@ -99,7 +116,7 @@ const isInvalidRefreshTokenError = (error: any): boolean => {
 // Isso evita que erros esperados apareçam no console quando o token é limpo automaticamente
 if (typeof console !== 'undefined' && console.error) {
   const originalConsoleError = console.error.bind(console);
-  console.error = (...args: any[]) => {
+  console.error = (...args: unknown[]) => {
     // Converte todos os argumentos para string para verificação
     const argsString = args.map(arg => {
       if (arg && typeof arg === 'object') {
@@ -150,12 +167,13 @@ export const clearInvalidAuthTokens = async () => {
     
     if (supabaseKeys.length > 0) {
       await AsyncStorage.multiRemove(supabaseKeys);
-      console.log('[Supabase] Tokens inválidos removidos do AsyncStorage');
+      if (__DEV__) { logger.debug('[Supabase] Tokens inválidos removidos do AsyncStorage');
+      }
       return true;
     }
     return false;
   } catch (error) {
-    console.error('[Supabase] Erro ao limpar tokens:', error);
+    logger.error('[Supabase] Erro ao limpar tokens:', error);
     return false;
   }
 };

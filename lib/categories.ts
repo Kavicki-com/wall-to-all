@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { sortCategories } from './categoryUtils';
+import { logger } from '../lib/logger';
 
 export type Category = {
   id: string;
@@ -15,12 +16,12 @@ export const fetchCategories = async (): Promise<Category[]> => {
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('[lib/categories] Erro ao buscar categorias:', error);
+      logger.error('[lib/categories] Erro ao buscar categorias:', error);
       return [];
     }
 
     if (!data || data.length === 0) {
-      console.warn('[lib/categories] Nenhuma categoria encontrada na tabela categories');
+      logger.warn('[lib/categories] Nenhuma categoria encontrada na tabela categories');
       return [];
     }
 
@@ -28,7 +29,7 @@ export const fetchCategories = async (): Promise<Category[]> => {
     
     return sortedCategories;
   } catch (error) {
-    console.error('[lib/categories] Erro ao buscar categorias:', error);
+    logger.error('[lib/categories] Erro ao buscar categorias:', error);
     return [];
   }
 };
@@ -47,7 +48,7 @@ export const findCategoryByName = async (name: string): Promise<Category | null>
 
     return data as Category;
   } catch (error) {
-    console.error('Erro ao buscar categoria por nome:', error);
+    logger.error('Erro ao buscar categoria por nome:', error);
     return null;
   }
 };
@@ -66,7 +67,7 @@ export const findCategoryById = async (id: string): Promise<Category | null> => 
 
     return data as Category;
   } catch (error) {
-    console.error('Erro ao buscar categoria por ID:', error);
+    logger.error('Erro ao buscar categoria por ID:', error);
     return null;
   }
 };

@@ -13,6 +13,8 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { sortCategories } from '../../../lib/categoryUtils';
 import { useCardWidth } from '../../../lib/responsive';
+import { Cache } from '../../../lib/cache';
+import { logger } from '../../../lib/logger';
 import AppHeader from '../../../components/layout/AppHeader';
 import { BusinessCard } from '../../../components/BusinessCard';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
@@ -77,6 +79,7 @@ type Service = {
 const FEATURED_LIMIT = 10;
 const POPULAR_LIMIT = 10;
 const CATEGORIES_LIMIT = 50;
+const UPCOMING_APPOINTMENTS_LIMIT = 50;
 
 const ClientHomeScreen: React.FC = () => {
   const router = useRouter();
@@ -121,18 +124,37 @@ const ClientHomeScreen: React.FC = () => {
         return;
       }
 
+      // Tentar cache para categorias (apenas se não for refresh)
+      let categoriesData: Array<{ id: string; name: string }> | null = null;
+      if (!isRefresh) {
+        const cachedCategories = await Cache.get<Array<{ id: string; name: string }>>('categories');
+        if (cachedCategories) {
+          const sortedCategories = sortCategories(cachedCategories);
+          setCategories(sortedCategories);
+        }
+      }
+
+      // Calcular início e fim do dia atual
+      const today = new Date();
+      const startOfToday = new Date(today);
+      startOfToday.setHours(0, 0, 0, 0);
+      const endOfToday = new Date(today);
+      endOfToday.setHours(23, 59, 59, 999);
+
       const [
-        { data: appointmentsData, error: appointmentsError },
-        { data: businessesData, error: businessesError },
-        { data: servicesData, error: servicesError },
-        { data: categoriesData, error: categoriesError },
+        { data: appointmentsData },
+        { data: businessesData },
+        { data: servicesData },
+        { data: fetchedCategoriesData },
       ] = await Promise.all([
         supabase
           .from('appointments')
-          .select('*, service:services(id, name), business:business_profiles(business_name, logo_url)')
+          .select('id, start_time, end_time, status, payment_method, service:services(id, name), business:business_profiles(business_name, logo_url)')
           .eq('client_id', user.id)
           .order('start_time', { ascending: true })
-          .gte('start_time', new Date().toISOString()),
+          .gte('start_time', startOfToday.toISOString())
+          .lte('start_time', endOfToday.toISOString())
+          .limit(UPCOMING_APPOINTMENTS_LIMIT),
         supabase
           .from('business_profiles')
           .select(`
@@ -169,7 +191,14 @@ const ClientHomeScreen: React.FC = () => {
 
       if (appointmentsData) {
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
-        setAppointments(appointmentsWithReschedules as Appointment[]);
+        
+        // Filtrar apenas agendamentos do dia atual (após aplicar reagendamentos)
+        const todayAppointments = appointmentsWithReschedules.filter((apt) => {
+          const appointmentDate = new Date(apt.start_time);
+          return appointmentDate >= startOfToday && appointmentDate <= endOfToday;
+        });
+        
+        setAppointments(todayAppointments as Appointment[]);
       }
 
       if (businessesData) {
@@ -206,12 +235,14 @@ const ClientHomeScreen: React.FC = () => {
         setAllPopularServices(servicesWithRatings);
       }
 
-      if (categoriesData) {
-        const sortedCategories = sortCategories(categoriesData);
+      if (fetchedCategoriesData) {
+        const sortedCategories = sortCategories(fetchedCategoriesData);
         setCategories(sortedCategories);
+        // Cachear categorias por 10 minutos (raramente mudam)
+        await Cache.set('categories', fetchedCategoriesData, 10 * 60 * 1000);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
     } finally {
       if (!isRefresh) {
         setLoading(false);
@@ -325,6 +356,12 @@ const ClientHomeScreen: React.FC = () => {
     searchWrapper: {
       width: '100%',
     },
+    footerContainer: {
+      backgroundColor: '#FAFAFA', 
+      paddingTop: 10,
+      paddingHorizontal: 0,
+      paddingBottom: 22,
+    },
   }), []);
 
   if (loading) {
@@ -350,6 +387,29 @@ const ClientHomeScreen: React.FC = () => {
         />
       }
       header={<AppHeader showBackButton={false} />}
+      footer={
+        <View style={styles.footerContainer}>
+          <CustomButton
+            title="Agendar serviços"
+            variant="outline"
+            onPress={() => router.push('/(client)/search')}
+            width="100%"
+            style={{
+              borderRadius: 30,
+              borderWidth: 1.5,
+              backgroundColor: '#FAFAFA',
+              height: undefined,
+              paddingVertical: 14,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 3.84,
+              elevation: 2,
+              marginVertical: 0,
+            }}
+          />
+        </View>
+      }
     >
         <View style={styles.headerArea}>
           <TouchableOpacity 
@@ -478,16 +538,6 @@ const ClientHomeScreen: React.FC = () => {
           ) : (
             <Text style={styles.emptyText}>Nenhum serviço disponível no momento</Text>
           )}
-
-          <CustomButton
-            title="Agendar serviços"
-            variant="outline"
-            onPress={() => {
-              
-            }}
-            style={{ marginTop: 24, borderRadius: 24 }}
-            width="100%"
-          />
         </View>
     </ScreenContainer>
   );

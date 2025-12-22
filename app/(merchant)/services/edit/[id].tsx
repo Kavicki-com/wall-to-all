@@ -21,6 +21,7 @@ import { safeGoBack } from '../../../../lib/router-utils';
 import { CustomButton } from '../../../../components/CustomButton';
 import { RadioGroup } from '../../../../components/ui/RadioGroup';
 import { Chip } from '../../../../components/ui/Chip';
+import { logger } from '../../../../lib/logger';
 
 type AvailabilityOption = {
   value: 'available' | 'unavailable';
@@ -256,7 +257,7 @@ const EditServiceScreen: React.FC = () => {
             encoding: FileSystem.EncodingType.Base64,
           });
         } catch (fileError) {
-          console.error(`Erro ao ler arquivo da imagem ${index + 1}:`, fileError);
+          logger.error(`Erro ao ler arquivo da imagem ${index + 1}:`, fileError);
           throw new Error(`Não foi possível ler o arquivo de imagem ${index + 1}. Verifique se o arquivo não está corrompido.`);
         }
 
@@ -275,7 +276,7 @@ const EditServiceScreen: React.FC = () => {
           });
 
         if (uploadError) {
-          console.error(`Erro no upload da imagem ${index}:`, uploadError);
+          logger.error(`Erro no upload da imagem ${index}:`, uploadError);
           throw uploadError;
         }
 
@@ -290,7 +291,7 @@ const EditServiceScreen: React.FC = () => {
       return [...existingImages, ...uploadedUrls];
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
-      console.error('Erro ao fazer upload das imagens:', err);
+      logger.error('Erro ao fazer upload das imagens:', err);
       throw new Error(`Erro ao fazer upload das imagens: ${errorMessage}`);
     } finally {
       setImagesUploading(false);
@@ -378,7 +379,7 @@ const EditServiceScreen: React.FC = () => {
                 .eq('business_id', businessId);
 
               if (deleteError) {
-                console.error('Erro ao excluir serviço:', deleteError);
+                logger.error('Erro ao excluir serviço:', deleteError);
                 Alert.alert('Erro', 'Não foi possível excluir o serviço.');
                 return;
               }
@@ -387,7 +388,7 @@ const EditServiceScreen: React.FC = () => {
                 { text: 'OK', onPress: () => safeGoBack('/(merchant)/services') },
               ]);
             } catch (err) {
-              console.error('Erro ao excluir serviço:', err);
+              logger.error('Erro ao excluir serviço:', err);
               Alert.alert('Erro', 'Ocorreu um erro ao excluir o serviço.');
             } finally {
               setSaving(false);

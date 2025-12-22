@@ -17,9 +17,10 @@ import ScheduleConfirmCard from '../../../components/ui/ScheduleConfirmCard';
 import { validateTime, validateDate } from '../../../lib/validations';
 import { safeGoBack } from '../../../lib/router-utils';
 import { notifyAppointmentRequested } from '../../../lib/notifications';
+import { logger } from '../../../lib/logger';
 
 type Service = {
-  id: string;
+  id: number;
   name: string;
   price: number;
   description: string | null;
@@ -27,7 +28,7 @@ type Service = {
 };
 
 type Business = {
-  id: string;
+  id: number;
   business_name: string;
   address: string | null;
   logo_url: string | null;
@@ -53,6 +54,8 @@ const ScheduleConfirmScreen: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadData é estável (useCallback), não precisa estar nas dependências
   }, [params.businessId, params.serviceId]);
 
   // Resetar campos quando a tela é focada (quando volta de outras telas)
@@ -73,27 +76,33 @@ const ScheduleConfirmScreen: React.FC = () => {
 
       // Buscar serviço
       if (params.serviceId) {
-        const { data: serviceData } = await supabase
-          .from('services')
-          .select('id, name, price, description, duration_minutes')
-          .eq('id', params.serviceId)
-          .single();
+        const serviceIdNum = parseInt(params.serviceId, 10);
+        if (!isNaN(serviceIdNum)) {
+          const { data: serviceData } = await supabase
+            .from('services')
+            .select('id, name, price, description, duration_minutes')
+            .eq('id', serviceIdNum)
+            .single();
 
-        if (serviceData) {
-          setService(serviceData as Service);
+          if (serviceData) {
+            setService(serviceData as Service);
+          }
         }
       }
 
       // Buscar loja
       if (params.businessId) {
-        const { data: businessData } = await supabase
-          .from('business_profiles')
-          .select('id, business_name, address, logo_url')
-          .eq('id', params.businessId)
-          .single();
+        const businessIdNum = parseInt(params.businessId, 10);
+        if (!isNaN(businessIdNum)) {
+          const { data: businessData } = await supabase
+            .from('business_profiles')
+            .select('id, business_name, address, logo_url')
+            .eq('id', businessIdNum)
+            .single();
 
-        if (businessData) {
-          setBusiness(businessData as Business);
+          if (businessData) {
+            setBusiness(businessData as Business);
+          }
         }
       }
     } catch (error) {
@@ -173,13 +182,28 @@ const ScheduleConfirmScreen: React.FC = () => {
       const endDate = new Date(normalizedStartDate.getTime() + durationMinutes * 60000);
       const endTime = endDate.toISOString();
 
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/confirm.tsx:179',message:'BEFORE conflict check',data:{businessId:params.businessId,startTime,endTime,durationMinutes},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,E'})}).catch(()=>{});
+      // #endregion
+      
+      const businessIdNum = parseInt(params.businessId, 10);
+      if (isNaN(businessIdNum)) {
+        Alert.alert('Erro', 'ID do negócio inválido');
+        setSubmitting(false);
+        return;
+      }
+
       const { count: conflictCount, error: conflictError } = await supabase
         .from('appointments')
         .select('id', { count: 'exact', head: true })
-        .eq('business_id', params.businessId)
+        .eq('business_id', businessIdNum)
         .in('status', ['pending', 'confirmed'])
         .lte('start_time', endTime)
         .gte('end_time', startTime);
+
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/confirm.tsx:194',message:'AFTER conflict check',data:{conflictCount,hasConflictError:!!conflictError,conflictError:conflictError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,E'})}).catch(()=>{});
+      // #endregion
 
       if (conflictError) {
         const processed = handleError(conflictError, 'appointment');
@@ -194,12 +218,23 @@ const ScheduleConfirmScreen: React.FC = () => {
         return;
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/confirm.tsx:200',message:'BEFORE inserting appointment',data:{clientId:user.id,businessId:params.businessId,serviceId:params.serviceId,startTime,endTime,paymentMethod},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
+      // #endregion
+      
+      const serviceIdNum = parseInt(params.serviceId, 10);
+      if (isNaN(serviceIdNum)) {
+        Alert.alert('Erro', 'ID do serviço inválido');
+        setSubmitting(false);
+        return;
+      }
+
       const { data: appointmentData, error } = await supabase
         .from('appointments')
         .insert({
           client_id: user.id,
-          business_id: params.businessId,
-          service_id: params.serviceId,
+          business_id: businessIdNum,
+          service_id: serviceIdNum,
           start_time: startTime,
           end_time: endTime,
           status: 'pending',
@@ -208,6 +243,10 @@ const ScheduleConfirmScreen: React.FC = () => {
         })
         .select()
         .single();
+
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/confirm.tsx:221',message:'AFTER inserting appointment',data:{hasError:!!error,errorMessage:error?.message,appointmentId:appointmentData?.id,appointmentIdType:typeof appointmentData?.id,createdAt:appointmentData?.created_at},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
+      // #endregion
 
       if (error) {
         const processed = handleError(error, 'appointment');
@@ -219,7 +258,7 @@ const ScheduleConfirmScreen: React.FC = () => {
       // Buscar dados do cliente e do merchant para enviar notificação
       if (appointmentData) {
         try {
-          console.log('Agendamento criado, buscando dados para notificação...');
+          logger.debug('Agendamento criado, buscando dados para notificação...');
           
           // Buscar dados do cliente
           const { data: clientData, error: clientError } = await supabase
@@ -229,24 +268,24 @@ const ScheduleConfirmScreen: React.FC = () => {
             .single();
 
           if (clientError) {
-            console.error('Erro ao buscar dados do cliente:', clientError);
+            logger.error('Erro ao buscar dados do cliente:', clientError);
           }
 
           // Buscar owner_id do negócio
           const { data: businessData, error: businessError } = await supabase
             .from('business_profiles')
             .select('owner_id')
-            .eq('id', params.businessId)
+            .eq('id', businessIdNum)
             .single();
 
           if (businessError) {
-            console.error('Erro ao buscar dados do negócio:', businessError);
+            logger.error('Erro ao buscar dados do negócio:', businessError);
           }
 
           const clientName = clientData?.full_name || 'Cliente';
           const merchantId = businessData?.owner_id;
 
-          console.log('Dados para notificação:', {
+          logger.debug('Dados para notificação:', {
             clientName,
             merchantId,
             serviceName: service?.name,
@@ -254,12 +293,10 @@ const ScheduleConfirmScreen: React.FC = () => {
           });
 
           if (merchantId && service && appointmentData.id) {
-            // Converter ID para número se necessário
-            const appointmentId = typeof appointmentData.id === 'string' 
-              ? parseInt(appointmentData.id, 10) 
-              : appointmentData.id;
+            // appointmentData.id já é number conforme os tipos do Supabase
+            const appointmentId = appointmentData.id;
             
-            console.log('Enviando notificação para merchant:', merchantId);
+            logger.debug('Enviando notificação para merchant:', merchantId);
             await notifyAppointmentRequested(
               merchantId,
               appointmentId,
@@ -268,7 +305,7 @@ const ScheduleConfirmScreen: React.FC = () => {
               startTime
             );
           } else {
-            console.warn('Dados incompletos para enviar notificação:', {
+            logger.warn('Dados incompletos para enviar notificação:', {
               hasMerchantId: !!merchantId,
               hasService: !!service,
               hasAppointmentId: !!appointmentData.id,
@@ -277,7 +314,7 @@ const ScheduleConfirmScreen: React.FC = () => {
         } catch (notifError) {
           // Não bloquear o fluxo se a notificação falhar
           // Erros de RLS ou outros problemas de notificação não são críticos
-          console.warn('Erro ao enviar notificação de agendamento (não crítico):', notifError);
+          logger.warn('Erro ao enviar notificação de agendamento (não crítico):', notifError);
         }
       }
 

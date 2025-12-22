@@ -28,7 +28,7 @@ export const CustomTabBar: React.FC<TabBarProps> = (props) => {
   const ACTIVE_BUTTON_HEIGHT = 68;
 
   const focusedTab = state.routes[state.index];
-  const nestedState = focusedTab.state as any;
+  const nestedState = focusedTab.state as { routes?: { name: string }[]; index?: number } | undefined;
   const nestedRouteName =
     nestedState?.routes?.[nestedState.index ?? 0]?.name ?? focusedTab.name;
 

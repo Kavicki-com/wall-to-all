@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 104,
     borderWidth: 1,
-    borderColor: '#DCDCDC',
+    borderColor: '#0F0F0F',
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',

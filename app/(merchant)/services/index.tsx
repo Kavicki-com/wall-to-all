@@ -17,6 +17,7 @@ import { safeGoBack } from '../../../lib/router-utils';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import ServiceCard from '../../../components/ServiceCard';
 import { CustomButton } from '../../../components/CustomButton';
+import { logger } from '../../../lib/logger';
 
 // --- TIPOS ---
 type Service = {
@@ -76,11 +77,11 @@ const MerchantServicesScreen: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (servicesError) {
-        console.error('Erro ao carregar serviços:', servicesError);
+        logger.error('Erro ao carregar serviços:', servicesError);
       }
 
       if (servicesData) {
-        const servicesWithRatings = (servicesData as any[]).map((service) => {
+        const servicesWithRatings = (servicesData as { reviews?: { rating?: number }[]; categories?: { name?: string } }[]).map((service) => {
           const ratings = Array.isArray(service.reviews) ? service.reviews : [];
           const reviewCount = ratings.length || undefined;
           const rating =
@@ -88,14 +89,14 @@ const MerchantServicesScreen: React.FC = () => {
               ? ratings.reduce((sum: number, r: { rating?: number }) => sum + (r?.rating || 0), 0) /
                 ratings.length
               : undefined;
-          const { reviews: _reviews, categories, ...rest } = service;
+          const { reviews, categories, ...rest } = service;
           const categoryName = categories?.name ?? null;
           return { ...rest, category: categoryName, rating, review_count: reviewCount };
         });
         setServices(servicesWithRatings as Service[]);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -107,9 +108,19 @@ const MerchantServicesScreen: React.FC = () => {
     loadBusinessAndServices();
   }, [loadBusinessAndServices]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadBusinessAndServices();
+    try {
+      await loadBusinessAndServices();
+    } catch (error) {
+      // Erro já é tratado dentro de loadBusinessAndServices
+      // Aqui apenas garantimos que o estado seja resetado
+      logger.error('Erro ao atualizar dados:', error);
+    } finally {
+      // O loadBusinessAndServices já reseta o refreshing no finally,
+      // mas garantimos aqui também por segurança
+      setRefreshing(false);
+    }
   };
 
   // --- NAVEGAÇÃO E FILTROS ---
@@ -244,7 +255,7 @@ const styles = StyleSheet.create({
   
   // --- HEADER ---
   headerSection: {
-    paddingTop: 0,
+    paddingTop: 20,
     paddingBottom: 16,
   },
   title: {
@@ -263,7 +274,7 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#DCDCDC',
+    borderColor: '#0F0F0F',
     backgroundColor: '#FFFFFF',
   },
   searchInput: {

@@ -111,8 +111,6 @@ Termos de Uso – Wall to All
 `;
 
 const TermsScreen: React.FC = () => {
-  const router = useRouter();
-
   return (
     <Modal
       visible={true}

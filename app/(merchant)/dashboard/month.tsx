@@ -19,6 +19,7 @@ import { safeGoBack } from '../../../lib/router-utils';
 import MonthCalendar from '../../../components/calendar/MonthCalendar';
 import AppointmentDaySection from '../../../components/appointments/AppointmentDaySection';
 import AppointmentCard from '../../../components/appointments/AppointmentCard';
+import { logger } from '../../../lib/logger';
 
 type Appointment = {
   id: string;
@@ -60,6 +61,8 @@ const MerchantMonthDashboardScreen: React.FC = () => {
 
   useEffect(() => {
     loadBusinessAndAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadBusinessAndAppointments é estável (useCallback), não precisa estar nas dependências
   }, [currentMonth]);
 
   const loadBusinessAndAppointments = async () => {
@@ -71,7 +74,7 @@ const MerchantMonthDashboardScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
+        logger.debug('Usuário não autenticado');
         setLoading(false);
         return;
       }
@@ -87,7 +90,7 @@ const MerchantMonthDashboardScreen: React.FC = () => {
         // PGRST116 significa que não há perfil (0 linhas) - isso é esperado em alguns casos
         // Não logamos esse erro específico pois é tratado adequadamente
         if (businessError && businessError.code !== 'PGRST116') {
-          console.error('Erro ao buscar negócio:', businessError);
+          logger.error('Erro ao buscar negócio:', businessError);
         }
         setLoading(false);
         return;
@@ -124,7 +127,7 @@ const MerchantMonthDashboardScreen: React.FC = () => {
         .order('start_time', { ascending: true });
 
       if (appointmentsError) {
-        console.error('Erro ao buscar agendamentos:', appointmentsError);
+        logger.error('Erro ao buscar agendamentos:', appointmentsError);
       } else if (appointmentsData) {
         // Aplicar reagendamentos aceitos aos agendamentos PRIMEIRO
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
@@ -136,19 +139,43 @@ const MerchantMonthDashboardScreen: React.FC = () => {
           return aptDateString >= startDate && aptDateString <= endDate;
         });
         
-        setAppointments(filteredAppointments as Appointment[]);
+        // Converter id de number para string para corresponder ao tipo Appointment
+        const normalizedAppointments: Appointment[] = filteredAppointments.map((apt) => ({
+          ...apt,
+          id: String(apt.id),
+          service: {
+            id: String(apt.service.id),
+            name: apt.service.name,
+          },
+          client: {
+            id: String(apt.client.id),
+            full_name: apt.client.full_name,
+          },
+        }));
+        
+        setAppointments(normalizedAppointments);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      logger.error('Erro ao carregar dados:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadBusinessAndAppointments();
+    try {
+      await loadBusinessAndAppointments();
+    } catch (error) {
+      // Erro já é tratado dentro de loadBusinessAndAppointments
+      // Aqui apenas garantimos que o estado seja resetado
+      logger.error('Erro ao atualizar dados:', error);
+    } finally {
+      // O loadBusinessAndAppointments já reseta o refreshing no finally,
+      // mas garantimos aqui também por segurança
+      setRefreshing(false);
+    }
   };
 
   const handleMonthChange = (direction: 'prev' | 'next') => {

@@ -1,14 +1,15 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { logger } from '../lib/logger';
 
 export type BusinessProfile = {
-  id: string;
+  id: number; // int8 no schema = number em TypeScript
   business_name: string;
   description: string | null;
   logo_url: string | null;
   banner_url?: string | null;
-  category_id?: string | null;
+  category_id?: number | null; // int8 no schema = number em TypeScript
   owner_id: string;
   work_days?: Record<string, { start: string; end: string }> | null;
   accepted_payment_methods?: {
@@ -20,7 +21,8 @@ export type BusinessProfile = {
     id: string;
     name: string;
   } | null;
-  [key: string]: any; // Para permitir outros campos do perfil
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any; // Para permitir outros campos do perfil que podem não estar tipados
 };
 
 interface BusinessProfileContextType {
@@ -74,7 +76,7 @@ export const BusinessProfileProvider: React.FC<BusinessProfileProviderProps> = (
       if (businessError) {
         // PGRST116 significa que não há perfil (0 linhas) - isso é esperado em alguns casos
         if (businessError.code !== 'PGRST116') {
-          console.error('[BusinessProfileContext] Erro ao buscar perfil do negócio:', businessError);
+          logger.error('[BusinessProfileContext] Erro ao buscar perfil do negócio:', businessError);
           setError(businessError.message);
         }
         setBusinessProfile(null);
@@ -92,9 +94,10 @@ export const BusinessProfileProvider: React.FC<BusinessProfileProviderProps> = (
         setBusinessProfile(null);
         setError('Perfil do negócio não encontrado');
       }
-    } catch (err: any) {
-      console.error('[BusinessProfileContext] Erro ao carregar perfil do negócio:', err);
-      setError(err.message || 'Erro ao carregar perfil do negócio');
+    } catch (err: unknown) {
+      logger.error('[BusinessProfileContext] Erro ao carregar perfil do negócio:', err);
+      const error = err as { message?: string };
+      setError(error.message || 'Erro ao carregar perfil do negócio');
       setBusinessProfile(null);
     } finally {
       setLoading(false);

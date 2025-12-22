@@ -57,9 +57,9 @@ export const Chip: React.FC<ChipProps> = ({
     return baseStyles;
   };
 
-  const handlePress = (e?: any) => {
+  const handlePress = (e?: { stopPropagation?: () => void }) => {
     if (onClose && e) {
-      e.stopPropagation();
+      e.stopPropagation?.();
       onClose();
     } else if (onPress && !disabled) {
       onPress();

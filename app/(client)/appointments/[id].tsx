@@ -18,6 +18,7 @@ import { ptBR } from 'date-fns/locale';
 import { checkAppointmentConflicts, applyAcceptedReschedules } from '../../../lib/utils';
 import { notifyRescheduleAccepted, notifyRescheduleRejected } from '../../../lib/notifications';
 import { safeGoBack } from '../../../lib/router-utils';
+import { logger } from '../../../lib/logger';
 
 // Função auxiliar para converter string ISO para Date local, evitando problemas de timezone
 const parseLocalDate = (isoString: string): Date => {
@@ -98,7 +99,7 @@ const AppointmentDetailScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
+        logger.debug('Usuário não autenticado');
         setLoading(false);
         return;
       }
@@ -119,7 +120,7 @@ const AppointmentDetailScreen: React.FC = () => {
         .single();
 
       if (error) {
-        console.error('Erro ao buscar agendamento:', error);
+        logger.error('Erro ao buscar agendamento:', error);
       } else if (appointmentData) {
         // Aplicar reagendamentos aceitos ao agendamento (atualiza start_time e end_time se houver reagendamento aceito)
         const appointmentsWithReschedules = await applyAcceptedReschedules([appointmentData]);
@@ -176,7 +177,7 @@ const AppointmentDetailScreen: React.FC = () => {
         setAppointment(updatedAppointment);
         
         // Log para debug - remover em produção se necessário
-        console.log('[AppointmentDetail] Dados atualizados:', {
+        logger.debug('[AppointmentDetail] Dados atualizados:', {
           start_time: updatedAppointment.start_time,
           end_time: updatedAppointment.end_time,
           hasAcceptedReschedules: (updatedAppointment.accepted_reschedules?.length || 0) > 0,
@@ -184,7 +185,7 @@ const AppointmentDetailScreen: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('Erro ao carregar agendamento:', error);
+      logger.error('Erro ao carregar agendamento:', error);
     } finally {
       setLoading(false);
     }
@@ -254,7 +255,7 @@ const AppointmentDetailScreen: React.FC = () => {
       );
 
       if (conflictError) {
-        console.error('Erro ao verificar conflitos:', conflictError);
+        logger.error('Erro ao verificar conflitos:', conflictError);
         Alert.alert('Erro', 'Não foi possível verificar disponibilidade do horário.');
         return;
       }
@@ -278,7 +279,7 @@ const AppointmentDetailScreen: React.FC = () => {
         .eq('id', appointment.id);
 
       if (updateError) {
-        console.error('Erro ao atualizar agendamento:', updateError);
+        logger.error('Erro ao atualizar agendamento:', updateError);
         Alert.alert('Erro', 'Não foi possível aceitar o reagendamento.');
         return;
       }
@@ -293,12 +294,15 @@ const AppointmentDetailScreen: React.FC = () => {
         .eq('id', rescheduleId);
 
       if (acceptError) {
-        console.error('Erro ao marcar reagendamento como aceito:', acceptError);
+        logger.error('Erro ao marcar reagendamento como aceito:', acceptError);
         Alert.alert('Erro', 'Reagendamento atualizado, mas houve erro ao atualizar o status.');
         return;
       }
 
       // Cancelar outros reagendamentos pendentes do mesmo agendamento
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:302',message:'Cliente aceitou reagendamento - cancelando outros pendentes',data:{appointmentId:appointment.id,acceptedRescheduleId:rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       await supabase
         .from('appointment_reschedules')
         .update({
@@ -307,16 +311,29 @@ const AppointmentDetailScreen: React.FC = () => {
         .eq('appointment_id', appointment.id)
         .eq('status', 'pending')
         .neq('id', rescheduleId);
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:310',message:'Reagendamentos pendentes cancelados após aceite',data:{appointmentId:appointment.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
 
       // Buscar o business_profile para obter o owner_id e enviar notificação
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:318',message:'Cliente aceitou - buscando businessProfile para notificar merchant',data:{appointmentId:appointment.id,businessId:appointment.business.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
+      // #endregion
       const { data: businessProfile } = await supabase
         .from('business_profiles')
         .select('owner_id, business_name')
         .eq('id', appointment.business.id)
         .single();
 
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:325',message:'BusinessProfile buscado',data:{hasBusinessProfile:!!businessProfile,ownerId:businessProfile?.owner_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
+      // #endregion
+
       // Enviar notificação ao merchant
       if (businessProfile?.owner_id) {
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:329',message:'Chamando notifyRescheduleAccepted para merchant',data:{ownerId:businessProfile.owner_id,appointmentId:parseInt(appointment.id),rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
+        // #endregion
         await notifyRescheduleAccepted(
           businessProfile.owner_id,
           parseInt(appointment.id),
@@ -324,6 +341,10 @@ const AppointmentDetailScreen: React.FC = () => {
           rescheduleData.new_start_time,
           businessProfile.business_name
         );
+      } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:338',message:'Condição NÃO satisfeita - notificação NÃO será enviada ao merchant',data:{hasBusinessProfile:!!businessProfile,hasOwnerId:!!businessProfile?.owner_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
+        // #endregion
       }
 
       // Recarregar dados do agendamento para mostrar os novos horários
@@ -337,7 +358,7 @@ const AppointmentDetailScreen: React.FC = () => {
       
       Alert.alert('Sucesso', 'Reagendamento aceito com sucesso.');
     } catch (error) {
-      console.error('Erro ao aceitar reagendamento:', error);
+      logger.error('Erro ao aceitar reagendamento:', error);
       Alert.alert('Erro', 'Ocorreu um erro ao aceitar o reagendamento.');
     } finally {
       setUpdating(false);
@@ -370,7 +391,7 @@ const AppointmentDetailScreen: React.FC = () => {
         .eq('appointment_id', appointment.id);
 
       if (error) {
-        console.error('Erro ao rejeitar reagendamento:', error);
+        logger.error('Erro ao rejeitar reagendamento:', error);
         Alert.alert('Erro', 'Não foi possível rejeitar o reagendamento.');
         return;
       }
@@ -413,7 +434,7 @@ const AppointmentDetailScreen: React.FC = () => {
       loadAppointment();
       Alert.alert('Sucesso', 'Reagendamento rejeitado.');
     } catch (error) {
-      console.error('Erro ao rejeitar reagendamento:', error);
+      logger.error('Erro ao rejeitar reagendamento:', error);
       Alert.alert('Erro', 'Ocorreu um erro ao rejeitar o reagendamento.');
     } finally {
       setUpdating(false);
