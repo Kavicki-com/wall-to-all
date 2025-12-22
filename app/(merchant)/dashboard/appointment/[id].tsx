@@ -116,7 +116,7 @@ const AppointmentDetailScreen: React.FC = () => {
           business:business_profiles(id, business_name, address)
         `,
         )
-        .eq('id', params.id)
+        .eq('id', Number(params.id))
         .eq('business_id', businessData.id)
         .single();
 
@@ -175,7 +175,7 @@ const AppointmentDetailScreen: React.FC = () => {
           merchant_pending_reschedules: merchantPendingReschedules || [],
           accepted_reschedules: acceptedReschedules || [],
           rejected_reschedules: rejectedReschedules || [],
-        } as Appointment & { 
+        } as any as Appointment & { 
           merchant_pending_reschedules?: AppointmentReschedule[];
           accepted_reschedules?: AppointmentReschedule[];
           rejected_reschedules?: AppointmentReschedule[];
@@ -272,8 +272,8 @@ const AppointmentDetailScreen: React.FC = () => {
 
       const { error } = await supabase
         .from('appointments')
-        .update({ status: newStatus })
-        .eq('id', appointment.id);
+        .update({ status: newStatus as any })
+        .eq('id', Number(appointment.id));
 
       if (error) {
         const processed = handleError(error, 'appointment');
@@ -321,8 +321,8 @@ const AppointmentDetailScreen: React.FC = () => {
       const { data: rescheduleData, error: fetchError } = await supabase
         .from('appointment_reschedules')
         .select('*')
-        .eq('id', rescheduleId)
-        .eq('appointment_id', appointment.id)
+        .eq('id', Number(rescheduleId))
+        .eq('appointment_id', Number(appointment.id))
         .eq('status', 'pending')
         .single();
 
@@ -333,10 +333,10 @@ const AppointmentDetailScreen: React.FC = () => {
 
       // Verificar conflitos de horário antes de aceitar
       const { hasConflict, error: conflictError } = await checkAppointmentConflicts(
-        appointment.business.id,
+        Number(appointment.business?.id || (appointment as any).business_id),
         rescheduleData.new_start_time,
         rescheduleData.new_end_time,
-        appointment.id
+        Number(appointment.id)
       );
 
       if (conflictError) {
@@ -361,7 +361,7 @@ const AppointmentDetailScreen: React.FC = () => {
           end_time: rescheduleData.new_end_time,
           status: 'confirmed',
         })
-        .eq('id', appointment.id);
+        .eq('id', Number(appointment.id));
 
       if (updateError) {
         handleError(updateError, 'appointment');
@@ -376,7 +376,7 @@ const AppointmentDetailScreen: React.FC = () => {
           status: 'accepted',
           accepted_at: new Date().toISOString(),
         })
-        .eq('id', rescheduleId);
+        .eq('id', Number(rescheduleId));
 
       if (acceptError) {
         handleError(acceptError, 'appointment');
@@ -390,18 +390,18 @@ const AppointmentDetailScreen: React.FC = () => {
         .update({
           status: 'cancelled',
         })
-        .eq('appointment_id', appointment.id)
+        .eq('appointment_id', Number(appointment.id))
         .eq('status', 'pending')
-        .neq('id', rescheduleId);
+        .neq('id', Number(rescheduleId));
 
       // Enviar notificação ao cliente
       if (appointment.client?.id) {
         await notifyRescheduleAccepted(
           appointment.client.id,
-          parseInt(appointment.id),
-          rescheduleId,
+          Number(appointment.id),
+          Number(rescheduleId),
           rescheduleData.new_start_time,
-          appointment.business.business_name
+          appointment.business?.business_name || 'Estabelecimento'
         );
       }
 
@@ -428,8 +428,8 @@ const AppointmentDetailScreen: React.FC = () => {
       const { data: rescheduleData } = await supabase
         .from('appointment_reschedules')
         .select('*')
-        .eq('id', rescheduleId)
-        .eq('appointment_id', appointment.id)
+        .eq('id', Number(rescheduleId))
+        .eq('appointment_id', Number(appointment.id))
         .eq('status', 'pending')
         .single();
 
@@ -440,8 +440,8 @@ const AppointmentDetailScreen: React.FC = () => {
           rejected_at: new Date().toISOString(),
           rejected_reason: reason || null,
         })
-        .eq('id', rescheduleId)
-        .eq('appointment_id', appointment.id);
+        .eq('id', Number(rescheduleId))
+        .eq('appointment_id', Number(appointment.id));
 
       if (error) {
         handleError(error, 'appointment');

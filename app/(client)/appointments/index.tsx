@@ -20,20 +20,20 @@ import { CustomButton } from '../../../components/CustomButton';
 import { applyAcceptedReschedules } from '../../../lib/utils';
 
 type AppointmentService = {
-  id: string;
+  id: number;
   name: string;
   price: number;
   photos: string[] | string | null;
 };
 
 type AppointmentBusiness = {
-  id: string;
+  id: number;
   business_name: string;
   logo_url: string | null;
 };
 
 type RawAppointment = {
-  id: string;
+  id: number;
   start_time: string;
   end_time: string;
   status: string;
@@ -44,19 +44,19 @@ type RawAppointment = {
 };
 
 type Appointment = {
-  id: string;
+  id: number;
   start_time: string;
   end_time: string;
   status: string;
   payment_method: string;
   service: {
-    id: string;
+    id: number;
     name: string;
     price: number;
     photos: string[] | string | null;
   };
   business: {
-    id: string;
+    id: number;
     business_name: string;
     logo_url: string | null;
   };

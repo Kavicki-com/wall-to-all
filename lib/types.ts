@@ -82,7 +82,7 @@ export type Appointment = DbAppointment & {
     price?: number;
   };
   business?: {
-    id?: number;
+    id: number;
     business_name: string;
     logo_url: string | null;
     address?: string | null;

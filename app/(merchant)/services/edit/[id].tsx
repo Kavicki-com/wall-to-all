@@ -176,7 +176,10 @@ const EditServiceScreen: React.FC = () => {
 
       const normalizedPhotos = normalizePhotos(serviceData.photos);
 
-        setService(serviceData);
+      setService({
+        ...serviceData,
+        price_type: (serviceData.price_type as 'fixed' | 'hourly' | null) || null,
+      });
       setServiceName(serviceData.name || '');
       setDescription(serviceData.description || '');
       setPrice(formatPriceFromNumber(serviceData.price));

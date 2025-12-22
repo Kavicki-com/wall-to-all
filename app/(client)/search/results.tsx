@@ -205,7 +205,7 @@ const SearchResultsScreen: React.FC = () => {
           if (!acc[review.service_id]) {
             acc[review.service_id] = [];
           }
-          acc[review.service_id].push(review);
+          acc[review.service_id]!.push(review);
           return acc;
         }, {} as Record<number, typeof allReviewsRes.data>);
 
@@ -214,7 +214,7 @@ const SearchResultsScreen: React.FC = () => {
           if (!acc[appointment.service_id]) {
             acc[appointment.service_id] = [];
           }
-          acc[appointment.service_id].push(appointment);
+          acc[appointment.service_id]!.push(appointment);
           return acc;
         }, {} as Record<number, typeof allAppointmentsRes.data>);
 
@@ -382,8 +382,8 @@ const SearchResultsScreen: React.FC = () => {
                       category={biz.categories?.name || null}
                       categories={biz.categories}
                       services={biz.services}
-                      work_days={biz.work_days}
-                      accepted_payment_methods={biz.accepted_payment_methods}
+                      work_days={biz.work_days as any}
+                      accepted_payment_methods={biz.accepted_payment_methods as any}
                       onPress={handleBusinessPress}
                     />
                   </View>
@@ -399,7 +399,7 @@ const SearchResultsScreen: React.FC = () => {
               <View style={styles.servicesList}>
                 {services.map((svc) => (
                   <TopServiceCard
-                    key={svc.id.toString()}
+                    key={String(svc.id)}
                     id={svc.id}
                     name={svc.name}
                     price={svc.price}

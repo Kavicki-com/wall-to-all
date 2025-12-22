@@ -193,12 +193,12 @@ try {
       endTime.setMinutes(endTime.getMinutes() + durationMinutes);
 
       // Verificar conflitos de horário antes de atualizar
-      const businessId = appointment.business_id ?? appointment.business.id;
+      const businessId = appointment.business_id ?? appointment.business?.id;
       const { hasConflict, error: conflictError } = await checkAppointmentConflicts(
-        String(businessId),
+        Number(businessId),
         startTime.toISOString(),
         endTime.toISOString(),
-        appointmentId
+        Number(appointmentId)
       );
 
       if (conflictError) {

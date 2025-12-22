@@ -122,7 +122,7 @@ const ShareProfileScreen: React.FC = () => {
               review_count: count || undefined,
             };
           });
-          setServices(servicesWithRatings as Service[]);
+          setServices(servicesWithRatings as any as Service[]);
         }
 
         const { data: reviewsData, error: reviewsError } = await supabase

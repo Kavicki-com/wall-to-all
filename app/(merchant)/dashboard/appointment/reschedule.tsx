@@ -140,7 +140,7 @@ const MerchantRescheduleScreen: React.FC = () => {
           service:services!appointments_service_id_fkey(id, name, duration_minutes)
         `,
         )
-        .eq('id', params.appointmentId)
+        .eq('id', Number(params.appointmentId))
         .eq('business_id', businessData.id)
         .single();
 
@@ -150,8 +150,8 @@ const MerchantRescheduleScreen: React.FC = () => {
         return;
       }
 
-      setAppointment(appointmentData as Appointment);
-      await generateAvailableDates(appointmentData as Appointment);
+      setAppointment(appointmentData as any as Appointment);
+      await generateAvailableDates(appointmentData as any as Appointment);
     } catch (error) {
       logger.error('Erro ao carregar dados:', error);
       router.replace('/(merchant)/dashboard');
@@ -166,7 +166,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       const { data: businessProfile, error: businessError } = await supabase
         .from('business_profiles')
         .select('work_days')
-        .eq('id', apt.business_id)
+        .eq('id', Number(apt.business_id))
         .single();
 
       if (businessError || !businessProfile) {
@@ -196,7 +196,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       }
 
       if (workDays) {
-        generateDatesFromWorkDays(workDays);
+        generateDatesFromWorkDays(workDays as any);
       }
     } catch (error) {
       logger.error('[Reschedule] Erro ao gerar datas disponíveis:', error);
@@ -252,7 +252,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       const { data: businessProfile, error: businessError } = await supabase
         .from('business_profiles')
         .select('work_days, lunch_break_start, lunch_break_end')
-        .eq('id', appointment.business_id)
+        .eq('id', Number(appointment.business_id))
         .single();
 
       if (businessError || !businessProfile) {
@@ -299,7 +299,7 @@ const MerchantRescheduleScreen: React.FC = () => {
         'saturday',
       ];
       const dayName = dayNames[selectedDate.getDay()];
-      const workDay = workDays[dayName];
+      const workDay = (workDays as any)[dayName];
 
       logger.debug('[Reschedule] Dia selecionado:', dayName, 'para data:', dateString);
       logger.debug('[Reschedule] workDay encontrado:', workDay);
@@ -333,11 +333,11 @@ const MerchantRescheduleScreen: React.FC = () => {
       const { data: existingAppointments } = await supabase
         .from('appointments')
         .select('id, start_time, end_time')
-        .eq('business_id', appointment.business_id)
+        .eq('business_id', Number(appointment.business_id))
         .gte('start_time', `${dateString}T00:00:00`)
         .lt('start_time', `${dateString}T23:59:59`)
         .in('status', ['pending', 'confirmed'])
-        .neq('id', params.appointmentId)
+        .neq('id', Number(params.appointmentId))
         .limit(50);
 
       logger.debug('[Reschedule] Appointments existentes encontrados:', existingAppointments?.length || 0);

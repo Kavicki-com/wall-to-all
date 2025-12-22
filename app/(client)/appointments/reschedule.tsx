@@ -203,7 +203,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
       setLoadingTimes(true);
       const dateString = selectedDate.toISOString().split('T')[0];
 
-      let workDays = appointment.business.work_days;
+      let workDays = appointment.business?.work_days;
       let lunchBreakStart: string | null = null;
       let lunchBreakEnd: string | null = null;
       
@@ -265,7 +265,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
         'saturday',
       ];
       const dayName = dayNames[selectedDate.getDay()];
-      const workDay = workDays[dayName];
+      const workDay = (workDays as WorkDays)[dayName];
 
       if (!workDay) {
         setTimeSlots([]);
@@ -289,14 +289,14 @@ const RescheduleAppointmentScreen: React.FC = () => {
         .gte('start_time', `${dateString}T00:00:00`)
         .lt('start_time', `${dateString}T23:59:59`)
         .in('status', ['pending', 'confirmed'])
-        .neq('id', params.appointmentId);
+        .neq('id', Number(params.appointmentId));
       
       // Aplicar reagendamentos aceitos aos appointments existentes
       const appointmentsWithReschedules = existingAppointments 
         ? await applyAcceptedReschedules(existingAppointments)
         : [];
 
-      const serviceDuration = parseServiceDuration(appointment.service.duration_minutes || 60);
+      const serviceDuration = parseServiceDuration(appointment.service?.duration_minutes || 60);
       const slots = generateTimeSlots(
         startTime,
         endTime,
@@ -464,7 +464,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
       }
 
       // Usar função auxiliar para converter duração
-      const serviceDuration = parseServiceDuration(appointment.service.duration_minutes || 60);
+      const serviceDuration = parseServiceDuration(appointment.service?.duration_minutes || 60);
       const newEndTime = new Date(newStartTime);
       newEndTime.setMinutes(newEndTime.getMinutes() + serviceDuration);
 
@@ -533,7 +533,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
         const { data: businessData } = await supabase
           .from('business_profiles')
           .select('owner_id')
-          .eq('id', appointment.business.id)
+          .eq('id', appointment.business?.id || appointment.business_id)
           .single();
 
         const { data: clientData } = await supabase
@@ -942,15 +942,15 @@ const RescheduleAppointmentScreen: React.FC = () => {
                 >
                   {appointment && selectedDate && selectedTime && (
                     <RescheduleModalCard
-                      serviceName={appointment.service.name}
-                      price={appointment.service.price || 0}
-                      businessName={appointment.business.business_name}
-                      businessAddress={appointment.business.address}
-                      businessLogoUrl={appointment.business.logo_url}
+                      serviceName={appointment.service?.name || 'Serviço'}
+                      price={appointment.service?.price || 0}
+                      businessName={appointment.business?.business_name || 'Estabelecimento'}
+                      businessAddress={appointment.business?.address}
+                      businessLogoUrl={appointment.business?.logo_url}
                       paymentMethod={(appointment.payment_method as 'pix' | 'card' | 'cash') || 'pix'}
                       newDate={selectedDate}
                       newTime={selectedTime}
-                      serviceDuration={parseServiceDuration(appointment.service.duration_minutes || 60)}
+                      serviceDuration={parseServiceDuration(appointment.service?.duration_minutes || 60)}
                       justification={justification || params.reason || ''}
                       onSubmit={handleSubmitReschedule}
                     />

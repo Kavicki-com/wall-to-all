@@ -160,7 +160,7 @@ const MerchantDashboardScreen: React.FC = () => {
         });
         
         const normalized = filteredAppointments.map((apt) =>
-          normalizeAppointment(apt as Appointment),
+          normalizeAppointment(apt as any as Appointment),
         );
         setAppointments(normalized);
       }

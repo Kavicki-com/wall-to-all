@@ -65,7 +65,7 @@ const ReviewsScreen: React.FC = () => {
             name
           )
         `)
-        .eq('business_id', businessId)
+        .eq('business_id', Number(businessId))
         .order('created_at', { ascending: false });
 
       if (filterServiceId) {

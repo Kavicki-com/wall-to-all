@@ -265,9 +265,9 @@ logger.error('Erro ao buscar perfil do negócio:', businessError);
         {/* Address */}
         {businessProfile.address && <ProfileAddressCard address={businessProfile.address} />}
         {/* Operating hours */}
-        <OperatingHoursCard hours={formatWorkDays(businessProfile.work_days || null)} />
+        <OperatingHoursCard hours={formatWorkDays((businessProfile.work_days as any) || null)} />
         {/* Accepted payment methods */}
-        <PaymentMethodsCard methods={paymentMethods} />
+        <PaymentMethodsCard methods={paymentMethods as any} />
         {/* Services section */}
         <View style={styles.servicesSection}>
           <SectionTitle>Serviços</SectionTitle>

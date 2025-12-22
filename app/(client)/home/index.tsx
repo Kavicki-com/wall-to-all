@@ -224,6 +224,7 @@ const ClientHomeScreen: React.FC = () => {
         services={item.services as any}
         categories={item.categories}
         width={businessCardWidth}
+        onPress={(id: number) => router.push(`/(client)/store/${id}`)}
       />
     </View>
   );

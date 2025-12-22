@@ -433,60 +433,60 @@ logger.debug('[ResetPassword] Deep link recebido (app aberto):', event.url);
     });
 
     // Processa deep link inicial (cold start) - DEPOIS de registrar o listener
-    processDeepLinkAndValidate();
-
-    // Verificação contínua de getInitialURL() para warm start
-    // Mesmo após registrar o listener, continuamos verificando getInitialURL() periodicamente
-    // porque quando a Activity é reiniciada, o listener pode não ser acionado imediatamente
-    let continuousCheckInterval: NodeJS.Timeout | null = null;
-    let continuousCheckCount = 0;
-    const maxContinuousChecks = 20; // Verifica por até 6 segundos (20 * 300ms)
-    
-    const startContinuousCheck = () => {
-      continuousCheckInterval = setInterval(async () => {
-        continuousCheckCount++;
-        
-        // Para a verificação se já processou ou se excedeu o limite
-        if (hasProcessedRef.current || continuousCheckCount >= maxContinuousChecks) {
-          if (continuousCheckInterval) {
-            clearInterval(continuousCheckInterval);
-            continuousCheckInterval = null;
-          }
-          return;
-        }
-        
-        try {
-          const checkUrl = await Linking.getInitialURL();
+    processDeepLinkAndValidate().then(() => {
+      // Verificação contínua de getInitialURL() para warm start
+      // Mesmo após registrar o listener, continuamos verificando getInitialURL() periodicamente
+      // porque quando a Activity é reiniciada, o listener pode não ser acionado imediatamente
+      let continuousCheckInterval: NodeJS.Timeout | null = null;
+      let continuousCheckCount = 0;
+      const maxContinuousChecks = 20; // Verifica por até 6 segundos (20 * 300ms)
+      
+      const startContinuousCheck = () => {
+        continuousCheckInterval = setInterval(async () => {
+          continuousCheckCount++;
           
-          if (checkUrl && checkUrl.includes('reset-password') && !checkUrl.includes('expo-development-client')) {
-            logger.debug('[ResetPassword] URL encontrada na verificação contínua (check', continuousCheckCount, '), processando...');
-            // Para a verificação contínua
+          // Para a verificação se já processou ou se excedeu o limite
+          if (hasProcessedRef.current || continuousCheckCount >= maxContinuousChecks) {
             if (continuousCheckInterval) {
               clearInterval(continuousCheckInterval);
               continuousCheckInterval = null;
             }
-            // Reseta o flag para permitir processamento
-            hasProcessedRef.current = false;
-            setIsValidating(true);
-            setError(null);
-            const urlProcessed = await processUrl(checkUrl);
-            if (urlProcessed === true || urlProcessed === 'ERROR_DEFINED') {
-              hasProcessedRef.current = true;
-            }
+            return;
           }
-        } catch (error) {
-          logger.warn('[ResetPassword] Erro na verificação contínua:', error);
+          
+          try {
+            const checkUrl = await Linking.getInitialURL();
+            
+            if (checkUrl && checkUrl.includes('reset-password') && !checkUrl.includes('expo-development-client')) {
+              logger.debug('[ResetPassword] URL encontrada na verificação contínua (check', continuousCheckCount, '), processando...');
+              // Para a verificação contínua
+              if (continuousCheckInterval) {
+                clearInterval(continuousCheckInterval);
+                continuousCheckInterval = null;
+              }
+              // Reseta o flag para permitir processamento
+              hasProcessedRef.current = false;
+              setIsValidating(true);
+              setError(null);
+              const urlProcessed = await processUrl(checkUrl);
+              if (urlProcessed === true || urlProcessed === 'ERROR_DEFINED') {
+                hasProcessedRef.current = true;
+              }
+            }
+          } catch (error) {
+            logger.warn('[ResetPassword] Erro na verificação contínua:', error);
+          }
+        }, 300); // Verifica a cada 300ms
+      };
+      
+      // Inicia a verificação contínua apenas se não havia URL inicial (warm start)
+      // Aguarda um pouco para dar tempo ao listener processar primeiro
+      setTimeout(() => {
+        if (!hasProcessedRef.current) {
+          startContinuousCheck();
         }
-      }, 300); // Verifica a cada 300ms
-    };
-    
-    // Inicia a verificação contínua apenas se não havia URL inicial (warm start)
-    // Aguarda um pouco para dar tempo ao listener processar primeiro
-    setTimeout(() => {
-      if (!hasProcessedRef.current) {
-        startContinuousCheck();
-      }
-    }, 500);
+      }, 500);
+    });
 
     return () => {
       subscription.remove();

@@ -3,14 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { IconRatingStar } from '../lib/icons';
 
 type Props = {
-  id: string;
+  id: number;
   name: string;
   price: number;
   photos: string[] | string | null;
   rating?: number;
   reviewCount?: number;
   category?: string | null;
-  onPress?: (id: string) => void;
+  onPress?: (id: number) => void;
 };
 
 const TopServiceCard: React.FC<Props> = ({

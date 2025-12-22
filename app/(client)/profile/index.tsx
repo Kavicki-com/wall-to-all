@@ -98,7 +98,7 @@ const ClientProfileScreen: React.FC = () => {
             name
           )
         `)
-        .in('id', serviceIds)
+        .in('id', serviceIds.filter((id): id is number => id !== null))
         .range(0, 9);
 
       if (servicesError) {
@@ -201,6 +201,7 @@ const ClientProfileScreen: React.FC = () => {
       rating={item.rating}
       reviewCount={item.review_count}
       category={item.categories?.name || null}
+      onPress={() => router.push(`/(client)/store/${item.business_id}`)}
     />
   );
 

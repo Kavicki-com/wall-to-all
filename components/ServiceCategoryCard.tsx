@@ -4,14 +4,14 @@ import { IconRatingStar } from '../lib/icons';
 import { useCardWidth } from '../lib/responsive';
 
 type Props = {
-  id: string;
+  id: number;
   name: string;
   price: number;
   photos: string[] | string | null;
   rating?: number;
   reviewCount?: number;
   category?: string | null;
-  onPress?: (id: string) => void;
+  onPress?: (id: number) => void;
 };
 
 const ServiceCategoryCard: React.FC<Props> = ({

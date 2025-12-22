@@ -116,7 +116,7 @@ const MerchantRescheduleConfirmScreen: React.FC = () => {
           business:business_profiles(id, business_name, address)
         `,
         )
-        .eq('id', params.appointmentId)
+        .eq('id', Number(params.appointmentId))
         .eq('business_id', businessData.id)
         .single();
 
@@ -127,7 +127,7 @@ const MerchantRescheduleConfirmScreen: React.FC = () => {
         return;
       }
 
-      setAppointment(appointmentData as Appointment);
+      setAppointment(appointmentData as any as Appointment);
     } catch (error) {
       logger.error('Erro ao carregar dados:', error);
       Alert.alert('Erro', 'Ocorreu um erro ao carregar os dados.');

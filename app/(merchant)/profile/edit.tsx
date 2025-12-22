@@ -48,7 +48,7 @@ const EditBusinessProfileScreen: React.FC = () => {
   const [businessName, setBusinessName] = useState('');
   const [description, setDescription] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [businessTime, setBusinessTime] = useState<string | null>(null);
   const [hasLunchTime, setHasLunchTime] = useState(false);
   const [bannerUri, setBannerUri] = useState<string | null>(null);
@@ -66,8 +66,8 @@ const EditBusinessProfileScreen: React.FC = () => {
     if (contextBusinessProfile && !profileLoading) {
       setBusinessName(contextBusinessProfile.business_name);
       setDescription(contextBusinessProfile.description || '');
-      // Converter category_id de number para string (Category.id é string)
-      setSelectedCategoryId(contextBusinessProfile.category_id ? String(contextBusinessProfile.category_id) : null);
+      // category_id é number
+      setSelectedCategoryId(contextBusinessProfile.category_id || null);
       setBannerUri(contextBusinessProfile.banner_url || null);
       setLogoUri(contextBusinessProfile.logo_url || null);
       setWorkDays(contextBusinessProfile.work_days || {});

@@ -88,10 +88,8 @@ const SearchingScreen: React.FC = () => {
       if (servError) throw servError;
 
       const formatted =
-        servData?.map((item: { id: number; name: string; categories?: { name?: string } | { name?: string }[] }) => {
-          const categoryName = Array.isArray(item.categories) 
-            ? item.categories[0]?.name 
-            : item.categories?.name;
+        servData?.map((item: { id: number; name: string; categories: { name: string } | null }) => {
+          const categoryName = item.categories?.name;
           return {
             id: item.id,
             name: item.name,
@@ -191,7 +189,7 @@ const SearchingScreen: React.FC = () => {
           <View style={styles.dropdownContainer}>
             <FlatList
               data={suggestions}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => String(item.id)}
               renderItem={renderSuggestionItem}
               ItemSeparatorComponent={() => (
                 <View style={styles.dropdownSeparator} />
