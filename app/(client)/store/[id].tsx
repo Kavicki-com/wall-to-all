@@ -29,40 +29,7 @@ import SectionTitle from '../../../components/ui/SectionTitle';
 import { logger } from '../../../lib/logger';
 import ReviewModal from '../../../components/reviews/ReviewModal';
 import { useAuth } from '../../../context/AuthContext';
-
-type BusinessProfile = {
-  id: string;
-  business_name: string;
-  description: string | null;
-  logo_url: string | null;
-  banner_url: string | null;
-  category_id: string | null;
-  categories?: {
-    id: string;
-    name: string;
-  };
-  address: string | null;
-  work_days: Record<string, { start: string; end: string }> | null;
-  accepted_payment_methods: {
-    pix?: boolean;
-    card?: boolean;
-    cash?: boolean;
-  } | null;
-};
-
-type Service = {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  photos: string[] | string | null;
-  rating?: number;
-  review_count?: number;
-  categories?: {
-    id: number;
-    name: string;
-  } | null;
-};
+import { BusinessProfile, Service } from '../../../lib/types';
 
 type ReviewStats = {
   average_rating: number;
@@ -72,7 +39,7 @@ type ReviewStats = {
 const StoreProfileScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
-  const businessId = params.id;
+  const businessId = Number(params.id);
   const { session } = useAuth();
   const clientId = session?.user?.id || null;
 
@@ -156,7 +123,7 @@ const StoreProfileScreen: React.FC = () => {
           logger.error('Erro ao buscar serviços:', servicesError);
         } else if (servicesData) {
           const serviceIds = (servicesData as Service[]).map((service) => service.id);
-          let ratingsMap: Record<string, { sum: number; count: number }> = {};
+          let ratingsMap: Record<number, { sum: number; count: number }> = {};
 
           if (serviceIds.length > 0) {
             const { data: serviceReviews, error: reviewsError } = await supabase
@@ -173,7 +140,7 @@ const StoreProfileScreen: React.FC = () => {
                 acc[review.service_id].sum += review.rating || 0;
                 acc[review.service_id].count += 1;
                 return acc;
-              }, {} as Record<string, { sum: number; count: number }>);
+              }, {} as Record<number, { sum: number; count: number }>);
             }
           }
 
@@ -330,7 +297,7 @@ const StoreProfileScreen: React.FC = () => {
             <FlatList
               data={services}
               renderItem={renderServiceCard}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id.toString()}
               scrollEnabled={false}
               contentContainerStyle={{ gap: 16 }}
             />
@@ -379,7 +346,7 @@ const StoreProfileScreen: React.FC = () => {
       <ReviewModal
         visible={reviewModalVisible}
         onClose={() => setReviewModalVisible(false)}
-        businessId={businessId}
+        businessId={businessId.toString()}
         clientId={clientId}
         onReviewSubmitted={() => {
           // Recarregar dados após avaliação

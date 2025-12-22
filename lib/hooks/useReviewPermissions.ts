@@ -22,7 +22,7 @@ export interface ReviewPermissions {
  * - Apenas clientes com agendamentos completos podem avaliar serviços
  */
 export const useReviewPermissions = (
-  businessId: string | number | null,
+  businessId: number | null,
   clientId: string | null
 ): ReviewPermissions => {
   const [permissions, setPermissions] = useState<ReviewPermissions>({

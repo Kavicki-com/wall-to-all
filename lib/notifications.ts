@@ -89,12 +89,14 @@ export const sendNotification = async (
       p_type: type,
       p_title: title,
       p_message: message,
-      p_related_appointment_id: relatedAppointmentId,
-      p_related_reschedule_id: relatedRescheduleId,
+      p_related_appointment_id: relatedAppointmentId || undefined,
+      p_related_reschedule_id: relatedRescheduleId || undefined,
     });
 
     // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:112',message:'Resultado da função RPC insert_notification',data:{hasError:!!rpcError,errorCode:rpcError?.code,errorMessage:rpcError?.message,success:rpcData?.success,notificationId:rpcData?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SEND_NOTIF'})}).catch(()=>{});
+    const rpcDataSuccess = rpcData && typeof rpcData === 'object' && 'success' in rpcData ? rpcData.success : undefined;
+    const rpcDataId = rpcData && typeof rpcData === 'object' && 'id' in rpcData ? rpcData.id : undefined;
+    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:112',message:'Resultado da função RPC insert_notification',data:{hasError:!!rpcError,errorCode:rpcError?.code,errorMessage:rpcError?.message,success:rpcDataSuccess,notificationId:rpcDataId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SEND_NOTIF'})}).catch(()=>{});
     // #endregion
 
     if (rpcError) {
@@ -102,14 +104,17 @@ export const sendNotification = async (
       return { success: false, error: rpcError };
     }
 
-    if (rpcData && rpcData.success) {
-      return { success: true };
+    if (rpcData && typeof rpcData === 'object' && 'success' in rpcData) {
+      if (rpcData.success) {
+        return { success: true };
+      }
+      // Se chegou aqui, a função retornou mas com success: false
+      const error = ('error' in rpcData ? rpcData.error : 'Erro desconhecido na função insert_notification') as string;
+      logger.error('Função insert_notification retornou success: false:', rpcData);
+      return { success: false, error };
     }
 
-    // Se chegou aqui, a função retornou mas com success: false
-    const error = rpcData?.error || 'Erro desconhecido na função insert_notification';
-    logger.error('Função insert_notification retornou success: false:', rpcData);
-    return { success: false, error };
+    return { success: false, error: 'Resposta inválida da função insert_notification' };
   } catch (err) {
     logger.warn('Erro ao enviar notificação (ignorado):', err);
     return { success: false, error: null };

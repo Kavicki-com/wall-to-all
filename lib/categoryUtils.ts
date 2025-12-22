@@ -4,9 +4,9 @@
  */
 
 export type Category = {
-  id: string;
+  id: number;
   name: string;
-  created_at?: string;
+  created_at?: string | null;
 };
 
 /**

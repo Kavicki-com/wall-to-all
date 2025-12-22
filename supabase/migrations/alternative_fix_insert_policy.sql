@@ -44,3 +44,4 @@ CREATE POLICY "notifications_insert_authenticated_validated" ON notifications
 -- ============================================
 
 
+

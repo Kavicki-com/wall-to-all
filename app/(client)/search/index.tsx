@@ -15,14 +15,10 @@ import AppHeader from '../../../components/layout/AppHeader';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import SearchBar from '../../../components/SearchBar';
 import { logger } from '../../../lib/logger';
-
-type Category = {
-  id: string;
-  name: string;
-};
+import { Category } from '../../../lib/types';
 
 type SimpleServiceItem = {
-  id: string;
+  id: number;
   name: string;
   category_name?: string;
 };
@@ -76,7 +72,7 @@ const SearchingScreen: React.FC = () => {
         .order('name');
 
       if (catError) throw catError;
-      setCategories(catData || []);
+      setCategories((catData || []) as Category[]);
 
       const { data: servData, error: servError } = await supabase
         .from('services')
@@ -92,7 +88,7 @@ const SearchingScreen: React.FC = () => {
       if (servError) throw servError;
 
       const formatted =
-        servData?.map((item: { id: string; name: string; categories?: { name?: string } | { name?: string }[] }) => {
+        servData?.map((item: { id: number; name: string; categories?: { name?: string } | { name?: string }[] }) => {
           const categoryName = Array.isArray(item.categories) 
             ? item.categories[0]?.name 
             : item.categories?.name;

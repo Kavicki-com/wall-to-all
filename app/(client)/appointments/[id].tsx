@@ -19,6 +19,7 @@ import { checkAppointmentConflicts, applyAcceptedReschedules } from '../../../li
 import { notifyRescheduleAccepted, notifyRescheduleRejected } from '../../../lib/notifications';
 import { safeGoBack } from '../../../lib/router-utils';
 import { logger } from '../../../lib/logger';
+import { Appointment } from '../../../lib/types';
 
 // Função auxiliar para converter string ISO para Date local, evitando problemas de timezone
 const parseLocalDate = (isoString: string): Date => {
@@ -57,20 +58,14 @@ type AppointmentReschedule = {
   rejected_reason?: string | null;
 };
 
-type Appointment = {
-  id: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  payment_method: string;
-  client_notes: string | null;
+type AppointmentExtended = Appointment & {
   service: {
-    id: string;
+    id: number;
     name: string;
     price: number;
   };
   business: {
-    id: string;
+    id: number;
     business_name: string;
     logo_url: string | null;
     address: string | null;
@@ -84,8 +79,9 @@ type Appointment = {
 const AppointmentDetailScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
+  const appointmentId = Number(params.id);
   const [loading, setLoading] = useState(true);
-  const [appointment, setAppointment] = useState<Appointment | null>(null);
+  const [appointment, setAppointment] = useState<AppointmentExtended | null>(null);
   const [showRescheduleForm, setShowRescheduleForm] = useState(false);
   const [rescheduleReason, setRescheduleReason] = useState('');
   const [updating, setUpdating] = useState(false);
@@ -115,7 +111,7 @@ const AppointmentDetailScreen: React.FC = () => {
           business:business_profiles(id, business_name, logo_url, address)
         `
         )
-        .eq('id', params.id)
+        .eq('id', appointmentId)
         .eq('client_id', user.id)
         .single();
 
@@ -172,7 +168,7 @@ const AppointmentDetailScreen: React.FC = () => {
           client_pending_reschedules: clientPendingReschedules || [],
           accepted_reschedules: acceptedReschedules || [],
           rejected_reschedules: rejectedReschedules || [],
-        } as Appointment;
+        } as AppointmentExtended;
         
         setAppointment(updatedAppointment);
         
@@ -189,7 +185,7 @@ const AppointmentDetailScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [params.id]);
+  }, [appointmentId]);
 
   useEffect(() => {
     loadAppointment();
@@ -332,11 +328,11 @@ const AppointmentDetailScreen: React.FC = () => {
       // Enviar notificação ao merchant
       if (businessProfile?.owner_id) {
         // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:329',message:'Chamando notifyRescheduleAccepted para merchant',data:{ownerId:businessProfile.owner_id,appointmentId:parseInt(appointment.id),rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:329',message:'Chamando notifyRescheduleAccepted para merchant',data:{ownerId:businessProfile.owner_id,appointmentId:appointment.id,rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
         // #endregion
         await notifyRescheduleAccepted(
           businessProfile.owner_id,
-          parseInt(appointment.id),
+          appointment.id,
           rescheduleId,
           rescheduleData.new_start_time,
           businessProfile.business_name
@@ -424,7 +420,7 @@ const AppointmentDetailScreen: React.FC = () => {
       if (businessProfile?.owner_id && rescheduleData) {
         await notifyRescheduleRejected(
           businessProfile.owner_id,
-          parseInt(appointment.id),
+          appointment.id,
           rescheduleId,
           businessProfile.business_name,
           reason || null

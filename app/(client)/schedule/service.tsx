@@ -14,24 +14,14 @@ import { CustomButton } from '../../../components/CustomButton';
 import ServiceCard from '../../../components/ServiceCard';
 import { safeGoBack } from '../../../lib/router-utils';
 import { logger } from '../../../lib/logger';
-
-type Service = {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  photos: string[] | string | null;
-  rating?: number;
-  review_count?: number;
-  duration_minutes?: number;
-};
+import { Service } from '../../../lib/types';
 
 const ScheduleServiceScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ businessId: string }>();
   const [loading, setLoading] = useState(true);
   const [services, setServices] = useState<Service[]>([]);
-  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [selectedService, setSelectedService] = useState<number | null>(null);
 
   // Resetar seleção quando a tela é focada
   useFocusEffect(
@@ -63,7 +53,7 @@ const ScheduleServiceScreen: React.FC = () => {
       await supabase
         .from('business_profiles')
         .select('business_name')
-        .eq('id', params.businessId)
+        .eq('id', Number(params.businessId))
         .single();
 
       // Business name is not used in this component
@@ -72,13 +62,13 @@ const ScheduleServiceScreen: React.FC = () => {
       const { data: servicesData, error } = await supabase
         .from('services')
         .select('*')
-        .eq('business_id', params.businessId)
+        .eq('business_id', Number(params.businessId))
         .order('name', { ascending: true });
 
       if (error) {
         logger.error('Erro ao buscar serviços:', error);
       } else if (servicesData) {
-        setServices(servicesData as Service[]);
+        setServices(servicesData);
       }
     } catch (error) {
       logger.error('Erro ao carregar serviços:', error);
@@ -87,7 +77,7 @@ const ScheduleServiceScreen: React.FC = () => {
     }
   };
 
-  const handleServiceSelect = (serviceId: string) => {
+  const handleServiceSelect = (serviceId: number) => {
     setSelectedService(serviceId);
   };
 
@@ -190,7 +180,7 @@ const ScheduleServiceScreen: React.FC = () => {
         <FlatList
           data={services}
           renderItem={renderServiceCard}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id.toString()}
           scrollEnabled={false}
           contentContainerStyle={styles.servicesList}
         />

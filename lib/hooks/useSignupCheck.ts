@@ -72,10 +72,11 @@ export function useSignupCheck() {
                 .eq('owner_id', user.id)
                 .maybeSingle();
               
-              isSignupComplete = clientProfile && (
+              isSignupComplete = !!(clientProfile && (
                 clientProfile.signup_complete === true ||
+                (clientProfile.signup_complete as unknown) === '' ||
                 (clientProfile.signup_complete === undefined && clientProfile?.address && clientProfile.address.trim() !== '')
-              );
+              ));
             } else if (profile.user_type === 'merchant') {
               const { data: businessProfile } = await supabase
                 .from('business_profiles')
@@ -85,10 +86,11 @@ export function useSignupCheck() {
               
               const hasAddress = businessProfile?.address && businessProfile.address.trim() !== '';
 
-              isSignupComplete = businessProfile && (
+              isSignupComplete = !!(businessProfile && (
                 businessProfile.signup_complete === true ||
+                (businessProfile.signup_complete as unknown) === '' ||
                 (businessProfile.signup_complete === undefined && hasAddress)
-              );
+              ));
             }
           }
 

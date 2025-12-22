@@ -14,7 +14,7 @@ import { IconPix, IconCreditCard, IconCash } from '../lib/icons';
 import { formatWorkDays } from '../lib/workDaysUtils';
 
 export type BusinessCardProps = {
-  id: string;
+  id: number;
   business_name: string;
   logo_url: string | null;
   banner_url?: string | null;
@@ -26,13 +26,13 @@ export type BusinessCardProps = {
     cash?: boolean;
   } | null;
   work_days?: Record<string, { start: string; end: string }> | null;
-  services?: Array<{ id: string; name: string; price?: number }>;
+  services?: Array<{ id: number; name: string; price?: number }>;
   categories?: {
     id: number;
     name: string;
   } | null;
   width?: number;
-  onPress?: (id: string) => void;
+  onPress?: (id: number) => void;
 };
 
 /**

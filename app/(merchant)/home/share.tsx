@@ -87,7 +87,7 @@ const ShareProfileScreen: React.FC = () => {
         if (servicesError) {
           handleError(servicesError, 'service');
         } else if (servicesData) {
-          const serviceIds = (servicesData as Service[]).map((service) => service.id);
+          const serviceIds = servicesData.map((service) => service.id);
           let ratingsMap: Record<string, { sum: number; count: number }> = {};
 
           if (serviceIds.length > 0) {
@@ -111,7 +111,7 @@ const ShareProfileScreen: React.FC = () => {
             }
           }
 
-          const servicesWithRatings = (servicesData as Service[]).map((service) => {
+          const servicesWithRatings = servicesData.map((service) => {
             const stats = ratingsMap[service.id];
             const count = stats?.count || 0;
             const rating = count > 0 ? stats!.sum / count : undefined;
@@ -122,7 +122,7 @@ const ShareProfileScreen: React.FC = () => {
               review_count: count || undefined,
             };
           });
-          setServices(servicesWithRatings);
+          setServices(servicesWithRatings as Service[]);
         }
 
         const { data: reviewsData, error: reviewsError } = await supabase

@@ -95,3 +95,4 @@ WHERE false;  -- Não retorna nada, apenas verifica políticas
 -- ============================================
 
 
+

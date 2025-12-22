@@ -34,30 +34,10 @@ import { validateTime, validateDate } from '../../../lib/validations';
 import { RESCHEDULE_DEFAULTS } from '../../../lib/constants';
 import { applyAcceptedReschedules } from '../../../lib/utils';
 import { logger } from '../../../lib/logger';
+import { Appointment, WorkDays } from '../../../lib/types';
 
-type Appointment = {
-  id: string;
-  business_id: string;
-  service_id: string;
-  start_time: string;
-  end_time: string;
-  payment_method?: string;
-  // NOTA: A justificativa de reagendamento fica em appointment_reschedules.justification, não aqui
-  // client_notes armazena as observações do cliente sobre o agendamento
-  business: {
-    id: string;
-    business_name: string;
-    work_days: Record<string, { start: string; end: string; active?: boolean }>;
-    logo_url?: string | null;
-    address?: string | null;
-  };
-  service: {
-    id: string;
-    name: string;
-    duration_minutes: number;
-    price?: number;
-  };
-};
+// Usando tipo centralizado de lib/types.ts
+// Note: Appointment já tem business e service como nested objects
 
 type TimeSlot = {
   time: string;
@@ -170,8 +150,8 @@ const RescheduleAppointmentScreen: React.FC = () => {
         return;
       }
 
-      setAppointment(appointmentData as Appointment);
-      generateAvailableDates(appointmentData as Appointment);
+      setAppointment(appointmentData as any);
+      generateAvailableDates(appointmentData as any);
       
       if (params.reason) {
         setJustification(params.reason);

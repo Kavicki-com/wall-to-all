@@ -20,40 +20,14 @@ import ServiceCategoryCard from '../../../components/ServiceCategoryCard';
 import AppointmentCard from '../../../components/appointments/AppointmentCard';
 import { CustomButton } from '../../../components/CustomButton';
 import { logger } from '../../../lib/logger';
-
-type BusinessProfile = {
-  id: string;
-  business_name: string;
-  logo_url: string | null;
-  description: string | null;
-};
-
-type Service = {
-  id: string;
-  name: string;
-  price: number;
-  photos: string[] | string | null;
-  rating?: number;
-  review_count?: number;
-  categories?: {
-    id: number;
-    name: string;
-  } | null;
-};
-
-type Appointment = {
-  id: string;
-  start_time: string;
-  end_time?: string;
-  service: { id: string; name: string } | { id: string; name: string }[];
-};
+import { Business, Service, Appointment } from '../../../lib/types';
 
 const MerchantHomeScreen: React.FC = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
-  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
+  const [businessProfile, setBusinessProfile] = useState<Business | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   useEffect(() => {
@@ -104,7 +78,7 @@ const MerchantHomeScreen: React.FC = () => {
         return;
       }
 
-      setBusinessProfile(businessData as BusinessProfile);
+      setBusinessProfile(businessData);
 
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
@@ -124,7 +98,7 @@ const MerchantHomeScreen: React.FC = () => {
         logger.error('Erro ao buscar serviços:', servicesError);
       } else if (servicesData) {
         const servicesWithRatings = await Promise.all(
-          (servicesData as Service[]).map(async (service) => {
+          servicesData.map(async (service) => {
             const { data: serviceReviews } = await supabase
               .from('reviews')
               .select('rating')
@@ -143,7 +117,7 @@ const MerchantHomeScreen: React.FC = () => {
             };
           })
         );
-        setServices(servicesWithRatings);
+        setServices(servicesWithRatings as Service[]);
       }
 
       const today = new Date();
@@ -321,7 +295,7 @@ const MerchantHomeScreen: React.FC = () => {
             <FlatList
               data={services}
               renderItem={renderServiceCard}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id.toString()}
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.servicesCarousel}

@@ -101,7 +101,9 @@ export function setContext(key: string, value: unknown): void {
   }
 
   try {
-    Sentry.setContext(key, value);
+    // Garantir que value é um objeto válido ou null
+    const contextValue = (value && typeof value === 'object') ? value as Record<string, unknown> : null;
+    Sentry.setContext(key, contextValue);
   } catch (e) {
     logger.error('[Monitoring] Erro ao definir contexto:', e);
   }

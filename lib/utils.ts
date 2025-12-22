@@ -63,12 +63,12 @@ export const applyAcceptedReschedules = async <T extends { id: string | number; 
 
   try {
     // Buscar todos os reagendamentos aceitos para esses agendamentos
-    const appointmentIds = appointments.map(apt => apt.id);
+    const appointmentIds = appointments.map(apt => typeof apt.id === 'string' ? parseInt(apt.id, 10) : apt.id);
     
     const { data: acceptedReschedules, error } = await supabase
       .from('appointment_reschedules')
       .select('appointment_id, new_start_time, new_end_time')
-      .in('appointment_id', appointmentIds)
+      .in('appointment_id', appointmentIds as number[])
       .eq('status', 'accepted')
       .order('accepted_at', { ascending: false }); // Pegar o mais recente se houver múltiplos
 
@@ -145,10 +145,10 @@ export const calculateAppointmentPrice = (
  * @returns Promise com o resultado da verificação
  */
 export const checkAppointmentConflicts = async (
-  businessId: string,
+  businessId: number,
   startTime: string,
   endTime: string,
-  excludeAppointmentId?: string | number
+  excludeAppointmentId?: number
 ): Promise<{ hasConflict: boolean; error?: unknown }> => {
   try {
     // Buscar agendamentos que podem conflitar

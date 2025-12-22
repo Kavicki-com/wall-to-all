@@ -19,38 +19,7 @@ import { BusinessCard } from '../../../components/BusinessCard';
 import TopServiceCard from '../../../components/TopServiceCard';
 import { CustomButton } from '../../../components/CustomButton';
 import { safeGoBack } from '../../../lib/router-utils';
-
-type Business = {
-  id: string;
-  business_name: string;
-  logo_url: string | null;
-  banner_url?: string | null;
-  description?: string | null;
-  category_id: string | number | null;
-  categories?: { id: number; name: string } | null;
-  work_days?: Record<string, { start: string; end: string }> | null;
-  accepted_payment_methods?: {
-    pix?: boolean;
-    card?: boolean;
-    cash?: boolean;
-  } | null;
-  services?: Array<{ id: string; name: string; price?: number }>;
-};
-
-type Service = {
-  id: string;
-  name: string;
-  price: number;
-  category_id: string | null;
-  business_id: string;
-  photos: string[] | string | null;
-  categories?: { id: string; name: string } | null;
-  rating?: number;
-  review_count?: number;
-  appointment_count?: number;
-  recommendation_score?: number;
-  is_featured?: boolean;
-};
+import { BusinessProfile as Business, Service } from '../../../lib/types';
 
 const SearchResultsScreen: React.FC = () => {
   const router = useRouter();
@@ -63,7 +32,7 @@ const SearchResultsScreen: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     initialCategory,
   );
-  const [, setSelectedCategoryId] = useState<string | null>(
+  const [, setSelectedCategoryId] = useState<number | null>(
     null,
   );
 
@@ -95,7 +64,7 @@ const SearchResultsScreen: React.FC = () => {
       setLoading(true);
 
       const trimmedSearch = search.trim();
-      let categoryId: string | null = null;
+      let categoryId: number | null = null;
 
       // Descobrir o ID da categoria (se houver)
       if (selectedCategory) {
@@ -155,23 +124,23 @@ const SearchResultsScreen: React.FC = () => {
 
       // Se houver termo de busca (e não for busca apenas por categoria), buscar negócios que têm serviços com esse termo
       // Se não houver termo mas houver categoria, buscar todos os negócios da categoria
-      let businessIds: string[] = [];
+      let businessIds: number[] = [];
       if (trimmedSearch && !isCategoryOnlySearch && svcRes.data) {
         // Pegar business_ids únicos dos serviços encontrados
         businessIds = [
           ...new Set(
-            (svcRes.data as { business_id?: string }[])
+            (svcRes.data as { business_id?: number }[])
               .map((svc) => svc.business_id)
-              .filter((id): id is string => Boolean(id)),
+              .filter((id): id is number => Boolean(id)),
           ),
         ];
       } else if ((!trimmedSearch || isCategoryOnlySearch) && categoryId && svcRes.data) {
         // Se só tiver categoria (ou for busca apenas por categoria), pegar business_ids dos serviços da categoria
         businessIds = [
           ...new Set(
-            (svcRes.data as { business_id?: string }[])
+            (svcRes.data as { business_id?: number }[])
               .map((svc) => svc.business_id)
-              .filter((id): id is string => Boolean(id)),
+              .filter((id): id is number => Boolean(id)),
           ),
         ];
       }
@@ -215,7 +184,7 @@ const SearchResultsScreen: React.FC = () => {
       // Tratar serviços com ratings / score
       // CORREÇÃO N+1: Buscar todos os reviews e appointments de uma vez
       if (svcRes.data && svcRes.data.length > 0) {
-        const serviceIds = (svcRes.data as { id: string }[]).map(svc => svc.id);
+        const serviceIds = (svcRes.data as { id: number }[]).map(svc => svc.id);
 
         // Buscar todos os dados de uma vez (2 queries em vez de 2*N)
         const [allReviewsRes, allAppointmentsRes] = await Promise.all([
@@ -238,7 +207,7 @@ const SearchResultsScreen: React.FC = () => {
           }
           acc[review.service_id].push(review);
           return acc;
-        }, {} as Record<string, typeof allReviewsRes.data>);
+        }, {} as Record<number, typeof allReviewsRes.data>);
 
         const appointmentsMap = (allAppointmentsRes.data || []).reduce((acc, appointment) => {
           if (!appointment.service_id) return acc;
@@ -247,10 +216,10 @@ const SearchResultsScreen: React.FC = () => {
           }
           acc[appointment.service_id].push(appointment);
           return acc;
-        }, {} as Record<string, typeof allAppointmentsRes.data>);
+        }, {} as Record<number, typeof allAppointmentsRes.data>);
 
         // Processar em memória
-        const svcWithRatings = (svcRes.data as { id: string; business_id?: string; is_featured?: boolean }[]).map((svc) => {
+        const svcWithRatings = (svcRes.data as { id: number; business_id?: number; is_featured?: boolean }[]).map((svc) => {
           const reviews = reviewsMap[svc.id] || [];
           const appointments = appointmentsMap[svc.id] || [];
 
@@ -317,14 +286,14 @@ const SearchResultsScreen: React.FC = () => {
   const handleServicePress = (svc: Service) => {
     router.push({
       pathname: '/(client)/store/[id]',
-      params: { id: svc.business_id },
+      params: { id: svc.business_id.toString() },
     });
   };
 
-  const handleBusinessPress = (bizId: string) => {
+  const handleBusinessPress = (bizId: number) => {
     router.push({
       pathname: '/(client)/store/[id]',
-      params: { id: bizId },
+      params: { id: bizId.toString() },
     });
   };
 
@@ -332,7 +301,7 @@ const SearchResultsScreen: React.FC = () => {
     if (services.length > 0) {
       router.push({
         pathname: '/(client)/store/[id]',
-        params: { id: services[0].business_id },
+        params: { id: services[0].business_id.toString() },
       });
     }
   };
@@ -398,7 +367,7 @@ const SearchResultsScreen: React.FC = () => {
               >
                 {businesses.map((biz, index) => (
                   <View
-                    key={biz.id}
+                    key={biz.id.toString()}
                     style={[
                       styles.businessWrapper,
                       index === businesses.length - 1 && { marginRight: 24 },
@@ -430,7 +399,7 @@ const SearchResultsScreen: React.FC = () => {
               <View style={styles.servicesList}>
                 {services.map((svc) => (
                   <TopServiceCard
-                    key={svc.id}
+                    key={svc.id.toString()}
                     id={svc.id}
                     name={svc.name}
                     price={svc.price}

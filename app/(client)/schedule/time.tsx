@@ -76,12 +76,12 @@ const ScheduleTimeScreen: React.FC = () => {
         supabase
           .from('business_profiles')
           .select('work_days, lunch_break_start, lunch_break_end')
-          .eq('id', params.businessId)
+          .eq('id', Number(params.businessId))
           .single(),
         supabase
           .from('services')
           .select('duration_minutes, name')
-          .eq('id', params.serviceId)
+          .eq('id', Number(params.serviceId))
           .single(),
       ]);
 
@@ -135,7 +135,10 @@ const ScheduleTimeScreen: React.FC = () => {
         'saturday',
       ];
       const dayName = dayNames[selectedDate.getDay()];
-      const workDay = businessResult.data.work_days[dayName];
+      const workDaysData = businessResult.data.work_days;
+      const workDay = workDaysData && typeof workDaysData === 'object' && dayName in workDaysData 
+        ? (workDaysData as any)[dayName] 
+        : null;
 
       if (!workDay) {
         // Dia não está disponível
@@ -151,7 +154,7 @@ const ScheduleTimeScreen: React.FC = () => {
       const { data: existingAppointments } = await supabase
         .from('appointments')
         .select('id, start_time, end_time')
-        .eq('business_id', params.businessId)
+        .eq('business_id', Number(params.businessId))
         .gte('start_time', `${dateString}T00:00:00`)
         .lt('start_time', `${dateString}T23:59:59`)
         .in('status', ['pending', 'confirmed']);

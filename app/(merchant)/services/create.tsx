@@ -35,7 +35,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const params = useLocalSearchParams<{ userId?: string; companyId?: string }>();
-  const companyId = params.companyId as string | undefined;
+  const companyId = params.companyId ? Number(params.companyId) : undefined;
 
   const [serviceName, setServiceName] = useState('');
   const [chargeType, setChargeType] = useState<'fixed' | 'hourly'>('fixed');
@@ -331,7 +331,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
   };
 
   const performInsert = async (
-    businessId: string,
+    businessId: number,
     numericPrice: number,
     durationMinutes: number,
     imageUrls: string[]

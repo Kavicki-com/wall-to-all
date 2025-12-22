@@ -56,7 +56,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
   fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/reviews/ReviewModal.tsx:51',message:'Before useReviewPermissions call',data:{businessId,businessIdType:typeof businessId,clientId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
   // #endregion
   const permissions = useReviewPermissions(
-    businessId,
+    typeof businessId === 'string' ? Number(businessId) : businessId,
     clientId
   );
   // #region agent log

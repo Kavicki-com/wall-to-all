@@ -29,7 +29,7 @@ type AvailabilityOption = {
 };
 
 type ServiceRecord = {
-  id: string;
+  id: number;
   name: string;
   description: string | null;
   price: number;
@@ -53,7 +53,7 @@ const EditServiceScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [imagesUploading, setImagesUploading] = useState(false);
-  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [businessId, setBusinessId] = useState<number | null>(null);
   const [service, setService] = useState<ServiceRecord | null>(null);
 
   // Form state
@@ -164,7 +164,7 @@ const EditServiceScreen: React.FC = () => {
       const { data: serviceData, error: serviceError } = await supabase
         .from('services')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', Number(params.id))
         .eq('business_id', businessData.id)
         .single();
 
@@ -176,7 +176,7 @@ const EditServiceScreen: React.FC = () => {
 
       const normalizedPhotos = normalizePhotos(serviceData.photos);
 
-      setService(serviceData as ServiceRecord);
+        setService(serviceData);
       setServiceName(serviceData.name || '');
       setDescription(serviceData.description || '');
       setPrice(formatPriceFromNumber(serviceData.price));

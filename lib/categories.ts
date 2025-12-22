@@ -1,12 +1,9 @@
 import { supabase } from './supabase';
-import { sortCategories } from './categoryUtils';
+import { sortCategories, Category as CategoryUtilType } from './categoryUtils';
 import { logger } from '../lib/logger';
+import { Database } from '../supabase/types';
 
-export type Category = {
-  id: string;
-  name: string;
-  created_at: string;
-};
+export type Category = Database['public']['Tables']['categories']['Row'];
 
 export const fetchCategories = async (): Promise<Category[]> => {
   try {
@@ -25,9 +22,9 @@ export const fetchCategories = async (): Promise<Category[]> => {
       return [];
     }
 
-    const sortedCategories = sortCategories(data);
+    const sortedCategories = sortCategories(data as CategoryUtilType[]);
     
-    return sortedCategories;
+    return sortedCategories as Category[];
   } catch (error) {
     logger.error('[lib/categories] Erro ao buscar categorias:', error);
     return [];
@@ -46,14 +43,14 @@ export const findCategoryByName = async (name: string): Promise<Category | null>
       return null;
     }
 
-    return data as Category;
+    return data;
   } catch (error) {
     logger.error('Erro ao buscar categoria por nome:', error);
     return null;
   }
 };
 
-export const findCategoryById = async (id: string): Promise<Category | null> => {
+export const findCategoryById = async (id: number): Promise<Category | null> => {
   try {
     const { data, error } = await supabase
       .from('categories')
@@ -65,7 +62,7 @@ export const findCategoryById = async (id: string): Promise<Category | null> => 
       return null;
     }
 
-    return data as Category;
+    return data;
   } catch (error) {
     logger.error('Erro ao buscar categoria por ID:', error);
     return null;

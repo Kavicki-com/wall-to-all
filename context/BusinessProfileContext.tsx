@@ -4,12 +4,12 @@ import { useAuth } from './AuthContext';
 import { logger } from '../lib/logger';
 
 export type BusinessProfile = {
-  id: number; // int8 no schema = number em TypeScript
+  id: number;
   business_name: string;
   description: string | null;
   logo_url: string | null;
   banner_url?: string | null;
-  category_id?: number | null; // int8 no schema = number em TypeScript
+  category_id?: number | null;
   owner_id: string;
   work_days?: Record<string, { start: string; end: string }> | null;
   accepted_payment_methods?: {
@@ -18,7 +18,7 @@ export type BusinessProfile = {
     cash?: boolean;
   } | null;
   categories?: {
-    id: string;
+    id: number;
     name: string;
   } | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

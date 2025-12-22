@@ -24,57 +24,7 @@ import SearchBar from '../../../components/SearchBar';
 import { CustomButton } from '../../../components/CustomButton';
 import { Chip } from '../../../components/ui/Chip';
 import { applyAcceptedReschedules } from '../../../lib/utils';
-
-type Appointment = {
-  id: string;
-  client_id: string;
-  start_time: string;
-  service: {
-    id: string;
-    name: string;
-  };
-  business: {
-    business_name: string;
-    logo_url: string | null;
-  };
-};
-
-type BusinessProfile = {
-  id: string;
-  business_name: string;
-  category: string | null;
-  logo_url: string | null;
-  banner_url?: string | null;
-  description: string | null;
-  accepted_payment_methods: {
-    pix?: boolean;
-    card?: boolean;
-    cash?: boolean;
-  } | null;
-  work_days: Record<string, { start: string; end: string }> | null;
-  services?: Array<{ id: string; name: string }>;
-  categories?: {
-    id: number;
-    name: string;
-  };
-};
-
-type Service = {
-  id: string;
-  name: string;
-  price: number;
-  photos: string[] | string | null;
-  business_profiles: {
-    business_name: string;
-  } | null;
-  business_id: string;
-  rating?: number;
-  review_count?: number;
-  categories?: {
-    id: string;
-    name: string;
-  } | null;
-};
+import { Appointment, BusinessProfile, Service, Category } from '../../../lib/types';
 
 const FEATURED_LIMIT = 10;
 const POPULAR_LIMIT = 10;
@@ -88,7 +38,7 @@ const ClientHomeScreen: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [allFeaturedBusinesses, setAllFeaturedBusinesses] = useState<BusinessProfile[]>([]);
   const [allPopularServices, setAllPopularServices] = useState<Service[]>([]);
-  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const businessCardWidth = useCardWidth(1.5, 24, 10);
   const businessGap = 10;
@@ -96,8 +46,8 @@ const ClientHomeScreen: React.FC = () => {
   const serviceCardWidth = useCardWidth(2, 24, 14);
   const serviceGap = 14;
 
-  const buildRatingsMap = (reviews: Array<{ service_id: string; rating: number | null }>) => {
-    const map: Record<string, { sum: number; count: number }> = {};
+  const buildRatingsMap = (reviews: Array<{ service_id: number; rating: number | null }>) => {
+    const map: Record<number, { sum: number; count: number }> = {};
     reviews.forEach((review) => {
       if (!review.service_id) return;
       if (!map[review.service_id]) {
@@ -125,9 +75,9 @@ const ClientHomeScreen: React.FC = () => {
       }
 
       // Tentar cache para categorias (apenas se não for refresh)
-      let categoriesData: Array<{ id: string; name: string }> | null = null;
+      let categoriesData: Category[] | null = null;
       if (!isRefresh) {
-        const cachedCategories = await Cache.get<Array<{ id: string; name: string }>>('categories');
+        const cachedCategories = await Cache.get<Category[]>('categories');
         if (cachedCategories) {
           const sortedCategories = sortCategories(cachedCategories);
           setCategories(sortedCategories);
@@ -207,7 +157,7 @@ const ClientHomeScreen: React.FC = () => {
 
       if (servicesData) {
         const serviceIds = (servicesData as Service[]).map((s) => s.id).filter(Boolean);
-        let ratingsMap: Record<string, { sum: number; count: number }> = {};
+        let ratingsMap: Record<number, { sum: number; count: number }> = {};
 
         if (serviceIds.length > 0) {
           const { data: reviewsData } = await supabase
@@ -216,7 +166,7 @@ const ClientHomeScreen: React.FC = () => {
             .in('service_id', serviceIds);
 
           if (reviewsData) {
-            ratingsMap = buildRatingsMap(reviewsData as Array<{ service_id: string; rating: number | null }>);
+            ratingsMap = buildRatingsMap(reviewsData as Array<{ service_id: number; rating: number | null }>);
           }
         }
 
@@ -236,8 +186,8 @@ const ClientHomeScreen: React.FC = () => {
       }
 
       if (fetchedCategoriesData) {
-        const sortedCategories = sortCategories(fetchedCategoriesData);
-        setCategories(sortedCategories);
+        const sortedCategories = sortCategories(fetchedCategoriesData as any);
+        setCategories(sortedCategories as Category[]);
         // Cachear categorias por 10 minutos (raramente mudam)
         await Cache.set('categories', fetchedCategoriesData, 10 * 60 * 1000);
       }
@@ -268,10 +218,10 @@ const ClientHomeScreen: React.FC = () => {
         logo_url={item.logo_url}
         banner_url={item.banner_url}
         description={item.description}
-        category={item.category}
-        accepted_payment_methods={item.accepted_payment_methods}
-        work_days={item.work_days}
-        services={item.services}
+        category={item.categories?.name || null}
+        accepted_payment_methods={item.accepted_payment_methods as any}
+        work_days={item.work_days as any}
+        services={item.services as any}
         categories={item.categories}
         width={businessCardWidth}
       />
@@ -437,7 +387,7 @@ const ClientHomeScreen: React.FC = () => {
         >
           {categories.map((category) => (
             <Chip
-              key={category.id}
+              key={category.id.toString()}
               label={category.name}
               variant="outline"
               onPress={() => {
@@ -476,7 +426,7 @@ const ClientHomeScreen: React.FC = () => {
 
                 return (
                   <AppointmentCard
-                    key={item.id}
+                    key={item.id.toString()}
                     time={time}
                     dateLabel={dateLabel}
                     serviceName={item.service?.name || 'Serviço'}
@@ -496,7 +446,7 @@ const ClientHomeScreen: React.FC = () => {
             <FlatList
               data={allFeaturedBusinesses}
               renderItem={renderBusinessCard}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id.toString()}
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.businessesList}
@@ -521,7 +471,7 @@ const ClientHomeScreen: React.FC = () => {
             <FlatList
               data={allPopularServices}
               renderItem={renderServiceCard}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id.toString()}
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.servicesList}

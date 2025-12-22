@@ -18,51 +18,7 @@ import ScreenContainer from '../../../components/layout/ScreenContainer';
 import ServiceCategoryCard from '../../../components/ServiceCategoryCard';
 import { applyAcceptedReschedules } from '../../../lib/utils';
 import { logger } from '../../../lib/logger';
-
-type Service = {
-  id: string;
-  name: string;
-  price: number;
-  photos: string[] | string | null;
-  rating?: number;
-  review_count?: number;
-  categories?: {
-    id: number;
-    name: string;
-  } | null;
-};
-
-type Business = {
-  id: string;
-  business_name: string;
-  logo_url: string | null;
-  banner_url: string | null;
-  description: string | null;
-  work_days: Record<string, { start: string; end: string }> | null;
-  categories?: {
-    id: number;
-    name: string;
-  } | null;
-  accepted_payment_methods: {
-    pix?: boolean;
-    card?: boolean;
-    cash?: boolean;
-  } | null;
-  services?: Array<{ id: string; name: string; price: number }>;
-};
-
-type Appointment = {
-  id: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  service: {
-    name: string;
-  };
-  business: {
-    business_name: string;
-  };
-};
+import { Service, BusinessProfile as Business, Appointment } from '../../../lib/types';
 
 const ClientProfileScreen: React.FC = () => {
   const router = useRouter();
@@ -130,7 +86,7 @@ const ClientProfileScreen: React.FC = () => {
 
       const serviceIds =
         appointmentsData
-          ?.map((a: { service_id: string | null }) => a.service_id)
+          ?.map((a: { service_id: number | null }) => a.service_id)
           .filter(Boolean) || [];
 
       const { data: servicesData, error: servicesError } = await supabase
@@ -150,13 +106,13 @@ const ClientProfileScreen: React.FC = () => {
           logger.error('Erro ao buscar serviços:', servicesError);
         }
       } else if (servicesData) {
-        let ratingsMap: Record<string, { sum: number; count: number }> = {};
+        let ratingsMap: Record<number, { sum: number; count: number }> = {};
 
         if (serviceIds.length > 0) {
           const { data: reviewsData, error: reviewsError } = await supabase
             .from('reviews')
             .select('service_id, rating')
-            .in('service_id', serviceIds);
+            .in('service_id', serviceIds.filter((id): id is number => id !== null));
 
           if (!reviewsError && reviewsData) {
             ratingsMap = reviewsData.reduce((acc, review) => {
@@ -167,7 +123,7 @@ const ClientProfileScreen: React.FC = () => {
               acc[review.service_id].sum += review.rating || 0;
               acc[review.service_id].count += 1;
               return acc;
-            }, {} as Record<string, { sum: number; count: number }>);
+            }, {} as Record<number, { sum: number; count: number }>);
           }
         }
 
@@ -187,7 +143,7 @@ const ClientProfileScreen: React.FC = () => {
 
       const businessIds = [
         ...new Set(
-          appointmentsData?.map((a: { business_id: string | null }) => a.business_id).filter(Boolean) || []
+          appointmentsData?.map((a: { business_id: number | null }) => a.business_id).filter(Boolean) || []
         ),
       ];
 
@@ -202,7 +158,7 @@ const ClientProfileScreen: React.FC = () => {
               name
             )
           `)
-          .in('id', businessIds)
+          .in('id', businessIds.filter((id): id is number => id !== null))
           .limit(3);
 
         if (businessesData) {
@@ -326,7 +282,7 @@ const ClientProfileScreen: React.FC = () => {
           <FlatList
             data={services}
             renderItem={renderServiceCard}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.id.toString()}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.servicesList}
@@ -354,7 +310,7 @@ const ClientProfileScreen: React.FC = () => {
             contentContainerStyle={styles.businessesList}
           >
             {businesses.map((business) => (
-              <View key={business.id} style={{ marginRight: businessGap }}>
+              <View key={business.id.toString()} style={{ marginRight: businessGap }}>
                 <BusinessCard
                   id={business.id}
                   business_name={business.business_name}
@@ -362,9 +318,9 @@ const ClientProfileScreen: React.FC = () => {
                   banner_url={business.banner_url}
                   description={business.description}
                   category={business.categories?.name || null}
-                  accepted_payment_methods={business.accepted_payment_methods}
-                  work_days={business.work_days}
-                  services={business.services}
+                  accepted_payment_methods={business.accepted_payment_methods as any}
+                  work_days={business.work_days as any}
+                  services={business.services as any}
                   categories={business.categories}
                   width={businessCardWidth}
                   onPress={(id) => router.push(`/(client)/store/${id}`)}

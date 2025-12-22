@@ -14,7 +14,9 @@
  *   - MAX_REQUESTS: Número máximo de requisições por janela (padrão: 10)
  */
 
+// @ts-expect-error - Deno import from URL
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+// @ts-expect-error - Deno import from URL
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minuto
@@ -30,7 +32,7 @@ interface RateLimitStore {
 // Store em memória (em produção, considere usar Redis ou banco de dados)
 const store: RateLimitStore = {};
 
-serve(async (req) => {
+serve(async (req: Request) => {
   try {
     // Obter IP do cliente
     const ip = req.headers.get('x-forwarded-for') || 
