@@ -42,7 +42,7 @@ class Logger {
           const error = args[0] instanceof Error 
             ? args[0] 
             : new Error(String(args[0]));
-          // @ts-expect-error
+          // @ts-expect-error - Sentry pode não estar instalado
           Sentry.captureException(error, {
             extra: args.slice(1),
           });
