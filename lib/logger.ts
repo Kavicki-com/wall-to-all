@@ -37,17 +37,17 @@ class Logger {
     // Em produção, enviar para Sentry se disponível
     if (!__DEV__) {
       try {
-        // @ts-ignore - Sentry pode não estar instalado
+        // @ts-expect-error - Sentry pode não estar instalado
         if (typeof Sentry !== 'undefined' && Sentry.captureException) {
           const error = args[0] instanceof Error 
             ? args[0] 
             : new Error(String(args[0]));
-          // @ts-ignore
+          // @ts-expect-error
           Sentry.captureException(error, {
             extra: args.slice(1),
           });
         }
-      } catch (e) {
+      } catch {
         // Silenciosamente falhar se Sentry não estiver disponível
       }
     }
