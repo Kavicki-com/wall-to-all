@@ -61,15 +61,19 @@ const ClientSignupPersonalScreen: React.FC = () => {
   }, []);
 
   // Resetar campos quando a tela é focada (quando volta de outras telas)
+  // Mas NÃO resetar se for OAuth, pois os dados foram preenchidos pelo useEffect
   useFocusEffect(
     React.useCallback(() => {
-      setFullName('');
-      setEmail('');
-      setConfirmEmail('');
+      // Apenas resetar campos de senha e erro, preservando dados OAuth
+      if (!isOAuth) {
+        setFullName('');
+        setEmail('');
+        setConfirmEmail('');
+      }
       setPassword('');
       setConfirmPassword('');
       setError(null);
-    }, [])
+    }, [isOAuth])
   );
 
   const isStrongPassword = (value: string) => {

@@ -36,30 +36,18 @@ export const useReviewPermissions = (
   });
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/hooks/useReviewPermissions.ts:38',message:'useReviewPermissions useEffect triggered',data:{businessId,businessIdType:typeof businessId,clientId,hasBusinessId:!!businessId,hasClientId:!!clientId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    if (!businessId || !clientId) {
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/hooks/useReviewPermissions.ts:40',message:'Early return - missing businessId or clientId',data:{businessId,clientId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      setPermissions((prev) => ({ ...prev, isLoading: false }));
+if (!businessId || !clientId) {
+setPermissions((prev) => ({ ...prev, isLoading: false }));
       return;
     }
 
     const loadPermissions = async () => {
       try {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/hooks/useReviewPermissions.ts:46',message:'loadPermissions started',data:{businessId,businessIdType:typeof businessId,clientId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        // Verificar se cliente pode avaliar negócio (sempre pode se autenticado)
+// Verificar se cliente pode avaliar negócio (sempre pode se autenticado)
         setPermissions((prev) => ({ ...prev, canReviewBusiness: true }));
 
         // Buscar agendamentos completos do cliente para este negócio
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/hooks/useReviewPermissions.ts:50',message:'Before appointments query',data:{businessId,businessIdType:typeof businessId,clientId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        const { data: appointments, error: appointmentsError } = await supabase
+const { data: appointments, error: appointmentsError } = await supabase
           .from('appointments')
           .select(`
             id,
@@ -72,11 +60,7 @@ export const useReviewPermissions = (
           .eq('client_id', clientId)
           .eq('business_id', businessId)
           .eq('status', 'completed');
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/hooks/useReviewPermissions.ts:63',message:'After appointments query',data:{hasError:!!appointmentsError,error:appointmentsError?.message,appointmentsCount:appointments?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-
-        if (appointmentsError) {
+if (appointmentsError) {
           logger.error('Erro ao buscar agendamentos para avaliação:', appointmentsError);
         }
 

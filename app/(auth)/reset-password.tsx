@@ -37,11 +37,7 @@ const ResetPasswordScreen: React.FC = () => {
   const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
-    // #region agent log
-    try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:39',message:'useEffect montado - reset-password',data:{hasProcessedRef:hasProcessedRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
-    // #endregion
-    
-    if (__DEV__) {
+if (__DEV__) {
       logger.debug('[ResetPassword] ========== COMPONENTE MONTADO ==========');
       console.log('[DEBUG] ResetPassword useEffect montado');
     }
@@ -51,10 +47,7 @@ const ResetPasswordScreen: React.FC = () => {
     // O hasProcessedRef será gerenciado dentro de processUrl e pelo listener
 
     const processUrl = async (url: string | null): Promise<boolean | 'ERROR_DEFINED'> => {
-      // #region agent log
-      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:44',message:'processUrl chamado',data:{hasUrl:!!url,urlLength:url?.length,urlPreview:url?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
-      // #endregion
-      if (!isSupabaseConfigured) {
+if (!isSupabaseConfigured) {
         if (__DEV__) {
           logger.error('[ResetPassword] Supabase não configurado!');
         }
@@ -82,17 +75,8 @@ const ResetPasswordScreen: React.FC = () => {
           if (__DEV__) { logger.debug('[ResetPassword] Processando tokens da URL...');
           }
           try {
-            // #region agent log
-            try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:73',message:'Chamando processAuthTokensFromUrl',data:{urlLength:url.length,hasHash:url.includes('#')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
-            // #endregion
-            
-            const success = await processAuthTokensFromUrl(url);
-            
-            // #region agent log
-            try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:76',message:'processAuthTokensFromUrl retornou',data:{success:!!success},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
-            // #endregion
-            
-            if (success) {
+const success = await processAuthTokensFromUrl(url);
+if (success) {
               if (__DEV__) { 
                 logger.debug('[ResetPassword] Tokens processados com sucesso!');
                 logger.debug('[ResetPassword] Aguardando 1s para persistência da sessão...');
@@ -110,23 +94,14 @@ const ResetPasswordScreen: React.FC = () => {
               let verifyError = null;
               
               for (let attempt = 1; attempt <= 3; attempt++) {
-                // #region agent log
-                try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:87',message:'Verificando sessão após processAuthTokens',data:{attempt},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
-                // #endregion
-                
-                if (__DEV__) {
+if (__DEV__) {
                   logger.debug(`[ResetPassword] Tentativa ${attempt}/3 de verificar sessão...`);
                 }
                 
                 const result = await supabase.auth.getSession();
                 verifiedSession = result.data.session;
                 verifyError = result.error;
-                
-                // #region agent log
-                try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:95',message:'Resultado getSession após processAuthTokens',data:{attempt,hasSession:!!verifiedSession,hasError:!!verifyError,errorMessage:verifyError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
-                // #endregion
-                
-                if (verifiedSession && !verifyError) {
+if (verifiedSession && !verifyError) {
                   if (__DEV__) {
                     logger.debug(`[ResetPassword] Sessão encontrada na tentativa ${attempt}!`);
                   }
@@ -250,11 +225,7 @@ const ResetPasswordScreen: React.FC = () => {
     };
 
     const processDeepLinkAndValidate = async () => {
-      // #region agent log
-      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:139',message:'processDeepLinkAndValidate INICIADO',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
-      // #endregion
-      
-      if (__DEV__) {
+if (__DEV__) {
         logger.debug('[ResetPassword] ========== processDeepLinkAndValidate INICIADO ==========');
         console.log('[DEBUG] processDeepLinkAndValidate iniciado');
       }
@@ -268,20 +239,12 @@ const ResetPasswordScreen: React.FC = () => {
       try {
         // IMPORTANTE: Verifica primeiro se já há uma sessão válida
         // Isso pode acontecer se o _layout.tsx já processou o deep link antes do componente montar
-        
-        // #region agent log
-        try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:150',message:'Verificando sessão existente ANTES de processar deep link',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
-        // #endregion
-        
-        let existingSession = null;
+let existingSession = null;
         for (let i = 0; i < 3; i++) {
           const { data: { session: currentSession } } = await supabase.auth.getSession();
           if (currentSession) {
             existingSession = currentSession;
-            // #region agent log
-            try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:155',message:'Sessão existente encontrada ANTES de processar',data:{attempt:i+1,userEmail:currentSession.user?.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
-            // #endregion
-            if (__DEV__) { logger.debug('[ResetPassword] Sessão existente encontrada ANTES de processar deep link (tentativa', i + 1, ')');
+if (__DEV__) { logger.debug('[ResetPassword] Sessão existente encontrada ANTES de processar deep link (tentativa', i + 1, ')');
             }
             break;
           }
@@ -300,12 +263,7 @@ const ResetPasswordScreen: React.FC = () => {
         
         // Primeiro, tenta pegar a URL inicial (deep link que abriu o app - cold start)
         const initialUrl = await Linking.getInitialURL();
-        
-        // #region agent log
-        try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:172',message:'getInitialURL retornou',data:{hasUrl:!!initialUrl,urlLength:initialUrl?.length,urlPreview:initialUrl?.substring(0,80),isResetPassword:initialUrl?.includes('reset-password')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
-        // #endregion
-        
-        if (__DEV__) {
+if (__DEV__) {
           logger.debug('[ResetPassword] ========== getInitialURL RESULTADO ==========');
           logger.debug('[ResetPassword] URL inicial (getInitialURL):', initialUrl);
           console.log('[DEBUG] getInitialURL:', initialUrl);
@@ -429,11 +387,7 @@ const ResetPasswordScreen: React.FC = () => {
     // Isso garante que o listener esteja ativo quando a Activity é reiniciada pelo deep link
     
     const subscription = Linking.addEventListener('url', async (event) => {
-      // #region agent log
-      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password.tsx:273',message:'Deep link listener acionado',data:{hasUrl:!!event.url,urlLength:event.url?.length,urlPreview:event.url?.substring(0,80),isResetPassword:event.url?.includes('reset-password')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{}); } catch(e) {}
-      // #endregion
-      
-      logger.debug('[ResetPassword] Deep link recebido (app aberto):', event.url);
+logger.debug('[ResetPassword] Deep link recebido (app aberto):', event.url);
       
       // Ignora URLs do Expo dev server
       if (event.url && event.url.includes('expo-development-client')) {

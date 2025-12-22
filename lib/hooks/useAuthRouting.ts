@@ -223,11 +223,7 @@ export function useAuthRouting() {
 
     // Sem sessão: redireciona para login se não estiver em auth
     if (!session) {
-      // #region agent log
-      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAuthRouting.ts:225',message:'useAuthRouting - sem sessão detectado',data:{inAuthGroup,allSegments,isInResetPassword},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{}); } catch(e) {}
-      // #endregion
-      
-      if (!inAuthGroup) {
+if (!inAuthGroup) {
         if (__DEV__) { 
           logger.debug('[useAuthRouting] Sem sessão, redirecionando para login');
         }

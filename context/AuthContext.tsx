@@ -222,11 +222,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const {
         data: { subscription: authSubscription },
       } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-        // #region agent log
-        try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:224',message:'onAuthStateChange evento',data:{event,hasSession:!!newSession,userEmail:newSession?.user?.email,isRecovery:getIsRecoverySession()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{}); } catch(e) {}
-        // #endregion
-        
-        try {
+try {
           if (event === 'TOKEN_REFRESHED' && !newSession) {
             await clearInvalidTokens();
             setSession(null);
@@ -236,12 +232,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
 
           setSession(newSession);
-          
-          // #region agent log
-          try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:236',message:'setSession chamado no AuthContext',data:{event,hasSession:!!newSession,userEmail:newSession?.user?.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{}); } catch(e) {}
-          // #endregion
-
-          if (newSession?.user?.id) {
+if (newSession?.user?.id) {
             // Se for sessão de recuperação, não busca user_role (não é necessário)
             if (getIsRecoverySession()) {
               if (__DEV__) { logger.debug('[AuthContext] Sessão de recuperação detectada - pulando busca de user_role');

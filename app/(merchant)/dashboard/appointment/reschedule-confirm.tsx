@@ -80,22 +80,10 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-
-  // #region agent log
-  useEffect(() => {
-    console.log('[RescheduleConfirmModal] useEffect - props mudaram:', { visible, appointmentId, date, time });
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:82',message:'Modal renderizado - props recebidas',data:{visible,appointmentId,date,time,hasJustification:!!justification},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-  }, [visible, appointmentId, date, time, justification]);
-  // #endregion
-
-  useEffect(() => {
+useEffect(() => {
     console.log('[RescheduleConfirmModal] useEffect [visible] - visible:', visible);
     if (visible) {
-      // #region agent log
-      console.log('[RescheduleConfirmModal] visible=true, chamando loadAppointmentData');
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:88',message:'useEffect triggered - visible=true, chamando loadAppointmentData',data:{visible,appointmentId,date,time},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      loadAppointmentData();
+loadAppointmentData();
       setShowSuccessModal(false);
     } else {
       console.log('[RescheduleConfirmModal] visible=false, resetando estado');
@@ -106,21 +94,12 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
   }, [visible]);
 
   const loadAppointmentData = async () => {
-    // #region agent log
-    console.log('[RescheduleConfirmModal] loadAppointmentData INICIADO com:', { appointmentId, date, time });
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:95',message:'loadAppointmentData iniciado',data:{appointmentId,date,time,loading},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    try {
+try {
       setLoading(true);
       console.log('[RescheduleConfirmModal] setLoading(true) chamado');
 
       if (!appointmentId || !date || !time) {
-        // #region agent log
-        const logData = {appointmentId,date,time,hasAppointmentId:!!appointmentId,hasDate:!!date,hasTime:!!time};
-        console.log('[RescheduleConfirm] Parâmetros inválidos detectados:', logData);
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:106',message:'Parâmetros inválidos detectados - chamando onClose',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
-        // Não fechar o modal imediatamente - apenas logar o erro
+// Não fechar o modal imediatamente - apenas logar o erro
         console.warn('[RescheduleConfirm] Parâmetros inválidos, mas não fechando modal para debug');
         setLoading(false);
         return;
@@ -131,11 +110,7 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
       } = await supabase.auth.getUser();
 
       if (!user) {
-        // #region agent log
-        console.log('[RescheduleConfirm] Usuário não autenticado');
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:119',message:'Usuário não autenticado - chamando onClose',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        console.warn('[RescheduleConfirm] Usuário não autenticado, mas não fechando modal para debug');
+console.warn('[RescheduleConfirm] Usuário não autenticado, mas não fechando modal para debug');
         setLoading(false);
         return;
       }
@@ -147,12 +122,7 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
         .single();
 
       if (businessError || !businessData) {
-        // #region agent log
-        const logData = {hasError:!!businessError,errorCode:businessError?.code,errorMessage:businessError?.message,hasBusinessData:!!businessData,userId:user.id};
-        console.log('[RescheduleConfirm] Erro ao buscar business:', logData);
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:131',message:'Erro ao buscar business - chamando onClose',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        if (businessError && businessError.code !== 'PGRST116') {
+if (businessError && businessError.code !== 'PGRST116') {
           logger.error('Erro ao buscar negócio:', businessError);
         }
         console.warn('[RescheduleConfirm] Erro ao buscar business, mas não fechando modal para debug');
@@ -173,51 +143,26 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
         .eq('id', parseInt(appointmentId))
         .eq('business_id', businessData.id)
         .single();
-
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:125',message:'Resultado da query de appointment no loadAppointmentData',data:{hasError:!!error,hasData:!!appointmentData,hasClient:!!appointmentData?.client,clientId:appointmentData?.client?.id,appointmentId:appointmentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-
-      if (error || !appointmentData) {
-        // #region agent log
-        const logData = {hasError:!!error,errorMessage:error?.message,errorCode:error?.code,hasAppointmentData:!!appointmentData,appointmentId,businessId:businessData.id};
-        console.log('[RescheduleConfirm] Erro ao buscar appointment:', logData);
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:158',message:'Erro ao buscar appointment - chamando onClose',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        logger.error('Erro ao buscar agendamento:', error);
+if (error || !appointmentData) {
+logger.error('Erro ao buscar agendamento:', error);
         console.warn('[RescheduleConfirm] Erro ao buscar appointment, mas não fechando modal para debug');
         setLoading(false);
         return;
       }
 
       setAppointment(appointmentData as Appointment);
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:155',message:'Appointment carregado com sucesso',data:{hasAppointment:!!appointmentData,appointmentId:appointmentData?.id,hasService:!!appointmentData?.service,hasClient:!!appointmentData?.client},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-    } catch (error) {
-      // #region agent log
-      const logData = {error:error?.toString(),errorMessage:error instanceof Error?error.message:'unknown',errorStack:error instanceof Error?error.stack:'unknown'};
-      console.error('[RescheduleConfirm] Exceção capturada:', logData);
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:175',message:'Exceção capturada - chamando onClose',data:logData,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      logger.error('Erro ao carregar dados:', error);
+} catch (error) {
+logger.error('Erro ao carregar dados:', error);
       console.warn('[RescheduleConfirm] Exceção capturada, mas não fechando modal para debug');
       setLoading(false);
     } finally {
       setLoading(false);
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:166',message:'loadAppointmentData finalizado - loading=false',data:{loading:false,hasAppointment:!!appointment},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-    }
+}
   };
 
   const handleSubmit = async () => {
     if (!appointment || !date || !time) return;
-
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:143',message:'handleSubmit iniciado',data:{hasAppointment:!!appointment,hasClient:!!appointment?.client,clientId:appointment?.client?.id,appointmentId:appointmentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
-    try {
+try {
       setSubmitting(true);
 
       const dateString = date;
@@ -349,39 +294,21 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
       }
 
       // Enviar notificação para o cliente sobre o reagendamento sugerido
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:277',message:'Antes de verificar client.id para notificação',data:{hasAppointment:!!appointment,hasClient:!!appointment?.client,clientId:appointment?.client?.id,hasRescheduleData:!!rescheduleData,rescheduleId:rescheduleData?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      if (appointment.client?.id && rescheduleData) {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:279',message:'Condição satisfeita, enviando notificação',data:{clientId:appointment.client.id,appointmentId:parseInt(appointmentId),rescheduleId:rescheduleData.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        try {
-          // #region agent log
-          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:281',message:'Chamando notifyRescheduleSuggested',data:{clientId:appointment.client.id,appointmentId:parseInt(appointmentId),rescheduleId:rescheduleData.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-          await notifyRescheduleSuggested(
+if (appointment.client?.id && rescheduleData) {
+try {
+await notifyRescheduleSuggested(
             appointment.client.id,
             parseInt(appointmentId),
             rescheduleData.id,
             startTime.toISOString(),
             appointment.business.business_name
           );
-          // #region agent log
-          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:287',message:'notifyRescheduleSuggested concluído com sucesso',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-        } catch (notifError) {
-          // #region agent log
-          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:289',message:'Erro ao enviar notificação',data:{error:notifError?.toString(),errorMessage:notifError instanceof Error?notifError.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-          logger.warn('[RescheduleConfirm] Erro ao enviar notificação de reagendamento sugerido:', notifError);
+} catch (notifError) {
+logger.warn('[RescheduleConfirm] Erro ao enviar notificação de reagendamento sugerido:', notifError);
           // Não bloquear o fluxo se a notificação falhar
         }
       } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:295',message:'Condição NÃO satisfeita - notificação não será enviada',data:{hasAppointment:!!appointment,hasClient:!!appointment?.client,clientId:appointment?.client?.id,hasRescheduleData:!!rescheduleData},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-      }
+}
 
       // Mostrar modal de sucesso
       setSubmitting(false);
@@ -392,14 +319,7 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
       setSubmitting(false);
     }
   };
-
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:365',message:'Estado do componente antes do render',data:{visible,loading,hasAppointment:!!appointment,appointmentId:appointment?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  }, [visible, loading, appointment]);
-  // #endregion
-
-  // Formatar nova data e horário (só se appointment existir)
+// Formatar nova data e horário (só se appointment existir)
   let newDate: Date | null = null;
   let newStartTime: Date | null = null;
   let newEndTime: Date | null = null;
@@ -472,14 +392,7 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
     }
     return 'PIX';
   };
-
-  // #region agent log
-  const renderTime = Date.now();
-  console.log('[RescheduleConfirmModal] Renderizando Modal JSX - visible:', visible, 'loading:', loading, 'hasAppointment:', !!appointment);
-  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:280',message:'Renderizando Modal',data:{visible,loading,hasAppointment:!!appointment,windowHeight:Dimensions.get('window').height},timestamp:renderTime,sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
-
-  if (!visible) {
+if (!visible) {
     console.log('[RescheduleConfirmModal] visible=false, retornando null');
     return null;
   }
@@ -499,10 +412,7 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
     >
       <View style={styles.overlay}>
         <TouchableWithoutFeedback onPress={() => {
-          // #region agent log
-          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:450',message:'Overlay tocado - chamando onClose',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
-          onClose();
+onClose();
         }}>
           <View style={styles.overlayTouchable} />
         </TouchableWithoutFeedback>
@@ -515,13 +425,6 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
 
             {loading || !appointment ? (
               <View style={styles.loadingContainer}>
-                {/* #region agent log */}
-                {(() => { 
-                  console.log('[RescheduleConfirmModal] Renderizando loading state - loading:', loading, 'hasAppointment:', !!appointment);
-                  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:300',message:'Renderizando loading state',data:{loading,hasAppointment:!!appointment},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{}); 
-                  return null; 
-                })()}
-                {/* #endregion */}
                 <ActivityIndicator size="large" color="#000E3D" />
               </View>
             ) : (
@@ -542,9 +445,6 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
                 keyboardShouldPersistTaps="handled"
                 alwaysBounceVertical={false}
               >
-                {/* #region agent log */}
-                {(() => { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule-confirm.tsx:310',message:'Renderizando ScrollView com conteúdo',data:{hasAppointment:!!appointment,insetsBottom:insets.bottom},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{}); return null; })()}
-                {/* #endregion */}
                 {/* Appointment Details Card */}
                 <View style={styles.detailsCard}>
                   {/* Header: Service Name */}

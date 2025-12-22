@@ -75,14 +75,8 @@ export const sendNotification = async (
   relatedAppointmentId?: number | null,
   relatedRescheduleId?: number | null
 ): Promise<{ success: boolean; error?: unknown }> => {
-  // #region agent log
-  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:70',message:'sendNotification chamado',data:{userId,type,hasTitle:!!title,hasMessage:!!message,relatedAppointmentId,relatedRescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SEND_NOTIF'})}).catch(()=>{});
-  // #endregion
-  try {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:100',message:'Usando função RPC insert_notification diretamente (bypass RLS)',data:{userId,type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SEND_NOTIF'})}).catch(()=>{});
-    // #endregion
-    // Usar função RPC insert_notification diretamente pois a política RLS só permite criar para si mesmo
+try {
+// Usar função RPC insert_notification diretamente pois a política RLS só permite criar para si mesmo
     // A função RPC tem SECURITY DEFINER e pode criar notificações para qualquer usuário
     const { data: rpcData, error: rpcError } = await supabase.rpc('insert_notification', {
       p_user_id: userId,
@@ -92,14 +86,7 @@ export const sendNotification = async (
       p_related_appointment_id: relatedAppointmentId || undefined,
       p_related_reschedule_id: relatedRescheduleId || undefined,
     });
-
-    // #region agent log
-    const rpcDataSuccess = rpcData && typeof rpcData === 'object' && 'success' in rpcData ? rpcData.success : undefined;
-    const rpcDataId = rpcData && typeof rpcData === 'object' && 'id' in rpcData ? rpcData.id : undefined;
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:112',message:'Resultado da função RPC insert_notification',data:{hasError:!!rpcError,errorCode:rpcError?.code,errorMessage:rpcError?.message,success:rpcDataSuccess,notificationId:rpcDataId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'SEND_NOTIF'})}).catch(()=>{});
-    // #endregion
-
-    if (rpcError) {
+if (rpcError) {
       logger.error('Erro ao chamar função RPC insert_notification:', rpcError);
       return { success: false, error: rpcError };
     }
@@ -136,10 +123,7 @@ export const notifyRescheduleAccepted = async (
   newStartTime: string,
   businessName: string
 ): Promise<void> => {
-  // #region agent log
-  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:155',message:'notifyRescheduleAccepted chamado',data:{targetUserId:clientId,appointmentId,rescheduleId,hasBusinessName:!!businessName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
-  // #endregion
-  try {
+try {
     const date = new Date(newStartTime);
     const formattedDate = date.toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -150,11 +134,7 @@ export const notifyRescheduleAccepted = async (
       hour: '2-digit',
       minute: '2-digit',
     });
-
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:174',message:'Chamando sendNotification para reschedule_accepted',data:{targetUserId:clientId,appointmentId,rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
-    // #endregion
-    // Passar ambos os IDs: appointment_id e reschedule_id
+// Passar ambos os IDs: appointment_id e reschedule_id
     const result = await sendNotification(
       clientId,
       'reschedule_accepted',
@@ -163,14 +143,8 @@ export const notifyRescheduleAccepted = async (
       appointmentId,
       rescheduleId
     );
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:182',message:'sendNotification retornou para reschedule_accepted',data:{success:result.success,hasError:!!result.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
-    // #endregion
-  } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:184',message:'Exceção capturada em notifyRescheduleAccepted',data:{error:error?.toString(),errorMessage:error instanceof Error?error.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
-    // #endregion
-    logger.warn('Erro ao enviar notificação de reagendamento aceito (ignorado)');
+} catch (error) {
+logger.warn('Erro ao enviar notificação de reagendamento aceito (ignorado)');
   }
 };
 
@@ -223,10 +197,7 @@ export const notifyRescheduleRequested = async (
   clientName: string,
   newStartTime: string
 ): Promise<void> => {
-  // #region agent log
-  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:230',message:'notifyRescheduleRequested chamado',data:{merchantId,appointmentId,rescheduleId,clientName,hasNewStartTime:!!newStartTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-  // #endregion
-  try {
+try {
     const date = new Date(newStartTime);
     const formattedDate = date.toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -237,11 +208,7 @@ export const notifyRescheduleRequested = async (
       hour: '2-digit',
       minute: '2-digit',
     });
-
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:248',message:'Chamando sendNotification para merchant',data:{merchantId,appointmentId,rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-    // #endregion
-    // Passar ambos os IDs: appointment_id e reschedule_id
+// Passar ambos os IDs: appointment_id e reschedule_id
     const result = await sendNotification(
       merchantId,
       'reschedule_requested',
@@ -250,14 +217,8 @@ export const notifyRescheduleRequested = async (
       appointmentId,
       rescheduleId
     );
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:257',message:'sendNotification retornou para merchant',data:{success:result.success,hasError:!!result.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-    // #endregion
-  } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:260',message:'Exceção capturada em notifyRescheduleRequested',data:{error:error?.toString(),errorMessage:error instanceof Error?error.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-    // #endregion
-    logger.warn('Erro ao enviar notificação de reagendamento solicitado (ignorado)');
+} catch (error) {
+logger.warn('Erro ao enviar notificação de reagendamento solicitado (ignorado)');
   }
 };
 
@@ -276,10 +237,7 @@ export const notifyRescheduleSuggested = async (
   newStartTime: string,
   businessName: string
 ): Promise<void> => {
-  // #region agent log
-  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:271',message:'notifyRescheduleSuggested chamado',data:{clientId,appointmentId,rescheduleId,hasBusinessName:!!businessName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-  try {
+try {
     const date = new Date(newStartTime);
     const formattedDate = date.toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -290,11 +248,7 @@ export const notifyRescheduleSuggested = async (
       hour: '2-digit',
       minute: '2-digit',
     });
-
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:284',message:'Chamando sendNotification',data:{clientId,appointmentId,rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    // Passar ambos os IDs: appointment_id e reschedule_id
+// Passar ambos os IDs: appointment_id e reschedule_id
     const result = await sendNotification(
       clientId,
       'reschedule_suggested',
@@ -303,14 +257,8 @@ export const notifyRescheduleSuggested = async (
       appointmentId,
       rescheduleId
     );
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:296',message:'sendNotification retornou',data:{success:result.success,hasError:!!result.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-  } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'notifications.ts:300',message:'Exceção capturada em notifyRescheduleSuggested',data:{error:error?.toString(),errorMessage:error instanceof Error?error.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    logger.warn('Erro ao enviar notificação de reagendamento sugerido (ignorado)');
+} catch (error) {
+logger.warn('Erro ao enviar notificação de reagendamento sugerido (ignorado)');
   }
 };
 

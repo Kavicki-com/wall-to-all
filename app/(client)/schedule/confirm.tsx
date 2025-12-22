@@ -181,12 +181,7 @@ const ScheduleConfirmScreen: React.FC = () => {
       const normalizedStartDate = startDate ?? new Date(startTime);
       const endDate = new Date(normalizedStartDate.getTime() + durationMinutes * 60000);
       const endTime = endDate.toISOString();
-
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/confirm.tsx:179',message:'BEFORE conflict check',data:{businessId:params.businessId,startTime,endTime,durationMinutes},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,E'})}).catch(()=>{});
-      // #endregion
-      
-      const businessIdNum = parseInt(params.businessId, 10);
+const businessIdNum = parseInt(params.businessId, 10);
       if (isNaN(businessIdNum)) {
         Alert.alert('Erro', 'ID do negócio inválido');
         setSubmitting(false);
@@ -200,12 +195,7 @@ const ScheduleConfirmScreen: React.FC = () => {
         .in('status', ['pending', 'confirmed'])
         .lte('start_time', endTime)
         .gte('end_time', startTime);
-
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/confirm.tsx:194',message:'AFTER conflict check',data:{conflictCount,hasConflictError:!!conflictError,conflictError:conflictError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,E'})}).catch(()=>{});
-      // #endregion
-
-      if (conflictError) {
+if (conflictError) {
         const processed = handleError(conflictError, 'appointment');
         showError(processed.userMessage);
         setSubmitting(false);
@@ -217,12 +207,7 @@ const ScheduleConfirmScreen: React.FC = () => {
         setSubmitting(false);
         return;
       }
-
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/confirm.tsx:200',message:'BEFORE inserting appointment',data:{clientId:user.id,businessId:params.businessId,serviceId:params.serviceId,startTime,endTime,paymentMethod},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
-      // #endregion
-      
-      const serviceIdNum = parseInt(params.serviceId, 10);
+const serviceIdNum = parseInt(params.serviceId, 10);
       if (isNaN(serviceIdNum)) {
         Alert.alert('Erro', 'ID do serviço inválido');
         setSubmitting(false);
@@ -243,12 +228,7 @@ const ScheduleConfirmScreen: React.FC = () => {
         })
         .select()
         .single();
-
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/confirm.tsx:221',message:'AFTER inserting appointment',data:{hasError:!!error,errorMessage:error?.message,appointmentId:appointmentData?.id,appointmentIdType:typeof appointmentData?.id,createdAt:appointmentData?.created_at},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
-      // #endregion
-
-      if (error) {
+if (error) {
         const processed = handleError(error, 'appointment');
         showError(processed.userMessage);
         setSubmitting(false);

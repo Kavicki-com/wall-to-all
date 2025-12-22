@@ -67,11 +67,7 @@ const ScheduleTimeScreen: React.FC = () => {
       }
 
       const dateString = selectedDate.toISOString().split('T')[0];
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:59',message:'loadAvailableTimes ENTRY',data:{businessId:params.businessId,businessIdType:typeof params.businessId,serviceId:params.serviceId,serviceIdType:typeof params.serviceId,dateString,selectedDateISO:selectedDate.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-      // #endregion
-
-      // Buscar horários de funcionamento da loja e duração do serviço
+// Buscar horários de funcionamento da loja e duração do serviço
       const [businessResult, serviceResult] = await Promise.all([
         supabase
           .from('business_profiles')
@@ -148,40 +144,24 @@ const ScheduleTimeScreen: React.FC = () => {
       }
 
       // Buscar appointments existentes para esta data
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:145',message:'BEFORE querying appointments',data:{businessId:params.businessId,dateString,queryStartTime:`${dateString}T00:00:00`,queryEndTime:`${dateString}T23:59:59`},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,E'})}).catch(()=>{});
-      // #endregion
-      const { data: existingAppointments } = await supabase
+const { data: existingAppointments } = await supabase
         .from('appointments')
         .select('id, start_time, end_time')
         .eq('business_id', Number(params.businessId))
         .gte('start_time', `${dateString}T00:00:00`)
         .lt('start_time', `${dateString}T23:59:59`)
         .in('status', ['pending', 'confirmed']);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:153',message:'AFTER querying appointments - RAW data',data:{existingAppointmentsCount:existingAppointments?.length||0,existingAppointments:existingAppointments?.map(a=>({id:a.id,idType:typeof a.id,start_time:a.start_time,end_time:a.end_time}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
-      // #endregion
-      
-      // Aplicar reagendamentos aceitos aos appointments existentes
+// Aplicar reagendamentos aceitos aos appointments existentes
       const appointmentsWithReschedules = existingAppointments 
         ? await applyAcceptedReschedules(existingAppointments)
         : [];
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:161',message:'AFTER applyAcceptedReschedules',data:{appointmentsWithReschedulesCount:appointmentsWithReschedules.length,appointmentsWithReschedules:appointmentsWithReschedules.map(a=>({id:a.id,idType:typeof a.id,start_time:a.start_time,end_time:a.end_time}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-
-      // Obter horários de almoço
+// Obter horários de almoço
       const lunchBreakStart = businessResult.data?.lunch_break_start;
       const lunchBreakEnd = businessResult.data?.lunch_break_end;
 
       // Gerar slots de horário baseado no horário de funcionamento
       // Usar appointments com reagendamentos aplicados
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:172',message:'BEFORE generateTimeSlots',data:{workDayStart:workDay.start,workDayEnd:workDay.end,appointmentsCount:appointmentsWithReschedules.length,serviceDuration,dateString,lunchBreakStart,lunchBreakEnd},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-      // #endregion
-      const slots = generateTimeSlots(
+const slots = generateTimeSlots(
         workDay.start,
         workDay.end,
         appointmentsWithReschedules || [],
@@ -190,10 +170,7 @@ const ScheduleTimeScreen: React.FC = () => {
         lunchBreakStart,
         lunchBreakEnd,
       );
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:186',message:'AFTER generateTimeSlots',data:{slotsCount:slots.length,availableCount:slots.filter(s=>s.available).length,occupiedCount:slots.filter(s=>s.type==='occupied').length,lunchCount:slots.filter(s=>s.type==='lunch').length,slots:slots.map(s=>({time:s.time,available:s.available,type:s.type}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,C'})}).catch(()=>{});
-      // #endregion
-      setTimeSlots(slots);
+setTimeSlots(slots);
     } catch (error) {
       logger.error('Erro ao carregar horários:', error);
       setTimeSlots([]);
@@ -211,10 +188,7 @@ const ScheduleTimeScreen: React.FC = () => {
     lunchBreakStart?: string | null,
     lunchBreakEnd?: string | null,
   ): TimeSlot[] => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:190',message:'generateTimeSlots ENTRY',data:{startTime,endTime,existingAppointmentsCount:existingAppointments.length,existingAppointments:existingAppointments.map(a=>({start:a.start_time,end:a.end_time})),serviceDuration,dateString},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-    // #endregion
-    const slots: TimeSlot[] = [];
+const slots: TimeSlot[] = [];
     const [startHour] = startTime.split(':').map(Number);
     const [endHour] = endTime.split(':').map(Number);
 
@@ -261,12 +235,7 @@ const ScheduleTimeScreen: React.FC = () => {
       const serviceStart = new Date(`${dateString}T${timeString}:00`);
       const serviceEnd = new Date(serviceStart);
       serviceEnd.setMinutes(serviceEnd.getMinutes() + serviceDuration);
-
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:243',message:'Checking overlap for slot',data:{timeString,serviceStartISO:serviceStart.toISOString(),serviceEndISO:serviceEnd.toISOString(),serviceStartTime:serviceStart.getTime(),serviceEndTime:serviceEnd.getTime()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,C'})}).catch(()=>{});
-      // #endregion
-
-      const overlapDetails: any[] = [];
+const overlapDetails: any[] = [];
       const isOccupied = existingAppointments.some((apt) => {
         const aptStart = new Date(apt.start_time);
         const aptEnd = new Date(apt.end_time);
@@ -287,12 +256,7 @@ const ScheduleTimeScreen: React.FC = () => {
         // Verificar se há overlap entre o serviço (serviceStart até serviceEnd) e o appointment
         return hasOverlap;
       });
-
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'schedule/time.tsx:268',message:'Overlap check result',data:{timeString,isOccupied,overlapDetails,dateString},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,C'})}).catch(()=>{});
-      // #endregion
-
-      if (isOccupied) {
+if (isOccupied) {
         type = 'occupied';
       }
 

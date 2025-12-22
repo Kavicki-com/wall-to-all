@@ -161,9 +161,6 @@ const ClientAppointmentsScreen: React.FC = () => {
       }
 
       if (appointmentsData) {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/index.tsx:168',message:'appointmentsData received',data:{count:appointmentsData.length,firstId:appointmentsData[0]?.id,firstIdType:typeof appointmentsData[0]?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         const appointmentsWithAcceptedReschedules = await applyAcceptedReschedules(appointmentsData);
         
         const appointmentIds = appointmentsWithAcceptedReschedules.map(apt => apt.id);
@@ -186,16 +183,7 @@ const ClientAppointmentsScreen: React.FC = () => {
           }));
 
           const normalizedAppointments = normalizeAppointmentsList(
-            appointmentsWithReschedule.map(apt => ({
-              ...apt,
-              id: String(apt.id),
-              service: Array.isArray(apt.service) 
-                ? apt.service.map(s => ({ ...s, id: String(s.id) }))
-                : { ...apt.service, id: String(apt.service.id) },
-              business: Array.isArray(apt.business)
-                ? apt.business.map(b => ({ ...b, id: String(b.id) }))
-                : { ...apt.business, id: String(apt.business.id) },
-            })) as RawAppointment[],
+            appointmentsWithReschedule as RawAppointment[]
           );
 
           if (reset) {
@@ -208,16 +196,7 @@ const ClientAppointmentsScreen: React.FC = () => {
           }
         } else {
           const normalizedAppointments = normalizeAppointmentsList(
-            appointmentsWithAcceptedReschedules.map(apt => ({
-              ...apt,
-              id: String(apt.id),
-              service: Array.isArray(apt.service)
-                ? apt.service.map(s => ({ ...s, id: String(s.id) }))
-                : { ...apt.service, id: String(apt.service.id) },
-              business: Array.isArray(apt.business)
-                ? apt.business.map(b => ({ ...b, id: String(b.id) }))
-                : { ...apt.business, id: String(apt.business.id) },
-            })) as RawAppointment[],
+            appointmentsWithAcceptedReschedules as RawAppointment[]
           );
 
           if (reset) {
@@ -262,9 +241,6 @@ const ClientAppointmentsScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/index.tsx:260',message:'appointmentsKey effect triggered',data:{appointmentsKey,appointmentsCount:appointments.length,selectedDate:selectedDate.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     if (appointments.length > 0) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -275,10 +251,6 @@ const ClientAppointmentsScreen: React.FC = () => {
         aptDate.setHours(0, 0, 0, 0);
         return aptDate.toISOString().split('T')[0] === currentSelectedString;
       });
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/index.tsx:273',message:'checking selected date',data:{hasSelectedDateAppointments,currentSelectedString},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       
       if (!hasSelectedDateAppointments) {
         const sortedAppointments = [...appointments].sort((a, b) => 
@@ -297,10 +269,6 @@ const ClientAppointmentsScreen: React.FC = () => {
         if (appointmentToShow) {
           const appointmentDate = new Date(appointmentToShow.start_time);
           appointmentDate.setHours(0, 0, 0, 0);
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/index.tsx:297',message:'updating selected date',data:{appointmentDate:appointmentDate.toISOString(),appointmentId:appointmentToShow.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
           
           setSelectedDate(appointmentDate);
           setCurrentMonth(appointmentDate);
@@ -397,7 +365,7 @@ const ClientAppointmentsScreen: React.FC = () => {
           <CustomButton
             title="Agendar serviços"
             variant="outline"
-            onPress={() => router.push('/(client)/home')}
+            onPress={() => router.push('/(client)/search')}
             width="100%"
             style={{
               borderRadius: 30,

@@ -42,26 +42,14 @@ const StoreProfileScreen: React.FC = () => {
   const businessId = Number(params.id);
   const { session } = useAuth();
   const clientId = session?.user?.id || null;
-
-  // #region agent log
-  React.useEffect(() => {
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:72',message:'StoreProfileScreen component mounting',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:76',message:'businessId extracted from params',data:{businessId,businessIdType:typeof businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:78',message:'Auth context values',data:{hasSession:!!session,clientId,clientIdType:typeof clientId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  }, [businessId, session, clientId]);
-  // #endregion
-
-  const [loading, setLoading] = useState(true);
+const [loading, setLoading] = useState(true);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [reviewStats, setReviewStats] = useState<ReviewStats>({ average_rating: 0, total_reviews: 0 });
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:85',message:'useEffect triggered for loadBusinessData',data:{businessId,hasBusinessId:!!businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    if (businessId) {
+if (businessId) {
       loadBusinessData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,18 +57,11 @@ const StoreProfileScreen: React.FC = () => {
   }, [businessId]);
 
   const loadBusinessData = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:86',message:'loadBusinessData called',data:{businessId,businessIdType:typeof businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    if (!businessId) return;
+if (!businessId) return;
 
     try {
       setLoading(true);
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:92',message:'Starting business profile query',data:{businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
-      const { data: businessData, error: businessError } = await supabase
+const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
         .select(`
           *,
@@ -93,10 +74,7 @@ const StoreProfileScreen: React.FC = () => {
         .single();
 
       if (businessError) {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(client)/store/[id].tsx:104',message:'Business profile query error',data:{error:businessError.message,code:businessError.code,businessId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        logger.error('Erro ao buscar perfil do negócio:', businessError);
+logger.error('Erro ao buscar perfil do negócio:', businessError);
         setLoading(false);
         return;
       }

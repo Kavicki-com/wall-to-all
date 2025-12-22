@@ -42,28 +42,17 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
   clientId,
   onReviewSubmitted,
 }) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/reviews/ReviewModal.tsx:27',message:'ReviewModal rendering',data:{visible,businessId,businessIdType:typeof businessId,clientId,hasClientId:!!clientId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
-  const [rating, setRating] = useState<number | null>(null);
+const [rating, setRating] = useState<number | null>(null);
   const [comment, setComment] = useState('');
   const [reviewType, setReviewType] = useState<ReviewType>('business');
   const [selectedService, setSelectedService] = useState<ServiceOption | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ rating?: string; comment?: string }>({});
-
-  // #region agent log
-  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/reviews/ReviewModal.tsx:51',message:'Before useReviewPermissions call',data:{businessId,businessIdType:typeof businessId,clientId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-  const permissions = useReviewPermissions(
+const permissions = useReviewPermissions(
     typeof businessId === 'string' ? Number(businessId) : businessId,
     clientId
   );
-  // #region agent log
-  fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/reviews/ReviewModal.tsx:55',message:'After useReviewPermissions call',data:{isLoading:permissions.isLoading,canReviewBusiness:permissions.canReviewBusiness},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-
-  const loadExistingReview = useCallback(async (reviewId: number | null) => {
+const loadExistingReview = useCallback(async (reviewId: number | null) => {
     if (!reviewId) return;
 
     try {

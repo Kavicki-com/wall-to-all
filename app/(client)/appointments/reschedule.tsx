@@ -150,8 +150,8 @@ const RescheduleAppointmentScreen: React.FC = () => {
         return;
       }
 
-      setAppointment(appointmentData as any);
-      generateAvailableDates(appointmentData as any);
+      setAppointment(appointmentData as Appointment);
+      generateAvailableDates(appointmentData as Appointment);
       
       if (params.reason) {
         setJustification(params.reason);
@@ -528,9 +528,6 @@ const RescheduleAppointmentScreen: React.FC = () => {
       }
 
       // Enviar notificação para o merchant
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:548',message:'Iniciando processo de notificação para merchant',data:{appointmentId:params.appointmentId,rescheduleId:rescheduleData.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-      // #endregion
       try {
         // Buscar dados do merchant e cliente
         const { data: businessData } = await supabase
@@ -539,24 +536,13 @@ const RescheduleAppointmentScreen: React.FC = () => {
           .eq('id', appointment.business.id)
           .single();
 
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:554',message:'Business data buscado',data:{hasBusinessData:!!businessData,ownerId:businessData?.owner_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-        // #endregion
-
         const { data: clientData } = await supabase
           .from('profiles')
           .select('full_name')
           .eq('id', user.id)
           .single();
 
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:563',message:'Client data buscado',data:{hasClientData:!!clientData,clientName:clientData?.full_name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-        // #endregion
-
         if (businessData?.owner_id && clientData?.full_name) {
-          // #region agent log
-          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:565',message:'Condição satisfeita, chamando notifyRescheduleRequested',data:{ownerId:businessData.owner_id,appointmentId:parseInt(params.appointmentId),rescheduleId:rescheduleData.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-          // #endregion
           await notifyRescheduleRequested(
             businessData.owner_id,
             parseInt(params.appointmentId),
@@ -564,15 +550,8 @@ const RescheduleAppointmentScreen: React.FC = () => {
             clientData.full_name,
             newStartTime.toISOString()
           );
-        } else {
-          // #region agent log
-          fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:575',message:'Condição NÃO satisfeita - notificação NÃO será enviada ao merchant',data:{hasBusinessData:!!businessData,hasOwnerId:!!businessData?.owner_id,hasClientData:!!clientData,hasClientName:!!clientData?.full_name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-          // #endregion
         }
       } catch (notifError) {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:577',message:'Exceção ao enviar notificação para merchant',data:{error:notifError?.toString(),errorMessage:notifError instanceof Error?notifError.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT_NOTIF'})}).catch(()=>{});
-        // #endregion
         // Não bloquear o fluxo se a notificação falhar
         logger.warn('Erro ao enviar notificação de reagendamento:', notifError);
       }

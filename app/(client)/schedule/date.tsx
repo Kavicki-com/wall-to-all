@@ -21,24 +21,14 @@ const ScheduleDateScreen: React.FC = () => {
   // Resetar seleção quando a tela é focada
   useFocusEffect(
     React.useCallback(() => {
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'date.tsx:22',message:'useFocusEffect - resetando seleção',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
-      setSelectedDate(null);
+setSelectedDate(null);
       setCurrentMonth(new Date());
       return () => {
         // Cleanup ao desfocar
       };
     }, [])
   );
-  
-  // #region agent log
-  React.useEffect(() => {
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'date.tsx:32',message:'selectedDate mudou',data:{selectedDateISO:selectedDate?.toISOString(),currentMonthISO:currentMonth.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-  }, [selectedDate, currentMonth]);
-  // #endregion
-
-  // Verificar parâmetros e redirecionar se necessário (após o render inicial)
+// Verificar parâmetros e redirecionar se necessário (após o render inicial)
   React.useEffect(() => {
     if (!params.businessId || !params.serviceId) {
       // Usar replace para evitar adicionar ao histórico
@@ -49,15 +39,9 @@ const ScheduleDateScreen: React.FC = () => {
   }, [params.businessId, params.serviceId]);
 
   const handleDateSelect = (date: Date) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'date.tsx:51',message:'handleDateSelect chamado - copiado do merchant',data:{dateISO:date.toISOString(),dateString:date.toISOString().split('T')[0],previousSelectedDateISO:selectedDate?.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT'})}).catch(()=>{});
-    // #endregion
-    // Copiado do merchant: apenas atualizar selectedDate, sem atualizar currentMonth
+// Copiado do merchant: apenas atualizar selectedDate, sem atualizar currentMonth
     setSelectedDate(date);
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'date.tsx:56',message:'handleDateSelect - apenas selectedDate atualizado',data:{dateISO:date.toISOString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'MERCHANT'})}).catch(()=>{});
-    // #endregion
-  };
+};
 
   const handleMonthChange = (direction: 'prev' | 'next') => {
     setCurrentMonth((prevMonth) => {

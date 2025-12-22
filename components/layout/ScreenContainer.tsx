@@ -135,10 +135,8 @@ export default function ScreenContainer({
         contentContainerStyle={finalContentContainerStyle}
         showsVerticalScrollIndicator={false}
         refreshControl={refreshControl}
-        // #region agent log
         nestedScrollEnabled={true}
         scrollEnabled={true}
-        // #endregion
       >
         {children}
       </ScrollView>

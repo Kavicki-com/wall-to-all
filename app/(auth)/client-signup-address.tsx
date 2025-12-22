@@ -35,40 +35,34 @@ const ClientSignupAddressScreen: React.FC = () => {
 
   const draftKey = 'client_signup_draft';
 
-  // Carregar draft na montagem inicial
-  useEffect(() => {
-    const loadDraft = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(draftKey);
-        if (!stored) return;
-        const parsed = JSON.parse(stored);
-        setCep(parsed.cep || '');
-        setEndereco(parsed.endereco || '');
-        setComplemento(parsed.complemento || '');
-        setNumero(parsed.numero || '');
-        setBairro(parsed.bairro || '');
-        setCidade(parsed.cidade || '');
-        setEstado(parsed.estado || '');
-      } catch {
-        // ignore draft errors
-      }
-    };
-    loadDraft();
+  // Carregar draft na montagem inicial e quando a tela é focada
+  const loadDraft = React.useCallback(async () => {
+    try {
+      const stored = await AsyncStorage.getItem(draftKey);
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      setCep(parsed.cep || '');
+      setEndereco(parsed.endereco || '');
+      setComplemento(parsed.complemento || '');
+      setNumero(parsed.numero || '');
+      setBairro(parsed.bairro || '');
+      setCidade(parsed.cidade || '');
+      setEstado(parsed.estado || '');
+    } catch {
+      // ignore draft errors
+    }
   }, []);
 
-  // Resetar campos quando a tela é focada (quando volta de outras telas)
-  // O draft só é carregado no useEffect acima na montagem inicial
+  useEffect(() => {
+    loadDraft();
+  }, [loadDraft]);
+
+  // Recarregar draft quando a tela é focada (quando volta de outras telas)
   useFocusEffect(
     React.useCallback(() => {
-      setCep('');
-      setEndereco('');
-      setComplemento('');
-      setNumero('');
-      setBairro('');
-      setCidade('');
-      setEstado('');
+      loadDraft();
       setError(null);
-    }, [])
+    }, [loadDraft])
   );
 
   const formatCEP = (text: string) => {

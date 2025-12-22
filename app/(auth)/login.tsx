@@ -145,24 +145,14 @@ const LoginScreen: React.FC = () => {
       setGoogleLoading(true);
       // Usa o scheme diretamente como string (mesmo padrão usado em reset-password)
       const redirectTo = 'walltoall://auth/callback';
-      
-      // #region agent log
-      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:195',message:'Redirect URL generated',data:{redirectTo},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{}); } catch(e) {}
-      // #endregion
-
-      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
           skipBrowserRedirect: true,
         },
       });
-      
-      // #region agent log
-      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:203',message:'OAuth response',data:{hasError:!!oauthError,hasData:!!data,hasUrl:!!data?.url,oauthUrl:data?.url?.substring(0,150)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{}); } catch(e) {}
-      // #endregion
-
-      if (oauthError) {
+if (oauthError) {
         const processed = handleError(oauthError, 'auth');
         setError(processed.userMessage);
         showError(processed.userMessage);
@@ -188,10 +178,7 @@ const LoginScreen: React.FC = () => {
             setInfo('Complete seu cadastro para acessar o app.');
             
             if (__DEV__) {
-              // #region agent log
-              try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.tsx:231',message:'OAuth success',data:{success:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{}); } catch(e) {}
-              // #endregion
-            }
+}
           } else {
             const message = 'Não foi possível conectar com Google.';
             setError(message);

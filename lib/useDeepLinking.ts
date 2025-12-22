@@ -133,20 +133,13 @@ export const extractAuthParams = (url: string): Record<string, string | boolean>
  * Retorna true se a sessão foi configurada com sucesso
  */
 export const processAuthTokensFromUrl = async (url: string): Promise<boolean> => {
-  // #region agent log
-  try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:135',message:'processAuthTokensFromUrl ENTRADA',data:{urlLength:url.length,hasHash:url.includes('#'),urlPreview:url.substring(0,80)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
-  // #endregion
-  
-  if (__DEV__) {
+if (__DEV__) {
     logger.debug('[DeepLinking] ========== processAuthTokensFromUrl CHAMADO ==========');
     console.log('[DEBUG] processAuthTokensFromUrl URL:', url.substring(0, 100));
   }
   
   if (!isSupabaseConfigured) {
-    // #region agent log
-    try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:137',message:'Supabase não configurado',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
-    // #endregion
-    if (__DEV__) { 
+if (__DEV__) { 
       logger.error('[DeepLinking] Supabase não configurado!');
     }
     return false;
@@ -158,12 +151,7 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
   }
 
   const params = extractAuthParams(url);
-  
-  // #region agent log
-  try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:149',message:'extractAuthParams retornou',data:{hasParams:!!params,isError:params?.__error,hasAccessToken:!!params?.access_token,hasRefreshToken:!!params?.refresh_token,type:params?.type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{}); } catch(e) {}
-  // #endregion
-  
-  if (!params) {
+if (!params) {
     if (__DEV__) { 
       logger.warn('[DeepLinking] ✗ Nenhum token de autenticação encontrado na URL');
     }
@@ -229,12 +217,7 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
     if (__DEV__) {
       logger.debug('[DeepLinking] Chamando setSession...');
     }
-
-    // #region agent log
-    try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:194',message:'ANTES setSession',data:{isRecovery:type==='recovery',accessTokenLength:accessToken?.length,refreshTokenLength:refreshToken?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
-    // #endregion
-
-    if (__DEV__) {
+if (__DEV__) {
       logger.debug('[DeepLinking] ========== CHAMANDO setSession ==========');
       console.log('[DEBUG] setSession - isRecovery:', type === 'recovery');
       console.log('[DEBUG] setSession - accessToken length:', accessToken?.length);
@@ -244,12 +227,7 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
       access_token: accessToken,
       refresh_token: refreshToken,
     });
-
-    // #region agent log
-    try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:200',message:'DEPOIS setSession',data:{hasData:!!data,hasSession:!!data?.session,hasUser:!!data?.session?.user,hasError:!!error,errorMessage:error?.message,userEmail:data?.session?.user?.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
-    // #endregion
-
-    if (__DEV__) {
+if (__DEV__) {
       logger.debug('[DeepLinking] ========== setSession RESULTADO ==========');
       console.log('[DEBUG] setSession resultado - hasError:', !!error);
       console.log('[DEBUG] setSession resultado - hasSession:', !!data?.session);
@@ -300,17 +278,8 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
     // Verifica se a sessão foi realmente persistida após setSession
     // Em produção, pode haver um delay na persistência
     const verifySession = async () => {
-      // #region agent log
-      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:226',message:'verifySession - primeira tentativa',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
-      // #endregion
-      
-      const { data: { session: verifiedSession }, error: verifyError } = await supabase.auth.getSession();
-      
-      // #region agent log
-      try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:230',message:'verifySession - resultado primeira tentativa',data:{hasSession:!!verifiedSession,hasError:!!verifyError,errorMessage:verifyError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
-      // #endregion
-      
-      if (verifyError) {
+const { data: { session: verifiedSession }, error: verifyError } = await supabase.auth.getSession();
+if (verifyError) {
         logger.error('[DeepLinking] Erro ao verificar sessão após setSession:', verifyError);
         return false;
       }
@@ -321,12 +290,7 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
         // Aguarda um pouco e tenta novamente
         await new Promise(resolve => setTimeout(resolve, 500));
         const { data: { session: retrySession } } = await supabase.auth.getSession();
-        
-        // #region agent log
-        try { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useDeepLinking.ts:241',message:'verifySession - resultado retry',data:{hasSession:!!retrySession},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{}); } catch(e) {}
-        // #endregion
-        
-        if (!retrySession) {
+if (!retrySession) {
           logger.error('[DeepLinking] Sessão ainda não encontrada após retry');
           return false;
         }

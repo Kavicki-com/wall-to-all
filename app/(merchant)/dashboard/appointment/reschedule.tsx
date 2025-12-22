@@ -558,10 +558,7 @@ const MerchantRescheduleScreen: React.FC = () => {
 
   const handleSuggestNewTime = () => {
     if (!selectedDate || !selectedTime || !appointment) return;
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:560',message:'handleSuggestNewTime chamado - abrindo modal',data:{selectedDate:selectedDate?.toISOString().split('T')[0],selectedTime,appointmentId:params.appointmentId,justification},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    setShowConfirmModal(true);
+setShowConfirmModal(true);
   };
 
   const handleModalClose = () => {
@@ -727,9 +724,6 @@ const MerchantRescheduleScreen: React.FC = () => {
         {/* Reschedule Confirm Modal */}
         {selectedDate && selectedTime && (
           <>
-            {/* #region agent log */}
-            {(() => { fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reschedule.tsx:730',message:'Renderizando RescheduleConfirmModal',data:{showConfirmModal,selectedDate:selectedDate?.toISOString().split('T')[0],selectedTime,appointmentId:params.appointmentId,hasJustification:!!justification},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{}); return null; })()}
-            {/* #endregion */}
             <RescheduleConfirmModal
               visible={showConfirmModal}
               onClose={handleModalClose}

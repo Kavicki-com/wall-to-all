@@ -296,9 +296,6 @@ const AppointmentDetailScreen: React.FC = () => {
       }
 
       // Cancelar outros reagendamentos pendentes do mesmo agendamento
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:302',message:'Cliente aceitou reagendamento - cancelando outros pendentes',data:{appointmentId:appointment.id,acceptedRescheduleId:rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       await supabase
         .from('appointment_reschedules')
         .update({
@@ -307,29 +304,16 @@ const AppointmentDetailScreen: React.FC = () => {
         .eq('appointment_id', appointment.id)
         .eq('status', 'pending')
         .neq('id', rescheduleId);
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:310',message:'Reagendamentos pendentes cancelados após aceite',data:{appointmentId:appointment.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
 
       // Buscar o business_profile para obter o owner_id e enviar notificação
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:318',message:'Cliente aceitou - buscando businessProfile para notificar merchant',data:{appointmentId:appointment.id,businessId:appointment.business.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
-      // #endregion
       const { data: businessProfile } = await supabase
         .from('business_profiles')
         .select('owner_id, business_name')
         .eq('id', appointment.business.id)
         .single();
 
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:325',message:'BusinessProfile buscado',data:{hasBusinessProfile:!!businessProfile,ownerId:businessProfile?.owner_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
-      // #endregion
-
       // Enviar notificação ao merchant
       if (businessProfile?.owner_id) {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:329',message:'Chamando notifyRescheduleAccepted para merchant',data:{ownerId:businessProfile.owner_id,appointmentId:appointment.id,rescheduleId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
-        // #endregion
         await notifyRescheduleAccepted(
           businessProfile.owner_id,
           appointment.id,
@@ -337,10 +321,6 @@ const AppointmentDetailScreen: React.FC = () => {
           rescheduleData.new_start_time,
           businessProfile.business_name
         );
-      } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/9d7f4bcc-3db1-4812-9bec-f164138d1916',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'appointments/[id].tsx:338',message:'Condição NÃO satisfeita - notificação NÃO será enviada ao merchant',data:{hasBusinessProfile:!!businessProfile,hasOwnerId:!!businessProfile?.owner_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'ACCEPTED_NOTIF'})}).catch(()=>{});
-        // #endregion
       }
 
       // Recarregar dados do agendamento para mostrar os novos horários

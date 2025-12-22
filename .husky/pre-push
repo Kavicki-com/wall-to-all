@@ -1,4 +1,5 @@
-# Temporariamente desabilitado até corrigir warnings de lint
-# npm run lint
-npm run typecheck
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+npm run verify
 
