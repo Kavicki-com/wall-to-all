@@ -418,7 +418,7 @@ const EditBusinessProfileScreen: React.FC = () => {
                 .from('business_profiles')
                 .select('id')
                 .eq('owner_id', user.id)
-                .single();
+                .maybeSingle();
 
               if (businessData) {
                 const businessId = businessData.id;

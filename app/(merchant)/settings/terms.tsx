@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   Modal,
 } from 'react-native';
 import { CustomButton } from '../../../components/CustomButton';
-import { safeGoBack } from '../../../lib/router-utils';
+import { router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
 const TERMS_CONTENT = `
 Termos de Uso – Wall to All
@@ -110,13 +111,30 @@ Termos de Uso – Wall to All
 `;
 
 const TermsScreen: React.FC = () => {
+  const [visible, setVisible] = useState(true);
+
+  // Reabilita o modal sempre que esta tela ganhar foco novamente
+  useFocusEffect(
+    useCallback(() => {
+      setVisible(true);
+    }, []),
+  );
+
+  const handleClose = () => {
+    // Esconde o modal imediatamente para evitar que fique visível após navegar
+    setVisible(false);
+    // Pequeno atraso para garantir que o estado de visibilidade aplique antes da navegação
+    requestAnimationFrame(() => {
+      router.replace('/(merchant)/settings' as never);
+    });
+  };
 
   return (
     <Modal
-      visible={true}
+      visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => safeGoBack('/(merchant)/settings')}
+      onRequestClose={handleClose}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
@@ -134,7 +152,7 @@ const TermsScreen: React.FC = () => {
           <CustomButton
             title="Fechar"
             variant="outline"
-            onPress={() => safeGoBack('/(merchant)/settings')}
+            onPress={handleClose}
             style={{ borderRadius: 24, width: 256, alignSelf: 'center' }}
           />
         </View>
