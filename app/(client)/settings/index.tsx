@@ -47,6 +47,65 @@ const SettingsScreen: React.FC = () => {
     ]);
   };
 
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      'Excluir Conta',
+      'Tem certeza que deseja excluir sua conta? Esta ação é irreversível e todos os seus dados serão permanentemente removidos, incluindo:\n\n• Seus agendamentos\n• Suas avaliações\n• Seu perfil\n\nEsta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir Conta',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+
+              if (!user) {
+                Alert.alert('Erro', 'Usuário não autenticado.');
+                return;
+              }
+
+              // 1. Deletar agendamentos do cliente
+              await supabase.from('appointments').delete().eq('client_id', user.id);
+
+              // 2. Deletar avaliações do cliente
+              await supabase.from('reviews').delete().eq('client_id', user.id);
+
+              // 3. Deletar profile do usuário
+              await supabase.from('profiles').delete().eq('id', user.id);
+
+              // 4. Deletar usuário do auth.users usando Edge Function
+              try {
+                const { error: deleteError } = await supabase.functions.invoke('delete-user', {
+                  method: 'POST',
+                });
+
+                if (deleteError) {
+                  console.error('Erro ao deletar usuário do auth:', deleteError);
+                  // Continua mesmo se falhar - o usuário já foi removido das tabelas principais
+                }
+              } catch (fnError) {
+                console.error('Erro ao chamar função de exclusão:', fnError);
+                // Continua mesmo se falhar - o usuário já foi removido das tabelas principais
+              }
+
+              // 5. Fazer logout
+              await supabase.auth.signOut();
+
+              Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');
+              router.replace('/(auth)/login');
+            } catch (error) {
+              console.error('Erro ao excluir conta:', error);
+              Alert.alert('Erro', 'Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   if (loading) {
     return (
       <ScreenContainer 
@@ -112,22 +171,7 @@ const SettingsScreen: React.FC = () => {
           {/* Excluir Conta */}
           <TouchableOpacity
             style={styles.optionItem}
-            onPress={() => {
-              Alert.alert(
-                'Excluir conta',
-                'Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita.',
-                [
-                  { text: 'Cancelar', style: 'cancel' },
-                  {
-                    text: 'Excluir',
-                    style: 'destructive',
-                    onPress: () => {
-                      Alert.alert('Atenção', 'Funcionalidade de exclusão de conta em desenvolvimento.');
-                    },
-                  },
-                ]
-              );
-            }}
+            onPress={handleDeleteAccount}
             activeOpacity={0.7}
           >
             <IconDelete size={24} color="#000E3D" />

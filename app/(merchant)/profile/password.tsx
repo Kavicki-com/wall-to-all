@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
   Modal,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -35,32 +34,25 @@ const ChangePasswordScreen: React.FC = () => {
 
   const handleChangePassword = async () => {
     if (!newPassword || !confirmPassword) {
-      Alert.alert('Erro', 'Preencha todos os campos.');
+      showError('Preencha todos os campos.');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert('Erro', 'As senhas devem ser iguais.');
+      showError('As senhas devem ser iguais.');
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
+      showError('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
 
     try {
       setLoading(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user || !user.email) {
-        Alert.alert('Erro', 'Usuário não encontrado.');
-        return;
-      }
-
+      // O updateUser já valida automaticamente a sessão do usuário
+      // Não é necessário chamar getUser() antes
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });

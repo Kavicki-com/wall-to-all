@@ -35,6 +35,7 @@ const ResetPasswordScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(true);
+  const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
 if (__DEV__) {
@@ -257,6 +258,7 @@ if (__DEV__) { logger.debug('[ResetPassword] Sessão existente encontrada ANTES 
         if (existingSession) {
           if (__DEV__) { logger.debug('[ResetPassword] Sessão já existe, não precisa processar deep link');
           }
+          setHasSession(true);
           setIsValidating(false);
           return;
         }

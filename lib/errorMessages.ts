@@ -62,6 +62,7 @@ export const CONTEXT_MESSAGES: Record<ErrorContext, Partial<Record<ErrorCategory
   profile: {
     network: 'Erro ao carregar perfil. Verifique sua conexão e tente novamente',
     notFound: 'Perfil não encontrado',
+    auth: 'A nova senha deve ser diferente da senha atual',
     unknown: 'Erro ao carregar perfil. Tente novamente',
   },
   appointment: {

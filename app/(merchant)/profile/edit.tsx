@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { useBusinessProfile } from '../../../context/BusinessProfileContext';
@@ -96,7 +97,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [16, 9],
         quality: 0.8,
@@ -109,6 +110,17 @@ const EditBusinessProfileScreen: React.FC = () => {
       const processed = handleError(error, 'upload');
       showError(processed.userMessage);
     }
+  };
+
+  // Função auxiliar para determinar contentType baseado na extensão
+  const getImageContentType = (ext: string): string => {
+    const extMap: Record<string, string> = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'webp': 'image/webp',
+    };
+    return extMap[ext.toLowerCase()] || 'image/jpeg';
   };
 
   const pickLogo = async () => {
@@ -129,7 +141,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -156,21 +168,35 @@ const EditBusinessProfileScreen: React.FC = () => {
 
       if (!user) return null;
 
-      const fileExt = bannerUri.split('.').pop() || 'jpg';
-      const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+      const fileExt = bannerUri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `business-banners/${fileName}`;
 
-      const response = await fetch(bannerUri);
-      if (!response.ok) {
-        logger.error(`Erro ao ler arquivo do banner: HTTP ${response.status}`);
+      // Verificar se o arquivo existe antes de ler
+      const fileInfo = await FileSystem.getInfoAsync(bannerUri);
+      if (!fileInfo.exists) {
+        logger.error('Arquivo do banner não encontrado');
         return null;
       }
-      const blob = await response.blob();
 
+      // Ler arquivo como Base64
+      const base64 = await FileSystem.readAsStringAsync(bannerUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Converter Base64 para Uint8Array
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+
+      // Fazer upload
       const { error } = await supabase.storage
         .from('business-assets')
-        .upload(filePath, blob, {
-          contentType: 'image/jpeg',
+        .upload(filePath, byteArray, {
+          contentType: getImageContentType(fileExt),
           upsert: true,
         });
 
@@ -202,25 +228,40 @@ const EditBusinessProfileScreen: React.FC = () => {
 
       if (!user) return null;
 
-      const fileName = `${user.id}_${Date.now()}.jpg`;
+      const fileExt = logoUri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `business-logos/${fileName}`;
 
-      const response = await fetch(logoUri);
-      if (!response.ok) {
-        logger.error(`Erro ao ler arquivo do logo: HTTP ${response.status}`);
+      // Verificar se o arquivo existe antes de ler
+      const fileInfo = await FileSystem.getInfoAsync(logoUri);
+      if (!fileInfo.exists) {
+        logger.error('Arquivo do logo não encontrado');
         return null;
       }
-      const blob = await response.blob();
 
+      // Ler arquivo como Base64
+      const base64 = await FileSystem.readAsStringAsync(logoUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Converter Base64 para Uint8Array
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+
+      // Fazer upload
       const { error } = await supabase.storage
         .from('business-assets')
-        .upload(filePath, blob, {
-          contentType: 'image/jpeg',
+        .upload(filePath, byteArray, {
+          contentType: getImageContentType(fileExt),
           upsert: true,
         });
 
       if (error) {
-        logger.error('Erro ao fazer upload:', error);
+        logger.error('Erro ao fazer upload do logo:', error);
         return null;
       }
 
@@ -230,7 +271,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
       return publicUrl;
     } catch (error) {
-      logger.error('Erro ao processar imagem:', error);
+      logger.error('Erro ao processar logo:', error);
       return null;
     }
   };
@@ -271,16 +312,65 @@ const EditBusinessProfileScreen: React.FC = () => {
       const bannerUrl = await uploadBanner();
       const logoUrl = await uploadLogo();
 
+      // Verificar se houve tentativa de upload de novo banner que falhou
+      const originalBannerUrl = contextBusinessProfile.banner_url || null;
+      const hadNewBannerSelected = bannerUri && !bannerUri.startsWith('http');
+      const bannerUploadFailed = hadNewBannerSelected && !bannerUrl;
+      
+      if (bannerUploadFailed) {
+        Alert.alert('Erro', 'Não foi possível fazer upload do banner. Tente novamente.');
+        setSaving(false);
+        return;
+      }
+
+      // Preparar objeto de atualização
+      const updateData: {
+        business_name: string;
+        description: string | null;
+        category_id: number | null;
+        banner_url?: string | null;
+        logo_url?: string | null;
+        work_days: Record<string, { start: string; end: string }> | null;
+      } = {
+        business_name: businessName.trim(),
+        description: description.trim() || null,
+        category_id: selectedCategoryId || null,
+        work_days: Object.keys(workDays).length > 0 ? workDays : null,
+      };
+
+      // Só atualizar banner_url se houver uma mudança real
+      // Se o banner não mudou (é a mesma URL ou ambos são null), manter o existente
+      const hasBannerChanged = bannerUrl !== originalBannerUrl;
+      
+      if (hasBannerChanged) {
+        // Se o usuário removeu o banner (bannerUrl é null mas havia um antes),
+        // ou se fez upload de um novo com sucesso, atualizar
+        updateData.banner_url = bannerUrl;
+      }
+      // Se não mudou, não incluir banner_url no update para preservar o valor existente
+
+      // Verificar se houve tentativa de upload de novo logo que falhou
+      const originalLogoUrl = contextBusinessProfile.logo_url || null;
+      const hadNewLogoSelected = logoUri && !logoUri.startsWith('http');
+      const logoUploadFailed = hadNewLogoSelected && !logoUrl;
+      
+      if (logoUploadFailed) {
+        Alert.alert('Erro', 'Não foi possível fazer upload do logo. Tente novamente.');
+        setSaving(false);
+        return;
+      }
+
+      // Só atualizar logo_url se houver uma mudança real
+      const hasLogoChanged = logoUrl !== originalLogoUrl;
+      
+      if (hasLogoChanged) {
+        updateData.logo_url = logoUrl;
+      }
+      // Se não mudou, não incluir logo_url no update para preservar o valor existente
+
       const { error } = await supabase
         .from('business_profiles')
-        .update({
-          business_name: businessName.trim(),
-          description: description.trim() || null,
-          category_id: selectedCategoryId || null,
-          banner_url: bannerUrl,
-          logo_url: logoUrl,
-          work_days: Object.keys(workDays).length > 0 ? workDays : null,
-        })
+        .update(updateData)
         .eq('id', contextBusinessProfile.id);
 
       if (error) {
@@ -349,9 +439,22 @@ const EditBusinessProfileScreen: React.FC = () => {
               // 5. Deletar profile do usuário
               await supabase.from('profiles').delete().eq('id', user.id);
 
-              // 6. Fazer logout e deletar conta de autenticação
-              // Nota: A exclusão de auth.users geralmente requer função server-side
-              // Por enquanto, apenas fazemos logout
+              // 6. Deletar usuário do auth.users usando Edge Function
+              try {
+                const { error: deleteError } = await supabase.functions.invoke('delete-user', {
+                  method: 'POST',
+                });
+
+                if (deleteError) {
+                  logger.error('Erro ao deletar usuário do auth:', deleteError);
+                  // Continua mesmo se falhar - o usuário já foi removido das tabelas principais
+                }
+              } catch (fnError) {
+                logger.error('Erro ao chamar função de exclusão:', fnError);
+                // Continua mesmo se falhar - o usuário já foi removido das tabelas principais
+              }
+
+              // 7. Fazer logout
               await supabase.auth.signOut();
 
               Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');

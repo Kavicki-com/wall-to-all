@@ -115,13 +115,16 @@ const isAuthError = (error: unknown): boolean => {
     'jwt',
     'expired',
     'user already registered',
+    'new password should be different',
+    'same_password',
   ];
 
   return (
     authIndicators.some((indicator) => errorMessage.includes(indicator)) ||
     errorCode === 'refresh_token_not_found' ||
     errorCode === 'invalid_credentials' ||
-    errorCode === 'unauthorized'
+    errorCode === 'unauthorized' ||
+    errorCode === 'same_password'
   );
 };
 
@@ -241,7 +244,12 @@ export const handleError = (
   const errorCode = getErrorCodeSafe(error);
   const errorMessage = getErrorMessageSafe(error);
   const isExpectedError = 
-    (isAuth && (errorCode === 'invalid_credentials' || errorMessage.includes('Invalid login credentials'))) ||
+    (isAuth && (
+      errorCode === 'invalid_credentials' || 
+      errorCode === 'same_password' ||
+      errorMessage.includes('Invalid login credentials') ||
+      errorMessage.toLowerCase().includes('new password should be different')
+    )) ||
     (category === 'validation' && context === 'login');
 
   if (isExpectedError) {

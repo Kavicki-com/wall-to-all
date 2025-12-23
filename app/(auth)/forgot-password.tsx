@@ -72,7 +72,7 @@ const ForgotPasswordScreen: React.FC = () => {
         return;
       }
 
-      const successMessage = 'E-mail de recuperação enviado! Verifique sua caixa de entrada.';
+      const successMessage = 'E-mail enviado! Verifique sua caixa de entrada e clique no link.';
       setInfo(successMessage);
       showSuccess(successMessage);
       setLoading(false);
