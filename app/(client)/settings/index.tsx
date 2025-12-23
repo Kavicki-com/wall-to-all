@@ -68,13 +68,40 @@ const SettingsScreen: React.FC = () => {
               }
 
               // 1. Deletar agendamentos do cliente
-              await supabase.from('appointments').delete().eq('client_id', user.id);
+              const { error: appointmentsError } = await supabase
+                .from('appointments')
+                .delete()
+                .eq('client_id', user.id);
+
+              if (appointmentsError) {
+                console.error('Erro ao deletar agendamentos:', appointmentsError);
+                Alert.alert('Erro', 'Não foi possível deletar seus agendamentos. Tente novamente.');
+                return;
+              }
 
               // 2. Deletar avaliações do cliente
-              await supabase.from('reviews').delete().eq('client_id', user.id);
+              const { error: reviewsError } = await supabase
+                .from('reviews')
+                .delete()
+                .eq('client_id', user.id);
+
+              if (reviewsError) {
+                console.error('Erro ao deletar avaliações:', reviewsError);
+                Alert.alert('Erro', 'Não foi possível deletar suas avaliações. Tente novamente.');
+                return;
+              }
 
               // 3. Deletar profile do usuário
-              await supabase.from('profiles').delete().eq('id', user.id);
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('id', user.id);
+
+              if (profileError) {
+                console.error('Erro ao deletar perfil:', profileError);
+                Alert.alert('Erro', 'Não foi possível deletar seu perfil. Tente novamente.');
+                return;
+              }
 
               // 4. Deletar usuário do auth.users usando Edge Function
               try {

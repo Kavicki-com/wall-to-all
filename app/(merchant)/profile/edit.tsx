@@ -423,21 +423,66 @@ const EditBusinessProfileScreen: React.FC = () => {
               if (businessData) {
                 const businessId = businessData.id;
 
-                // 1. Deletar agendamentos
-                await supabase.from('appointments').delete().eq('business_id', businessId);
+              // 1. Deletar agendamentos
+              const { error: appointmentsError } = await supabase
+                .from('appointments')
+                .delete()
+                .eq('business_id', businessId);
 
-                // 2. Deletar avaliações
-                await supabase.from('reviews').delete().eq('business_id', businessId);
-
-                // 3. Deletar serviços
-                await supabase.from('services').delete().eq('business_id', businessId);
-
-                // 4. Deletar business_profile
-                await supabase.from('business_profiles').delete().eq('id', businessId);
+              if (appointmentsError) {
+                logger.error('Erro ao deletar agendamentos:', appointmentsError);
+                Alert.alert('Erro', 'Não foi possível deletar os agendamentos. Tente novamente.');
+                return;
               }
 
-              // 5. Deletar profile do usuário
-              await supabase.from('profiles').delete().eq('id', user.id);
+              // 2. Deletar avaliações
+              const { error: reviewsError } = await supabase
+                .from('reviews')
+                .delete()
+                .eq('business_id', businessId);
+
+              if (reviewsError) {
+                logger.error('Erro ao deletar avaliações:', reviewsError);
+                Alert.alert('Erro', 'Não foi possível deletar as avaliações. Tente novamente.');
+                return;
+              }
+
+              // 3. Deletar serviços
+              const { error: servicesError } = await supabase
+                .from('services')
+                .delete()
+                .eq('business_id', businessId);
+
+              if (servicesError) {
+                logger.error('Erro ao deletar serviços:', servicesError);
+                Alert.alert('Erro', 'Não foi possível deletar os serviços. Tente novamente.');
+                return;
+              }
+
+              // 4. Deletar business_profile
+              const { error: businessProfileError } = await supabase
+                .from('business_profiles')
+                .delete()
+                .eq('id', businessId);
+
+              if (businessProfileError) {
+                logger.error('Erro ao deletar perfil do negócio:', businessProfileError);
+                Alert.alert('Erro', 'Não foi possível deletar o perfil do negócio. Tente novamente.');
+                return;
+              }
+            }
+
+            // 5. Deletar profile do usuário
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .delete()
+              .eq('id', user.id);
+
+            if (profileError) {
+              logger.error('Erro ao deletar perfil do usuário:', profileError);
+              Alert.alert('Erro', 'Não foi possível deletar o perfil do usuário. Tente novamente.');
+              return;
+            }
 
               // 6. Deletar usuário do auth.users usando Edge Function
               try {
