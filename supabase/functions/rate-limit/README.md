@@ -153,3 +153,5 @@ Monitore a função através do Supabase Dashboard:
 
 
 
+
+

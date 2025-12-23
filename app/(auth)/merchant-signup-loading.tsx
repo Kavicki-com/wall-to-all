@@ -305,7 +305,8 @@ const MerchantSignupLoadingScreen: React.FC = () => {
           logger.error('[MerchantSignupLoading] Erro ao criar/atualizar profile:', profileError);
         }
 
-        // Criar business_profile
+        // Criar ou atualizar business_profile
+        // Agora com constraint UNIQUE em owner_id, podemos usar upsert de forma idiomática
         const { data: businessProfileData, error: businessProfileError } = await supabase
           .from('business_profiles')
           .upsert({
