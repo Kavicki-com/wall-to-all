@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { IconRatingStar } from '../lib/icons';
-import { useCardWidth } from '../lib/responsive';
+import { useCardWidth, responsiveHeight, responsiveWidth, responsiveFontSize } from '../lib/responsive';
 
 type Props = {
   id: number;
@@ -12,6 +12,7 @@ type Props = {
   reviewCount?: number;
   category?: string | null;
   onPress?: (id: number) => void;
+  testID?: string;
 };
 
 const ServiceCategoryCard: React.FC<Props> = ({
@@ -23,6 +24,7 @@ const ServiceCategoryCard: React.FC<Props> = ({
   reviewCount,
   category,
   onPress,
+  testID,
 }) => {
   const serviceCardWidth = useCardWidth(2, 24, 14);
 
@@ -42,6 +44,7 @@ const ServiceCategoryCard: React.FC<Props> = ({
 
   return (
     <TouchableOpacity
+
       style={[styles.card, { width: serviceCardWidth }]}
       activeOpacity={0.8}
       onPress={() => onPress?.(id)}
@@ -85,14 +88,14 @@ export default ServiceCategoryCard;
 
 const styles = StyleSheet.create({
   card: {
-    marginRight: 14,
+    marginRight: responsiveWidth(14),
     backgroundColor: '#FAFAFA',
-    borderRadius: 8,
+    borderRadius: responsiveWidth(8),
     overflow: 'hidden',
   },
 
   imageContainer: {
-    height: 94,
+    height: responsiveHeight(94),
     position: 'relative',
   },
 
@@ -107,53 +110,53 @@ const styles = StyleSheet.create({
 
   categoryBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: responsiveHeight(8),
+    right: responsiveWidth(8),
     backgroundColor: '#FEFEFE',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    borderRadius: responsiveWidth(8),
+    paddingHorizontal: responsiveWidth(6),
+    paddingVertical: responsiveHeight(4),
   },
 
   categoryText: {
-    fontSize: 12,
+    fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
     color: '#000E3D',
   },
 
   info: {
-    padding: 8,
-    gap: 7,
+    padding: responsiveWidth(8),
+    gap: responsiveHeight(7),
   },
 
   name: {
-    fontSize: 16,
+    fontSize: responsiveFontSize(16),
     fontFamily: 'Montserrat_700Bold',
     color: '#000E3D',
-    minHeight: 40,
+    minHeight: responsiveHeight(40),
     textAlign: 'left',
   },
 
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: responsiveWidth(4),
   },
 
   ratingValue: {
-    fontSize: 12,
+    fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
     color: '#0F0F0F',
   },
 
   ratingCount: {
-    fontSize: 12,
+    fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
     color: '#474747',
   },
 
   price: {
-    fontSize: 16,
+    fontSize: responsiveFontSize(16),
     fontFamily: 'Montserrat_700Bold',
     color: '#17723F',
   },

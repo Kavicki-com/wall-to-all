@@ -15,6 +15,9 @@ import { initMonitoring } from '../lib/monitoring';
 import { useAuthRouting } from '../lib/hooks/useAuthRouting';
 import { useDeepLinkHandler } from '../lib/hooks/useDeepLinkHandler';
 import { useSignupCheck } from '../lib/hooks/useSignupCheck';
+import { useAuth } from '../context/AuthContext';
+import { ActivityIndicator } from 'react-native';
+
 
 // Inicializa monitoramento ANTES de qualquer outra coisa
 // Isso garante que erros sejam capturados desde o início
@@ -24,11 +27,21 @@ initMonitoring();
 SplashScreen.preventAutoHideAsync();
 
 const MainLayout: React.FC = () => {
+  const { isLoading, isInitializing } = useAuth();
+
   // Usa hooks customizados para gerenciar roteamento, deep links e verificação de cadastro
   useAuthRouting();
   useDeepLinkHandler();
   useSignupCheck();
 
+  // Mostra loading screen durante inicialização da autenticação
+  if (isInitializing || isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#F4F6F9', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F6F9' }}>
@@ -60,13 +73,28 @@ const RootLayout: React.FC = () => {
 
   const fontsLoaded = montserratLoaded && robotoLoaded && materialSymbolsLoaded;
 
+  const [isAppReady, setIsAppReady] = React.useState(false);
+
   useEffect(() => {
     if (fontsLoaded) {
-      SplashScreen.hideAsync().catch(() => {});
+      setIsAppReady(true);
+
+      SplashScreen.hideAsync().catch(() => { });
+
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) {
+  // Safety timeout for Splash Screen & App Ready
+  useEffect(() => {
+    const timer = setTimeout(() => {
+
+      setIsAppReady(true);
+      SplashScreen.hideAsync().catch(() => { });
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!isAppReady) {
     // Retorna uma View vazia em vez de null para evitar problemas de renderização
     return <View style={{ flex: 1, backgroundColor: '#F4F6F9' }} />;
   }
@@ -76,7 +104,7 @@ const RootLayout: React.FC = () => {
       <SafeAreaProvider>
         {/* StatusBar configurada globalmente */}
         <StatusBar style="dark" translucent backgroundColor="transparent" />
-        
+
         <ToastProvider>
           <AuthProvider>
             <MainLayout />

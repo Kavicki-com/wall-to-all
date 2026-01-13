@@ -46,7 +46,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Estados para múltiplas fotos (até 4)
   const [serviceImages, setServiceImages] = useState<string[]>([]);
   const [imagesUploading, setImagesUploading] = useState(false);
@@ -74,9 +74,9 @@ const MerchantSignupServicesScreen: React.FC = () => {
   const formatCurrency = (value: string): string => {
     // Remove tudo exceto números
     const numbers = value.replace(/\D/g, '');
-    
+
     if (!numbers) return '';
-    
+
     // Converte para número e formata como BRL
     const amount = parseInt(numbers, 10) / 100;
     return new Intl.NumberFormat('pt-BR', {
@@ -94,24 +94,24 @@ const MerchantSignupServicesScreen: React.FC = () => {
   // Função para converter duração de formato texto para minutos
   const parseDurationToMinutes = (durationText: string): number => {
     if (!durationText) return 60; // Default 1 hora
-    
+
     // Remove espaços e converte para lowercase
     const cleaned = durationText.trim().toLowerCase();
-    
+
     // Tenta extrair horas e minutos
     const hourMatch = cleaned.match(/(\d+)\s*h/);
     const minuteMatch = cleaned.match(/(\d+)\s*m/);
-    
+
     let hours = 0;
     let minutes = 0;
-    
+
     if (hourMatch) {
       hours = parseInt(hourMatch[1], 10);
     }
     if (minuteMatch) {
       minutes = parseInt(minuteMatch[1], 10);
     }
-    
+
     // Se não encontrou horas nem minutos, tenta interpretar como número puro
     // Para evitar ambiguidade, assumimos que números pequenos (<= 8) são horas
     // e números maiores são minutos (mais comum para serviços)
@@ -129,7 +129,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
         }
       }
     }
-    
+
     const totalMinutes = hours * 60 + minutes;
     return totalMinutes > 0 ? totalMinutes : 60; // Default 60 minutos se não conseguir converter
   };
@@ -150,7 +150,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
 
       const { data, error: authError } = await supabase.auth.getUser();
       const currentUser = data?.user;
-      
+
       if (authError || !currentUser) {
         throw new Error('Usuário não autenticado. Faça login novamente.');
       }
@@ -158,7 +158,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
       const authenticatedUserId = currentUser.id;
       const uploadPromises = serviceImages.map(async (imageUri, index) => {
         const fileInfo = await FileSystem.getInfoAsync(imageUri);
-        
+
         if (!fileInfo.exists) {
           throw new Error(`Arquivo de imagem ${index + 1} não encontrado. Por favor, selecione a imagem novamente.`);
         }
@@ -169,7 +169,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
 
         const fileExt = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
         const contentType = fileExt === 'png' ? 'image/png' : fileExt === 'webp' ? 'image/webp' : 'image/jpeg';
-        
+
         if (!ALLOWED_TYPES.includes(contentType)) {
           throw new Error(`Formato de imagem não suportado para imagem ${index + 1} (use jpg, png ou webp).`);
         }
@@ -246,7 +246,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
     // Buscar business_id do business_profiles baseado no usuário logado
     const { data: authData, error: authError } = await supabase.auth.getUser();
     const currentUser = authData?.user;
-    
+
     if (authError || !currentUser) {
       setError('Sessão expirada. Por favor, faça login novamente.');
       setTimeout(() => {
@@ -257,7 +257,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
 
     // Buscar business_id
     let businessIdToUse = companyId;
-    
+
     if (!businessIdToUse) {
       const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
@@ -382,7 +382,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
   };
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
@@ -396,118 +396,123 @@ const MerchantSignupServicesScreen: React.FC = () => {
             onPress={handleContinue}
             isLoading={loading || imagesUploading}
             disabled={loading || imagesUploading}
+
           />
         </View>
       }
       header={
-        <AppHeader 
+        <AppHeader
           title="Novo Serviço"
           showBackButton={true}
           onPressBack={() => safeGoBack('/(merchant)/services')}
         />
       }
     >
-          {/* Form */}
-          <View style={styles.form}>
-            {/* Nome do serviço */}
-            <CustomInput
-              label="Nome do Serviço"
-              placeholder="Nome do Serviço"
-              value={serviceName}
-              onChangeText={setServiceName}
-              containerStyle={styles.inputGroup}
+      {/* Form */}
+      <View style={styles.form}>
+        {/* Nome do serviço */}
+        <CustomInput
+          label="Nome do Serviço"
+          placeholder="Nome do Serviço"
+          value={serviceName}
+          onChangeText={setServiceName}
+          containerStyle={styles.inputGroup}
+
+        />
+
+        {/* Forma de cobrança */}
+        <View style={styles.radioGroup}>
+          <Text style={styles.label}>Forma de cobrança</Text>
+          <RadioGroup
+            options={[
+              { label: 'Valor Fixo', value: 'fixed' },
+              { label: 'Valor por hora', value: 'hourly' },
+            ]}
+            value={chargeType}
+            onValueChange={(value) => setChargeType(value as 'fixed' | 'hourly')}
+            direction="row"
+            gap={12}
+          />
+        </View>
+
+        {/* Preço */}
+        <CustomInput
+          label="Preço"
+          placeholder="R$ 100,00"
+          keyboardType="numeric"
+          value={price}
+          onChangeText={handlePriceChange}
+          containerStyle={styles.inputGroup}
+
+        />
+
+        {/* Duração */}
+        <CustomInput
+          label="Duração"
+          placeholder="1h"
+          value={duration}
+          onChangeText={setDuration}
+          containerStyle={styles.inputGroup}
+
+        />
+
+        {/* Categoria do Serviço */}
+        <View style={styles.radioGroup}>
+          <Text style={styles.label}>Categoria do Serviço</Text>
+          <View style={styles.chipRow}>
+            <Chip
+              label="No meu local"
+              selected={category === 'local'}
+              variant={category === 'local' ? 'filled' : 'outline'}
+              onPress={() => setCategory('local')}
+              onClose={category === 'local' ? () => setCategory('home') : undefined}
             />
-
-            {/* Forma de cobrança */}
-            <View style={styles.radioGroup}>
-              <Text style={styles.label}>Forma de cobrança</Text>
-              <RadioGroup
-                options={[
-                  { label: 'Valor Fixo', value: 'fixed' },
-                  { label: 'Valor por hora', value: 'hourly' },
-                ]}
-                value={chargeType}
-                onValueChange={(value) => setChargeType(value as 'fixed' | 'hourly')}
-                direction="row"
-                gap={12}
-              />
-            </View>
-
-            {/* Preço */}
-            <CustomInput
-              label="Preço"
-              placeholder="R$ 100,00"
-              keyboardType="numeric"
-              value={price}
-              onChangeText={handlePriceChange}
-              containerStyle={styles.inputGroup}
-            />
-
-            {/* Duração */}
-            <CustomInput
-              label="Duração"
-              placeholder="1h"
-              value={duration}
-              onChangeText={setDuration}
-              containerStyle={styles.inputGroup}
-            />
-
-            {/* Categoria do Serviço */}
-            <View style={styles.radioGroup}>
-              <Text style={styles.label}>Categoria do Serviço</Text>
-              <View style={styles.chipRow}>
-                <Chip
-                  label="No meu local"
-                  selected={category === 'local'}
-                  variant={category === 'local' ? 'filled' : 'outline'}
-                  onPress={() => setCategory('local')}
-                  onClose={category === 'local' ? () => setCategory('home') : undefined}
-                />
-                <Chip
-                  label="À domicílio"
-                  selected={category === 'home'}
-                  variant={category === 'home' ? 'filled' : 'outline'}
-                  onPress={() => setCategory('home')}
-                  onClose={category === 'home' ? () => setCategory('local') : undefined}
-                />
-              </View>
-            </View>
-
-            {/* Descrição do serviço */}
-            <CustomInput
-              label="Descrição do Serviço"
-              placeholder="Deixe aqui sua opinião."
-              multiline
-              numberOfLines={4}
-              value={description}
-              onChangeText={setDescription}
-              containerStyle={styles.textareaGroup}
-              inputContainerStyle={styles.textarea}
-            />
-
-            {/* Disponibilidade */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Disponibilidade</Text>
-              <SelectDropdown<AvailabilityOption>
-                data={AVAILABILITY_OPTIONS}
-                labelKey="label"
-                valueKey="value"
-                onSelect={(option) => setAvailability(option)}
-                selectedValue={availability}
-                placeholder="Selecione aqui"
-              />
-            </View>
-
-            {/* Fotos do serviço */}
-            <ServiceImagePicker
-              images={serviceImages}
-              onImagesChange={setServiceImages}
-              uploading={imagesUploading}
-              maxImages={4}
+            <Chip
+              label="À domicílio"
+              selected={category === 'home'}
+              variant={category === 'home' ? 'filled' : 'outline'}
+              onPress={() => setCategory('home')}
+              onClose={category === 'home' ? () => setCategory('local') : undefined}
             />
           </View>
+        </View>
 
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
+        {/* Descrição do serviço */}
+        <CustomInput
+          label="Descrição do Serviço"
+          placeholder="Deixe aqui sua opinião."
+          multiline
+          numberOfLines={4}
+          value={description}
+          onChangeText={setDescription}
+          containerStyle={styles.textareaGroup}
+          inputContainerStyle={styles.textarea}
+
+        />
+
+        {/* Disponibilidade */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Disponibilidade</Text>
+          <SelectDropdown<AvailabilityOption>
+            data={AVAILABILITY_OPTIONS}
+            labelKey="label"
+            valueKey="value"
+            onSelect={(option) => setAvailability(option)}
+            selectedValue={availability}
+            placeholder="Selecione aqui"
+          />
+        </View>
+
+        {/* Fotos do serviço */}
+        <ServiceImagePicker
+          images={serviceImages}
+          onImagesChange={setServiceImages}
+          uploading={imagesUploading}
+          maxImages={4}
+        />
+      </View>
+
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
     </ScreenContainer>
   );
 };

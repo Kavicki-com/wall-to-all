@@ -145,14 +145,14 @@ const LoginScreen: React.FC = () => {
       setGoogleLoading(true);
       // Usa o scheme diretamente como string (mesmo padrão usado em reset-password)
       const redirectTo = 'walltoall://auth/callback';
-const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
           skipBrowserRedirect: true,
         },
       });
-if (oauthError) {
+      if (oauthError) {
         const processed = handleError(oauthError, 'auth');
         setError(processed.userMessage);
         showError(processed.userMessage);
@@ -171,7 +171,7 @@ if (oauthError) {
       if (result.type === 'success' && result.url) {
         try {
           const success = await processAuthTokensFromUrl(result.url);
-          
+
           if (success) {
             // Mostrar feedback de sucesso
             showSuccess('Conta Google conectada com sucesso!');
@@ -210,16 +210,16 @@ if (oauthError) {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <ScrollView 
+          <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             <View style={[
-              styles.mainContainer, 
-              { 
+              styles.mainContainer,
+              {
                 paddingHorizontal: horizontalPadding,
-                minHeight: height * 0.9 
+                minHeight: height * 0.9
               }
             ]}>
               <View style={styles.topSection}>
@@ -230,6 +230,7 @@ if (oauthError) {
 
                 <View style={styles.inputsWrapper}>
                   <CustomInput
+
                     label="Usuário"
                     placeholder="seu@email.com"
                     keyboardType="email-address"
@@ -243,6 +244,7 @@ if (oauthError) {
 
                   <View>
                     <CustomInput
+
                       label="Senha"
                       placeholder="***********"
                       isPassword
@@ -251,9 +253,9 @@ if (oauthError) {
                       labelStyle={styles.label}
                       containerStyle={{ marginBottom: 4 }}
                     />
-                    <TouchableOpacity 
-                      onPress={handleForgotPasswordPress} 
-                      activeOpacity={0.7} 
+                    <TouchableOpacity
+                      onPress={handleForgotPasswordPress}
+                      activeOpacity={0.7}
                       style={styles.forgotPasswordButton}
                     >
                       <Text style={styles.forgotPasswordText}>
@@ -274,11 +276,12 @@ if (oauthError) {
 
               <View style={styles.bottomSection}>
                 <CustomButton
+
                   title="Entrar"
                   onPress={handleLogin}
                   isLoading={loading}
                   disabled={loading}
-                  variant="red" 
+                  variant="red"
                   width="100%"
                   style={styles.buttonSpacing}
                 />

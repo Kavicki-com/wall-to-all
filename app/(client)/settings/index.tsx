@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
+import { logger } from '../../../lib/logger';
 import {
   IconAccount,
   IconLock,
@@ -74,7 +75,7 @@ const SettingsScreen: React.FC = () => {
                 .eq('client_id', user.id);
 
               if (appointmentsError) {
-                console.error('Erro ao deletar agendamentos:', appointmentsError);
+                logger.error('Erro ao deletar agendamentos:', appointmentsError);
                 Alert.alert('Erro', 'Não foi possível deletar seus agendamentos. Tente novamente.');
                 return;
               }
@@ -86,7 +87,7 @@ const SettingsScreen: React.FC = () => {
                 .eq('client_id', user.id);
 
               if (reviewsError) {
-                console.error('Erro ao deletar avaliações:', reviewsError);
+                logger.error('Erro ao deletar avaliações:', reviewsError);
                 Alert.alert('Erro', 'Não foi possível deletar suas avaliações. Tente novamente.');
                 return;
               }
@@ -98,7 +99,7 @@ const SettingsScreen: React.FC = () => {
                 .eq('id', user.id);
 
               if (profileError) {
-                console.error('Erro ao deletar perfil:', profileError);
+                logger.error('Erro ao deletar perfil:', profileError);
                 Alert.alert('Erro', 'Não foi possível deletar seu perfil. Tente novamente.');
                 return;
               }
@@ -110,11 +111,11 @@ const SettingsScreen: React.FC = () => {
                 });
 
                 if (deleteError) {
-                  console.error('Erro ao deletar usuário do auth:', deleteError);
+                  logger.error('Erro ao deletar usuário do auth:', deleteError);
                   // Continua mesmo se falhar - o usuário já foi removido das tabelas principais
                 }
               } catch (fnError) {
-                console.error('Erro ao chamar função de exclusão:', fnError);
+                logger.error('Erro ao chamar função de exclusão:', fnError);
                 // Continua mesmo se falhar - o usuário já foi removido das tabelas principais
               }
 
@@ -135,9 +136,9 @@ const SettingsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor="#FAFAFA"
       >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#E5102E" />
@@ -147,9 +148,9 @@ const SettingsScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
-      backgroundColor="#FAFAFA" 
+      backgroundColor="#FAFAFA"
     >
       {/* Profile Container */}
       <View style={styles.profileContainer}>

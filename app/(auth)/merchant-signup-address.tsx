@@ -16,6 +16,14 @@ import ScreenContainer from '../../components/layout/ScreenContainer';
 import SignupHeaderMerchant from '../../components/auth/SignupHeaderMerchant';
 import { CustomButton } from '../../components/CustomButton';
 import { logger } from '../../lib/logger';
+import {
+  validateCEP,
+  validateCity,
+  validateAddressNumber,
+  validateNeighborhood,
+  BRAZILIAN_STATES
+} from '../../lib/validations';
+import SelectDropdown from '../../components/ui/SelectDropdown';
 
 const MerchantSignupAddressScreen: React.FC = () => {
   const { showError } = useToast();
@@ -31,7 +39,28 @@ const MerchantSignupAddressScreen: React.FC = () => {
   const [numero, setNumero] = useState('');
   const [bairro, setBairro] = useState('');
   const [cidade, setCidade] = useState('');
-  const [estado, setEstado] = useState('');
+  const [estado, setEstado] = useState<{ label: string; value: string } | null>(null);
+
+  // Field errors
+  const [errors, setErrors] = useState<{
+    cep?: string;
+    endereco?: string;
+    numero?: string;
+    bairro?: string;
+    cidade?: string;
+    estado?: string;
+  }>({});
+
+  const isFormValid = () => {
+    return (
+      validateCEP(cep) &&
+      endereco.length >= 3 &&
+      validateAddressNumber(numero) &&
+      validateNeighborhood(bairro) &&
+      validateCity(cidade) &&
+      estado !== null
+    );
+  };
 
   const formatCEP = (text: string) => {
     const cleaned = text.replace(/\D/g, '');
@@ -42,11 +71,57 @@ const MerchantSignupAddressScreen: React.FC = () => {
   };
 
   const handleCEPChange = async (text: string) => {
+    const cleaned = text.replace(/\D/g, '');
     const formatted = formatCEP(text);
     setCep(formatted);
 
-    if (formatted.length === 9) {
-      await fetchAddressByCEP(formatted.replace('-', ''));
+    if (cleaned.length === 8) {
+      setErrors(prev => ({ ...prev, cep: undefined }));
+      await fetchAddressByCEP(cleaned);
+    } else if (text.length > 0 && cleaned.length < 8) {
+      setErrors(prev => ({ ...prev, cep: 'CEP inválido' }));
+    } else {
+      setErrors(prev => ({ ...prev, cep: undefined }));
+    }
+  };
+
+  const handleCidadeChange = (text: string) => {
+    // Proibir estritamente qualquer caractere numérico (0-9) em tempo real
+    const filtered = text.replace(/[0-9]/g, '');
+    setCidade(filtered);
+
+    if (filtered.length > 0 && !validateCity(filtered)) {
+      setErrors(prev => ({ ...prev, cidade: 'Cidade não pode conter números' }));
+    } else {
+      setErrors(prev => ({ ...prev, cidade: undefined }));
+    }
+  };
+
+  const handleNumeroChange = (text: string) => {
+    if (text.length > 10) return;
+    setNumero(text);
+    if (text.length > 0 && !validateAddressNumber(text)) {
+      setErrors(prev => ({ ...prev, numero: 'Número inválido' }));
+    } else {
+      setErrors(prev => ({ ...prev, numero: undefined }));
+    }
+  };
+
+  const handleBairroChange = (text: string) => {
+    setBairro(text);
+    if (text.length > 0 && !validateNeighborhood(text)) {
+      setErrors(prev => ({ ...prev, bairro: 'Bairro inválido' }));
+    } else {
+      setErrors(prev => ({ ...prev, bairro: undefined }));
+    }
+  };
+
+  const handleEnderecoChange = (text: string) => {
+    setEndereco(text);
+    if (text.length > 0 && text.length < 3) {
+      setErrors(prev => ({ ...prev, endereco: 'Endereço muito curto' }));
+    } else {
+      setErrors(prev => ({ ...prev, endereco: undefined }));
     }
   };
 
@@ -56,19 +131,19 @@ const MerchantSignupAddressScreen: React.FC = () => {
       // Adicionar timeout de 10 segundos para evitar que fique travado
       const controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), 10000);
-      
+
       const response = await fetch(`https://viacep.com.br/ws/${cepValue}/json/`, {
         signal: controller.signal,
         headers: {
           'Accept': 'application/json',
         }
       });
-      
+
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
       }
-      
+
       if (!response.ok) {
         // ViaCEP temporariamente indisponível - usuário pode preencher manualmente
         // Usar console.warn em vez de console.error para não poluir logs (é um erro esperado de API externa)
@@ -84,7 +159,20 @@ const MerchantSignupAddressScreen: React.FC = () => {
         setEndereco(data.logradouro || '');
         setBairro(data.bairro || '');
         setCidade(data.localidade || '');
-        setEstado(data.uf || '');
+
+        const foundState = BRAZILIAN_STATES.find(s => s.value === data.uf);
+        if (foundState) {
+          setEstado(foundState);
+        }
+
+        // Clear errors for auto-filled fields
+        setErrors(prev => ({
+          ...prev,
+          endereco: undefined,
+          bairro: undefined,
+          cidade: undefined,
+          estado: undefined
+        }));
       }
     } catch (error: unknown) {
       if (timeoutId) {
@@ -105,52 +193,41 @@ const MerchantSignupAddressScreen: React.FC = () => {
 
   const draftKey = 'merchant_address_draft';
 
-  useEffect(() => {
-    const loadDraft = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(draftKey);
-        if (!stored) return;
-        const parsed = JSON.parse(stored);
-        setCep(parsed.cep || '');
-        setEndereco(parsed.endereco || '');
-        setComplemento(parsed.complemento || '');
-        setNumero(parsed.numero || '');
-        setBairro(parsed.bairro || '');
-        setCidade(parsed.cidade || '');
-        setEstado(parsed.estado || '');
-      } catch {
-        // ignore draft errors
+  const loadDraft = React.useCallback(async () => {
+    try {
+      const stored = await AsyncStorage.getItem(draftKey);
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      setCep(parsed.cep || '');
+      setEndereco(parsed.endereco || '');
+      setComplemento(parsed.complemento || '');
+      setNumero(parsed.numero || '');
+      setBairro(parsed.bairro || '');
+      setCidade(parsed.cidade || '');
+      const foundState = BRAZILIAN_STATES.find(s => s.value === parsed.estado);
+      if (foundState) {
+        setEstado(foundState);
       }
-    };
-    loadDraft();
-  }, []);
+    } catch {
+      // ignore draft errors
+    }
+  }, [draftKey]);
 
-  // Resetar campos quando a tela é focada (quando volta de outras telas)
-  // O draft só é carregado no useEffect acima na montagem inicial
+  useEffect(() => {
+    loadDraft();
+  }, [loadDraft]);
+
   useFocusEffect(
     React.useCallback(() => {
-      setCep('');
-      setEndereco('');
-      setComplemento('');
-      setNumero('');
-      setBairro('');
-      setCidade('');
-      setEstado('');
+      loadDraft();
       setError(null);
-    }, [])
+    }, [loadDraft])
   );
 
   const handleContinue = async () => {
-    // Validar CEP: deve ter 8 dígitos numéricos
-    const cepDigits = cep.replace(/\D/g, '');
-    if (!cepDigits || cepDigits.length !== 8) {
-      setError('CEP deve conter 8 dígitos.');
-      return;
-    }
-
-    const requiredFilled = endereco && numero && bairro && cidade && estado;
-    if (!requiredFilled) {
-      setError('Preencha todos os campos obrigatórios.');
+    const isAllValid = isFormValid();
+    if (!isAllValid) {
+      setError('Por favor, corrija os erros no formulário antes de continuar.');
       return;
     }
 
@@ -161,7 +238,7 @@ const MerchantSignupAddressScreen: React.FC = () => {
       // Buscar dados pessoais salvos anteriormente
       const mainDraftKey = 'merchant_signup_draft';
       const stored = await AsyncStorage.getItem(mainDraftKey);
-      
+
       if (!stored) {
         setError('Dados do cadastro não encontrados. Por favor, volte e preencha novamente.');
         return;
@@ -178,10 +255,10 @@ const MerchantSignupAddressScreen: React.FC = () => {
       }
 
       const addressData = {
-        address: `${endereco}, ${numero}${complemento ? ` - ${complemento}` : ''}, ${bairro}, ${cidade} - ${estado}, CEP: ${cep}`,
+        address: `${endereco}, ${numero}${complemento ? ` - ${complemento}` : ''}, ${bairro}, ${cidade} - ${estado?.value || ''}, CEP: ${cep}`,
         cep,
         cidade,
-        estado,
+        estado: estado?.value || '',
         endereco,
         numero,
         complemento,
@@ -204,7 +281,7 @@ const MerchantSignupAddressScreen: React.FC = () => {
         // ignore cleanup errors
       }
 
-      router.push({
+      router.replace({
         pathname: '/(auth)/merchant-signup-business',
       });
     } catch (err) {
@@ -246,13 +323,16 @@ const MerchantSignupAddressScreen: React.FC = () => {
             onChangeText={handleCEPChange}
             keyboardType="numeric"
             maxLength={9}
+            error={errors.cep}
           />
 
           <CustomInput
             label="Endereço"
             placeholder="Digite sua rua aqui"
             value={endereco}
-            onChangeText={setEndereco}
+            onChangeText={handleEnderecoChange}
+            onBlur={() => setEndereco(endereco.trim())}
+            error={errors.endereco}
           />
 
           <CustomInput
@@ -260,6 +340,7 @@ const MerchantSignupAddressScreen: React.FC = () => {
             placeholder="Selecione aqui"
             value={complemento}
             onChangeText={setComplemento}
+            onBlur={() => setComplemento(complemento.trim())}
           />
 
           <View style={styles.row}>
@@ -267,16 +348,21 @@ const MerchantSignupAddressScreen: React.FC = () => {
               label="Número"
               placeholder="número"
               value={numero}
-              onChangeText={setNumero}
+              onChangeText={handleNumeroChange}
+              onBlur={() => setNumero(numero.trim())}
               keyboardType="numeric"
               containerStyle={styles.inputNumero}
+              error={errors.numero}
+              maxLength={10}
             />
             <CustomInput
               label="Bairro"
               placeholder="Digite seu bairro"
               value={bairro}
-              onChangeText={setBairro}
+              onChangeText={handleBairroChange}
+              onBlur={() => setBairro(bairro.trim())}
               containerStyle={styles.inputBairro}
+              error={errors.bairro}
             />
           </View>
 
@@ -285,18 +371,23 @@ const MerchantSignupAddressScreen: React.FC = () => {
               label="Cidade"
               placeholder=""
               value={cidade}
-              onChangeText={setCidade}
+              onChangeText={handleCidadeChange}
+              onBlur={() => setCidade(cidade.trim())}
               containerStyle={styles.inputCidade}
+              error={errors.cidade}
             />
-            <CustomInput
-              label="Estado"
-              placeholder="UF"
-              value={estado}
-              onChangeText={(text) => setEstado(text.toUpperCase())}
-              maxLength={2}
-              autoCapitalize="characters"
-              containerStyle={styles.inputEstado}
-            />
+            <View style={styles.inputEstado}>
+              <Text style={styles.selectLabel}>Estado</Text>
+              <SelectDropdown
+                data={BRAZILIAN_STATES}
+                selectedValue={estado}
+                onSelect={(item) => {
+                  setEstado(item);
+                  setErrors(prev => ({ ...prev, estado: undefined }));
+                }}
+                placeholder="UF"
+              />
+            </View>
           </View>
 
           {error && <Text style={styles.errorText}>{error}</Text>}
@@ -305,7 +396,7 @@ const MerchantSignupAddressScreen: React.FC = () => {
             title="Continuar"
             onPress={handleContinue}
             isLoading={loading}
-            disabled={loading}
+            disabled={loading || !isFormValid()}
             variant="primary"
             style={{ borderRadius: 24, marginVertical: 0, marginTop: 24 }}
             width="100%"
@@ -350,5 +441,11 @@ const styles = StyleSheet.create({
   continueButton: {
     backgroundColor: '#000E3D',
     paddingVertical: 14,
+  },
+  selectLabel: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_400Regular',
+    color: '#000E3D',
+    marginBottom: 4,
   },
 });

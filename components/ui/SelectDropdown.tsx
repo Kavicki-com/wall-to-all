@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons'; 
+import { MaterialIcons } from '@expo/vector-icons';
 
 interface SelectDropdownProps<T> {
   data: readonly T[] | T[];
@@ -41,8 +41,8 @@ export default function SelectDropdown<T>({
         accessibilityState={{ expanded: isOpen }}
       >
         <Text style={[
-          styles.buttonText, 
-          strong && selectedValue && styles.buttonTextStrong, 
+          styles.buttonText,
+          strong && selectedValue && styles.buttonTextStrong,
           !selectedValue && styles.placeholderText
         ]}>
           {selectedValue ? String(selectedValue[labelKey]) : placeholder}
@@ -86,10 +86,10 @@ export default function SelectDropdown<T>({
 
 const styles = StyleSheet.create({
   container: { position: 'relative', width: '100%' },
-  button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#474747', borderRadius: 4, paddingHorizontal: 12, height: 50 },
+  button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#474747', borderRadius: 4, paddingHorizontal: 12, height: 56 },
   buttonActive: { borderColor: '#000E3D', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   backdrop: { position: 'absolute', top: 0, left: 0, bottom: 0, right: 0, zIndex: 999 },
-  dropdownList: { position: 'absolute', top: 48, left: 0, right: 0, backgroundColor: '#FFF', borderWidth: 1, borderTopWidth: 0, borderColor: '#000E3D', borderBottomLeftRadius: 4, borderBottomRightRadius: 4, elevation: 5, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: {width:0, height:4}, maxHeight: 200, zIndex: 1001, overflow: 'hidden' },
+  dropdownList: { position: 'absolute', top: 54, left: 0, right: 0, backgroundColor: '#FFF', borderWidth: 1, borderTopWidth: 0, borderColor: '#000E3D', borderBottomLeftRadius: 4, borderBottomRightRadius: 4, elevation: 5, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 4 }, maxHeight: 200, zIndex: 1001, overflow: 'hidden' },
   scrollView: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   item: { padding: 12, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#F0F0F0' },

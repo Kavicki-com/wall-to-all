@@ -72,21 +72,21 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
   justification,
   onSuccess,
 }) => {
-  console.log('[RescheduleConfirmModal] Componente renderizado com props:', { visible, appointmentId, date, time, hasJustification: !!justification });
-  
+
+
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-useEffect(() => {
-    console.log('[RescheduleConfirmModal] useEffect [visible] - visible:', visible);
+  useEffect(() => {
+
     if (visible) {
-loadAppointmentData();
+      loadAppointmentData();
       setShowSuccessModal(false);
     } else {
-      console.log('[RescheduleConfirmModal] visible=false, resetando estado');
+
       setLoading(true);
       setAppointment(null);
     }
@@ -94,13 +94,13 @@ loadAppointmentData();
   }, [visible]);
 
   const loadAppointmentData = async () => {
-try {
+    try {
       setLoading(true);
-      console.log('[RescheduleConfirmModal] setLoading(true) chamado');
+
 
       if (!appointmentId || !date || !time) {
-// Não fechar o modal imediatamente - apenas logar o erro
-        console.warn('[RescheduleConfirm] Parâmetros inválidos, mas não fechando modal para debug');
+        // Não fechar o modal imediatamente - apenas logar o erro
+
         setLoading(false);
         return;
       }
@@ -110,7 +110,6 @@ try {
       } = await supabase.auth.getUser();
 
       if (!user) {
-console.warn('[RescheduleConfirm] Usuário não autenticado, mas não fechando modal para debug');
         setLoading(false);
         return;
       }
@@ -122,10 +121,10 @@ console.warn('[RescheduleConfirm] Usuário não autenticado, mas não fechando m
         .single();
 
       if (businessError || !businessData) {
-if (businessError && businessError.code !== 'PGRST116') {
+        if (businessError && businessError.code !== 'PGRST116') {
           logger.error('Erro ao buscar negócio:', businessError);
         }
-        console.warn('[RescheduleConfirm] Erro ao buscar business, mas não fechando modal para debug');
+
         setLoading(false);
         return;
       }
@@ -143,34 +142,34 @@ if (businessError && businessError.code !== 'PGRST116') {
         .eq('id', parseInt(appointmentId))
         .eq('business_id', businessData.id)
         .single();
-if (error || !appointmentData) {
-logger.error('Erro ao buscar agendamento:', error);
-        console.warn('[RescheduleConfirm] Erro ao buscar appointment, mas não fechando modal para debug');
+      if (error || !appointmentData) {
+        logger.error('Erro ao buscar agendamento:', error);
+
         setLoading(false);
         return;
       }
 
       setAppointment(appointmentData as Appointment);
-} catch (error) {
-logger.error('Erro ao carregar dados:', error);
-      console.warn('[RescheduleConfirm] Exceção capturada, mas não fechando modal para debug');
+    } catch (error) {
+      logger.error('Erro ao carregar dados:', error);
+
       setLoading(false);
     } finally {
       setLoading(false);
-}
+    }
   };
 
   const handleSubmit = async () => {
     if (!appointment || !date || !time) return;
-try {
+    try {
       setSubmitting(true);
 
       const dateString = date;
       const [hours, minutes] = time.split(':').map(Number);
-      
+
       // Criar start_time no formato ISO
       const startTime = new Date(`${dateString}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`);
-      
+
       // Calcular end_time baseado na duração do serviço
       const serviceDuration = appointment.service.duration_minutes || 60;
       let durationMinutes = serviceDuration;
@@ -188,7 +187,7 @@ try {
           }
         }
       }
-      
+
       const endTime = new Date(startTime);
       endTime.setMinutes(endTime.getMinutes() + durationMinutes);
 
@@ -294,21 +293,21 @@ try {
       }
 
       // Enviar notificação para o cliente sobre o reagendamento sugerido
-if (appointment.client?.id && rescheduleData) {
-try {
-await notifyRescheduleSuggested(
+      if (appointment.client?.id && rescheduleData) {
+        try {
+          await notifyRescheduleSuggested(
             appointment.client.id,
             parseInt(appointmentId),
             rescheduleData.id,
             startTime.toISOString(),
             appointment.business.business_name
           );
-} catch (notifError) {
-logger.warn('[RescheduleConfirm] Erro ao enviar notificação de reagendamento sugerido:', notifError);
+        } catch (notifError) {
+          logger.warn('[RescheduleConfirm] Erro ao enviar notificação de reagendamento sugerido:', notifError);
           // Não bloquear o fluxo se a notificação falhar
         }
       } else {
-}
+      }
 
       // Mostrar modal de sucesso
       setSubmitting(false);
@@ -319,7 +318,7 @@ logger.warn('[RescheduleConfirm] Erro ao enviar notificação de reagendamento s
       setSubmitting(false);
     }
   };
-// Formatar nova data e horário (só se appointment existir)
+  // Formatar nova data e horário (só se appointment existir)
   let newDate: Date | null = null;
   let newStartTime: Date | null = null;
   let newEndTime: Date | null = null;
@@ -331,7 +330,7 @@ logger.warn('[RescheduleConfirm] Erro ao enviar notificação de reagendamento s
     const [hours, minutes] = time.split(':').map(Number);
     newStartTime = new Date(newDate);
     newStartTime.setHours(hours, minutes, 0, 0);
-    
+
     const serviceDuration = appointment.service.duration_minutes || 60;
     let durationMinutes = serviceDuration;
     if (durationMinutes > 480) {
@@ -347,7 +346,7 @@ logger.warn('[RescheduleConfirm] Erro ao enviar notificação de reagendamento s
         }
       }
     }
-    
+
     newEndTime = new Date(newStartTime);
     newEndTime.setMinutes(newEndTime.getMinutes() + durationMinutes);
 
@@ -392,12 +391,12 @@ logger.warn('[RescheduleConfirm] Erro ao enviar notificação de reagendamento s
     }
     return 'PIX';
   };
-if (!visible) {
-    console.log('[RescheduleConfirmModal] visible=false, retornando null');
+  if (!visible) {
+
     return null;
   }
 
-  console.log('[RescheduleConfirmModal] Renderizando Modal com visible=true');
+
 
   return (
     <Modal
@@ -405,14 +404,14 @@ if (!visible) {
       transparent
       animationType="slide"
       onRequestClose={() => {
-        console.log('[RescheduleConfirmModal] onRequestClose chamado (botão voltar do Android)');
+
         onClose();
       }}
       statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <TouchableWithoutFeedback onPress={() => {
-onClose();
+          onClose();
         }}>
           <View style={styles.overlayTouchable} />
         </TouchableWithoutFeedback>
@@ -429,105 +428,102 @@ onClose();
               </View>
             ) : (
               <>
-                {(() => { 
-                  console.log('[RescheduleConfirmModal] Renderizando ScrollView - appointment existe');
-                  return null; 
-                })()}
-              <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={[
-                  styles.scrollContent,
-                  { paddingBottom: 32 + insets.bottom },
-                ]}
-                showsVerticalScrollIndicator={true}
-                bounces={true}
-                nestedScrollEnabled={true}
-                keyboardShouldPersistTaps="handled"
-                alwaysBounceVertical={false}
-              >
-                {/* Appointment Details Card */}
-                <View style={styles.detailsCard}>
-                  {/* Header: Service Name */}
-                  <View style={styles.headerSection}>
-                    <Text style={styles.rescheduleLabel}>Reagendamento</Text>
-                    <Text style={styles.serviceNameHeader}>{appointment.service.name}</Text>
-                  </View>
 
-                  {/* New Appointment Card */}
-                  <View style={styles.newAppointmentCard}>
-                    <Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#000E3D" />
-                    <View style={styles.newAppointmentContent}>
-                      <Text style={styles.newAppointmentDate}>
-                        {formatDateLong && newDate ? formatDateLong(newDate) : ''}
-                      </Text>
-                      <Text style={styles.newAppointmentTime}>
-                        {formatTimeRange ? formatTimeRange() : ''}
+                <ScrollView
+                  style={styles.scrollView}
+                  contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingBottom: 32 + insets.bottom },
+                  ]}
+                  showsVerticalScrollIndicator={true}
+                  bounces={true}
+                  nestedScrollEnabled={true}
+                  keyboardShouldPersistTaps="handled"
+                  alwaysBounceVertical={false}
+                >
+                  {/* Appointment Details Card */}
+                  <View style={styles.detailsCard}>
+                    {/* Header: Service Name */}
+                    <View style={styles.headerSection}>
+                      <Text style={styles.rescheduleLabel}>Reagendamento</Text>
+                      <Text style={styles.serviceNameHeader}>{appointment.service.name}</Text>
+                    </View>
+
+                    {/* New Appointment Card */}
+                    <View style={styles.newAppointmentCard}>
+                      <Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#000E3D" />
+                      <View style={styles.newAppointmentContent}>
+                        <Text style={styles.newAppointmentDate}>
+                          {formatDateLong && newDate ? formatDateLong(newDate) : ''}
+                        </Text>
+                        <Text style={styles.newAppointmentTime}>
+                          {formatTimeRange ? formatTimeRange() : ''}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Client Info */}
+                    <View style={styles.section}>
+                      <Text style={styles.sectionTitle}>Cliente:</Text>
+                      <View style={styles.clientInfo}>
+                        {appointment.client.avatar_url ? (
+                          <Image
+                            source={{ uri: appointment.client.avatar_url }}
+                            style={styles.clientAvatar}
+                          />
+                        ) : (
+                          <View style={[styles.clientAvatar, styles.placeholderAvatar]} />
+                        )}
+                        <Text style={styles.clientName}>
+                          {appointment.client.full_name || 'Cliente'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Payment Method */}
+                    <View style={styles.section}>
+                      <Text style={styles.sectionTitle}>Método de pagamento:</Text>
+                      <View style={styles.paymentMethodCard}>
+                        {getPaymentMethodIcon()}
+                        <View style={styles.paymentMethodInfo}>
+                          <Text style={styles.paymentMethodLabel}>
+                            {getPaymentMethodLabel()}
+                          </Text>
+                          <Text style={styles.paymentMethodPrice}>
+                            R$ {price.toFixed(2).replace('.', ',')}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Client Observations */}
+                    <View style={styles.section}>
+                      <Text style={styles.sectionTitle}>Observações do cliente:</Text>
+                      <Text style={styles.observations}>
+                        {appointment.client_notes || 'Nenhuma observação'}
                       </Text>
                     </View>
+
+                    {/* Justification Section */}
+                    <View style={styles.justificationSection}>
+                      <Text style={styles.justificationLabel}>Justificativa</Text>
+                      <Text style={styles.justificationText}>
+                        {justification || 'Nenhuma justificativa fornecida'}
+                      </Text>
+                    </View>
+
+                    {/* Submit Button - Movido para dentro do card */}
+                    <View style={styles.buttonContainer}>
+                      <CustomButton
+                        title="Enviar"
+                        onPress={handleSubmit}
+                        disabled={submitting}
+                        variant="primary"
+                        isLoading={submitting}
+                      />
+                    </View>
                   </View>
-
-        {/* Client Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cliente:</Text>
-          <View style={styles.clientInfo}>
-            {appointment.client.avatar_url ? (
-              <Image
-                source={{ uri: appointment.client.avatar_url }}
-                style={styles.clientAvatar}
-              />
-            ) : (
-              <View style={[styles.clientAvatar, styles.placeholderAvatar]} />
-            )}
-            <Text style={styles.clientName}>
-              {appointment.client.full_name || 'Cliente'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Payment Method */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Método de pagamento:</Text>
-          <View style={styles.paymentMethodCard}>
-            {getPaymentMethodIcon()}
-            <View style={styles.paymentMethodInfo}>
-              <Text style={styles.paymentMethodLabel}>
-                {getPaymentMethodLabel()}
-              </Text>
-              <Text style={styles.paymentMethodPrice}>
-                R$ {price.toFixed(2).replace('.', ',')}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Client Observations */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Observações do cliente:</Text>
-          <Text style={styles.observations}>
-            {appointment.client_notes || 'Nenhuma observação'}
-          </Text>
-        </View>
-
-                  {/* Justification Section */}
-                  <View style={styles.justificationSection}>
-                    <Text style={styles.justificationLabel}>Justificativa</Text>
-                    <Text style={styles.justificationText}>
-                      {justification || 'Nenhuma justificativa fornecida'}
-                    </Text>
-                  </View>
-
-                  {/* Submit Button - Movido para dentro do card */}
-                  <View style={styles.buttonContainer}>
-                    <CustomButton
-                      title="Enviar"
-                      onPress={handleSubmit}
-                      disabled={submitting}
-                      variant="primary"
-                      isLoading={submitting}
-                    />
-                  </View>
-                </View>
-              </ScrollView>
+                </ScrollView>
               </>
             )}
           </View>

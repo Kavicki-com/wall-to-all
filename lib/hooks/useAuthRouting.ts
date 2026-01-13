@@ -152,6 +152,7 @@ export function useAuthRouting() {
       });
     }
     
+    // Retorna early se ainda estiver carregando para evitar redirecionamentos prematuros
     if (isLoading) {
       if (__DEV__) { 
         logger.debug('[useAuthRouting] Ainda carregando, aguardando...');

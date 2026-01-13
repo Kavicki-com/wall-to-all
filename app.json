@@ -27,13 +27,12 @@
         "backgroundColor": "#FAFAFA"
       },
       "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.READ_MEDIA_IMAGES"
       ],
-      "package": "com.anonymous.walltoall"
+      "package": "com.kavicki.walltoall"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -47,16 +46,22 @@
           "cameraPermission": "O app precisa acessar sua câmera para tirar uma foto do logotipo do negócio."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false
+          }
+        }
+      ]
     ],
     "scheme": "walltoall",
     "extra": {
       "router": {},
       "eas": {
         "projectId": "dbc84d0e-1278-4eb0-869e-af6ebb163552"
-      },
-      "supabaseUrl": "https://SEU-PROJETO.supabase.co",
-      "supabaseAnonKey": "SEU_SUPABASE_ANON_KEY"
+      }
     }
   }
 }

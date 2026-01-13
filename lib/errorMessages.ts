@@ -13,6 +13,7 @@ export type ErrorContext =
   | 'upload'
   | 'settings'
   | 'home'
+  | 'businessProfile'
   | 'general';
 
 export type ErrorCategory =
@@ -92,6 +93,12 @@ export const CONTEXT_MESSAGES: Record<ErrorContext, Partial<Record<ErrorCategory
   home: {
     network: 'Erro ao carregar dados. Verifique sua conexão e tente novamente',
     unknown: 'Erro ao carregar dados. Tente novamente',
+  },
+  businessProfile: {
+    network: 'Erro ao carregar perfil do negócio. Verifique sua conexão e tente novamente',
+    notFound: 'Perfil do negócio não encontrado',
+    validation: 'Dados do negócio inválidos',
+    unknown: 'Erro ao carregar perfil do negócio. Tente novamente',
   },
   general: {
     network: 'Erro de conexão. Verifique sua internet e tente novamente',

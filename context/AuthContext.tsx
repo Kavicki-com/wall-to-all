@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase, clearInvalidAuthTokens, isSupabaseConfigured } from '../lib/supabase';
 import { handleError } from '../lib/errorHandler';
 import { AUTH_TIMEOUTS } from '../lib/constants';
 import { getIsRecoverySession } from '../lib/useDeepLinking';
 import { logger } from '../lib/logger';
+import { useToast } from '../components/ui/ToastProvider';
 
 type UserRole = 'client' | 'merchant' | null;
 
@@ -12,14 +13,18 @@ interface AuthContextType {
   session: Session | null;
   userRole: UserRole;
   isLoading: boolean;
+  isInitializing: boolean;
   profileError: string | null;
+  validateSession: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   session: null,
   userRole: null,
   isLoading: true,
+  isInitializing: true,
   profileError: null,
+  validateSession: async () => false,
 });
 
 interface AuthProviderProps {
@@ -30,7 +35,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const fetchUserRoleRef = useRef<Promise<UserRole> | null>(null);
+
+  // Hook de Toast para feedback visual
+  const { showError } = useToast();
 
   // Usa a função utilitária do supabase.ts para limpar tokens
   const clearInvalidTokens = clearInvalidAuthTokens;
@@ -47,50 +57,188 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     );
   };
 
-  const fetchUserRole = async (userId: string): Promise<UserRole> => {
+  // Função para validar se a sessão ainda é válida
+  const validateSession = async (): Promise<boolean> => {
     try {
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout ao buscar user_role')), AUTH_TIMEOUTS.FETCH_USER_ROLE);
-      });
+      if (!isSupabaseConfigured) {
+        return false;
+      }
 
-      const fetchPromise = supabase
-        .from('profiles')
-        .select('user_type')
-        .eq('id', userId)
-        .maybeSingle();
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
 
-      const result = await Promise.race([fetchPromise, timeoutPromise]);
-      
-      if (result.error) {
-        if (result.error.code !== 'PGRST116') {
-          handleError(result.error, 'auth');
+      if (error) {
+        if (isInvalidRefreshTokenError(error)) {
+          await clearInvalidTokens();
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            // Ignora erros no signOut
+          }
+          setSession(null);
+          setUserRole(null);
+          return false;
         }
-        return null;
+        return false;
       }
 
-      if (!result.data) {
-        return null;
+      if (!currentSession) {
+        setSession(null);
+        setUserRole(null);
+        return false;
       }
 
-      const userType = result.data?.user_type as UserRole;
-      setProfileError(null);
-      
-      return userType || null;
+      // Verifica se a sessão expirou
+      const expiresAt = currentSession.expires_at;
+      if (expiresAt && expiresAt * 1000 < Date.now()) {
+        // Sessão expirada, tenta refresh
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+
+        if (refreshError || !refreshedSession) {
+          await clearInvalidTokens();
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            // Ignora erros no signOut
+          }
+          setSession(null);
+          setUserRole(null);
+          return false;
+        }
+
+        setSession(refreshedSession);
+        return true;
+      }
+
+      return true;
     } catch (error: unknown) {
-      // Se for timeout, não define profileError para evitar modal durante reset de senha
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const isTimeout = errorMessage.includes('Timeout ao buscar user_role');
-      
-      if (!isTimeout) {
-        handleError(error, 'auth');
-      } else {
-        // Log silencioso para timeout - não mostra erro visual
-        if (__DEV__) {
-          logger.warn('[AuthContext] Timeout ao buscar user_role (pode ser durante reset de senha)');
-        }
+      if (__DEV__) {
+        logger.error('[AuthContext] Erro ao validar sessão:', error);
       }
-      return null;
+
+      if (isInvalidRefreshTokenError(error)) {
+        await clearInvalidTokens();
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // Ignora erros no signOut
+        }
+        setSession(null);
+        setUserRole(null);
+      }
+
+      return false;
     }
+  };
+
+  const fetchUserRole = async (userId: string): Promise<UserRole> => {
+    // Previne múltiplas chamadas simultâneas
+    if (fetchUserRoleRef.current) {
+      return fetchUserRoleRef.current;
+    }
+
+    const fetchPromise = (async (): Promise<UserRole> => {
+      try {
+        // Validação de entrada
+        if (!userId || typeof userId !== 'string') {
+          if (__DEV__) {
+            logger.warn('[AuthContext] fetchUserRole chamado com userId inválido');
+          }
+          return null;
+        }
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout ao buscar user_role')), AUTH_TIMEOUTS.FETCH_USER_ROLE);
+        });
+
+        const fetchPromise = supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', userId)
+          .maybeSingle();
+
+        const result = await Promise.race([fetchPromise, timeoutPromise]);
+
+        if (result.error) {
+          // Tratamento específico para diferentes tipos de erro
+          if (result.error.code === 'PGRST116') {
+            // Perfil não encontrado - não é um erro crítico
+            return null;
+          }
+
+          // Verifica se é erro de autenticação
+          const errorMessage = result.error.message?.toLowerCase() || '';
+          if (errorMessage.includes('jwt') || errorMessage.includes('token') || errorMessage.includes('unauthorized')) {
+            // Erro de autenticação - sessão pode ter expirado
+            if (__DEV__) {
+              logger.warn('[AuthContext] Erro de autenticação ao buscar user_role, validando sessão...');
+            }
+            const isValid = await validateSession();
+            if (!isValid) {
+              return null;
+            }
+            // Tenta novamente após validar sessão
+            const retryResult = await supabase
+              .from('profiles')
+              .select('user_type')
+              .eq('id', userId)
+              .maybeSingle();
+
+            if (retryResult.error && retryResult.error.code !== 'PGRST116') {
+              handleError(retryResult.error, 'auth');
+              return null;
+            }
+
+            if (!retryResult.data) {
+              return null;
+            }
+
+            const userType = retryResult.data?.user_type as UserRole;
+            setProfileError(null);
+            return userType || null;
+          }
+
+          handleError(result.error, 'auth');
+          return null;
+        }
+
+        if (!result.data) {
+          return null;
+        }
+
+        const userType = result.data?.user_type as UserRole;
+        setProfileError(null);
+
+        return userType || null;
+      } catch (error: unknown) {
+        // Se for timeout, não define profileError para evitar modal durante reset de senha
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isTimeout = errorMessage.includes('Timeout ao buscar user_role');
+
+        if (!isTimeout) {
+          // Verifica se é erro de rede ou autenticação
+          const errorStr = String(error).toLowerCase();
+          if (errorStr.includes('network') || errorStr.includes('fetch') || errorStr.includes('connection')) {
+            if (__DEV__) {
+              logger.warn('[AuthContext] Erro de rede ao buscar user_role');
+            }
+          } else {
+            handleError(error, 'auth');
+            // Não mostra toast aqui para não interromper fluxo, o log já foi feito
+          }
+        } else {
+          // Log silencioso para timeout - não mostra erro visual
+          if (__DEV__) {
+            logger.warn('[AuthContext] Timeout ao buscar user_role (pode ser durante reset de senha)');
+          }
+        }
+        return null;
+      } finally {
+        fetchUserRoleRef.current = null;
+      }
+    })();
+
+    fetchUserRoleRef.current = fetchPromise;
+    return fetchPromise;
   };
 
   useEffect(() => {
@@ -100,16 +248,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initializeAuth = async () => {
       try {
         setIsLoading(true);
+        setIsInitializing(true);
 
         if (!isSupabaseConfigured) {
           setSession(null);
           setUserRole(null);
           setIsLoading(false);
+          setIsInitializing(false);
           return;
         }
 
         timeoutId = setTimeout(() => {
           setIsLoading(false);
+          setIsInitializing(false);
+          if (__DEV__) {
+            logger.warn('[AuthContext] Timeout na inicialização da autenticação');
+          }
         }, AUTH_TIMEOUTS.INITIALIZATION);
 
         let currentSession: Session | null = null;
@@ -150,13 +304,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setSession(null);
             setUserRole(null);
             setIsLoading(false);
+            setIsInitializing(false);
             return;
           }
-          
-          handleError(sessionError, 'auth');
+
+          const processedError = handleError(sessionError, 'auth');
+          showError(processedError.userMessage);
           setSession(null);
           setUserRole(null);
           setIsLoading(false);
+          setIsInitializing(false);
           return;
         }
 
@@ -165,14 +322,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (currentSession?.user?.id) {
           // Se for sessão de recuperação, não busca user_role (não é necessário)
           if (getIsRecoverySession()) {
-            if (__DEV__) { logger.debug('[AuthContext] Sessão de recuperação detectada (init) - pulando busca de user_role');
+            if (__DEV__) {
+              logger.debug('[AuthContext] Sessão de recuperação detectada (init) - pulando busca de user_role');
             }
             setUserRole(null);
             setProfileError(null);
           } else {
             const role = await fetchUserRole(currentSession.user.id);
             setUserRole(role);
-            
+
             // Só define profileError se role for null E houver um erro real (não timeout)
             // O fetchUserRole não define profileError em caso de timeout
             if (role) {
@@ -189,17 +347,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setProfileError(null);
         }
       } catch (error: unknown) {
-        handleError(error, 'auth');
-        
+        const processedError = handleError(error, 'auth');
+        // Só mostra toast se não for erro de refresh token (que é tratado silenciosamente)
+        if (!isInvalidRefreshTokenError(error)) {
+          showError(processedError.userMessage);
+        }
+
         if (isInvalidRefreshTokenError(error)) {
-          await clearInvalidTokens();
+          try {
+            await clearInvalidTokens();
+          } catch (clearError) {
+            if (__DEV__) {
+              logger.error('[AuthContext] Erro ao limpar tokens inválidos:', clearError);
+            }
+          }
           try {
             await supabase.auth.signOut();
           } catch {
             // Ignora erros no signOut
           }
         }
-        
+
         setSession(null);
         setUserRole(null);
         if (timeoutId) {
@@ -207,75 +375,156 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } finally {
         setIsLoading(false);
+        setIsInitializing(false);
+      }
+
+      // Configura subscription APÓS a inicialização completa
+      // Só cria subscription se o Supabase estiver configurado
+      if (isSupabaseConfigured) {
+        const {
+          data: { subscription: authSubscription },
+        } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+          try {
+            if (__DEV__) {
+              logger.debug('[AuthContext] onAuthStateChange:', { event, hasSession: !!newSession });
+            }
+
+            // Tratamento específico para TOKEN_REFRESHED sem sessão (refresh falhou)
+            if (event === 'TOKEN_REFRESHED' && !newSession) {
+              if (__DEV__) {
+                logger.warn('[AuthContext] Token refresh falhou - limpando sessão');
+              }
+              try {
+                await clearInvalidTokens();
+              } catch (clearError) {
+                if (__DEV__) {
+                  logger.error('[AuthContext] Erro ao limpar tokens após refresh falhado:', clearError);
+                }
+              }
+              try {
+                await supabase.auth.signOut();
+              } catch {
+                // Ignora erros no signOut
+              }
+              setSession(null);
+              setUserRole(null);
+              setProfileError(null);
+              return;
+            }
+
+            // Tratamento para SIGNED_OUT (logout forçado por token expirado ou inválido)
+            if (event === 'SIGNED_OUT') {
+              if (__DEV__) {
+                logger.debug('[AuthContext] Usuário deslogado (SIGNED_OUT)');
+              }
+              try {
+                await clearInvalidTokens();
+              } catch (clearError) {
+                if (__DEV__) {
+                  logger.error('[AuthContext] Erro ao limpar tokens após SIGNED_OUT:', clearError);
+                }
+              }
+              setSession(null);
+              setUserRole(null);
+              setProfileError(null);
+              return;
+            }
+
+            // Validação de tipo antes de acessar propriedades
+            if (newSession && typeof newSession === 'object' && 'user' in newSession) {
+              setSession(newSession);
+
+              // Validação adicional: verifica se user.id existe e é string válida
+              const userId = newSession.user?.id;
+              if (userId && typeof userId === 'string' && userId.length > 0) {
+                // Se for sessão de recuperação, não busca user_role (não é necessário)
+                if (getIsRecoverySession()) {
+                  if (__DEV__) {
+                    logger.debug('[AuthContext] Sessão de recuperação detectada - pulando busca de user_role');
+                  }
+                  setUserRole(null);
+                  setProfileError(null);
+                } else {
+                  try {
+                    // Busca user_role normalmente para sessões regulares
+                    const role = await fetchUserRole(userId);
+                    setUserRole(role);
+
+                    // Só define profileError se role for null E houver um erro real (não timeout)
+                    // O fetchUserRole não define profileError em caso de timeout
+                    if (role) {
+                      setProfileError(null);
+                    } else {
+                      // Se role é null, pode ser timeout ou perfil não encontrado
+                      // Se profileError já está definido (erro real), mantém
+                      // Se não está definido (timeout), não define novo erro
+                      // Isso evita mostrar erro durante reset de senha
+                    }
+                  } catch (fetchError: unknown) {
+                    // Erro ao buscar user_role - não deve quebrar o fluxo
+                    if (__DEV__) {
+                      logger.error('[AuthContext] Erro ao buscar user_role no onAuthStateChange:', fetchError);
+                    }
+                    const processedError = handleError(fetchError, 'auth');
+                    // Não mostra toast aqui para user_role, pois não impede uso do app
+                    setUserRole(null);
+                  }
+                }
+              } else {
+                // Sessão sem userId válido
+                if (__DEV__) {
+                  logger.warn('[AuthContext] Sessão sem userId válido');
+                }
+                setUserRole(null);
+                setProfileError(null);
+              }
+            } else {
+              // newSession é null ou inválido
+              setSession(null);
+              setUserRole(null);
+              setProfileError(null);
+            }
+          } catch (error: unknown) {
+            // Try/catch externo para capturar qualquer erro não tratado
+            if (__DEV__) {
+              logger.error('[AuthContext] Erro não tratado no onAuthStateChange:', error);
+            }
+            handleError(error, 'auth');
+
+            if (isInvalidRefreshTokenError(error)) {
+              try {
+                await clearInvalidTokens();
+              } catch (clearError) {
+                if (__DEV__) {
+                  logger.error('[AuthContext] Erro ao limpar tokens após erro no onAuthStateChange:', clearError);
+                }
+              }
+              try {
+                await supabase.auth.signOut();
+              } catch {
+                // Ignora erros no signOut
+              }
+              setSession(null);
+              setUserRole(null);
+              setProfileError(null);
+            }
+          }
+        });
+
+        subscription = authSubscription;
       }
     };
 
-    try {
-      initializeAuth();
-
-      // Só cria subscription se o Supabase estiver configurado
-      if (!isSupabaseConfigured) {
-        setIsLoading(false);
-        return;
+    // Inicia a autenticação
+    initializeAuth().catch(error => {
+      if (__DEV__) {
+        logger.error('[AuthContext] Erro não capturado em initializeAuth:', error);
       }
-
-      const {
-        data: { subscription: authSubscription },
-      } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-try {
-          if (event === 'TOKEN_REFRESHED' && !newSession) {
-            await clearInvalidTokens();
-            setSession(null);
-            setUserRole(null);
-            setProfileError(null);
-            return;
-          }
-
-          setSession(newSession);
-if (newSession?.user?.id) {
-            // Se for sessão de recuperação, não busca user_role (não é necessário)
-            if (getIsRecoverySession()) {
-              if (__DEV__) { logger.debug('[AuthContext] Sessão de recuperação detectada - pulando busca de user_role');
-              }
-              setUserRole(null);
-              setProfileError(null);
-            } else {
-              // Busca user_role normalmente para sessões regulares
-              const role = await fetchUserRole(newSession.user.id);
-              setUserRole(role);
-              
-              // Só define profileError se role for null E houver um erro real (não timeout)
-              // O fetchUserRole não define profileError em caso de timeout
-              if (role) {
-                setProfileError(null);
-              } else {
-                // Se role é null, pode ser timeout ou perfil não encontrado
-                // Se profileError já está definido (erro real), mantém
-                // Se não está definido (timeout), não define novo erro
-                // Isso evita mostrar erro durante reset de senha
-              }
-            }
-          } else {
-            setUserRole(null);
-            setProfileError(null);
-          }
-        } catch (error: unknown) {
-          handleError(error, 'auth');
-          
-          if (isInvalidRefreshTokenError(error)) {
-            await clearInvalidTokens();
-            setSession(null);
-            setUserRole(null);
-            setProfileError(null);
-          }
-        }
-      });
-
-      subscription = authSubscription;
-    } catch (error) {
-      handleError(error, 'auth');
+      const processedError = handleError(error, 'auth');
+      showError(processedError.userMessage);
       setIsLoading(false);
-    }
+      setIsInitializing(false);
+    });
 
     return () => {
       if (timeoutId) {
@@ -293,7 +542,9 @@ if (newSession?.user?.id) {
     session,
     userRole,
     isLoading,
+    isInitializing,
     profileError,
+    validateSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

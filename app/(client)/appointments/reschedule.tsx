@@ -32,7 +32,7 @@ import { useResponsiveWidth } from '../../../lib/responsive';
 import { safeGoBack } from '../../../lib/router-utils';
 import { validateTime, validateDate } from '../../../lib/validations';
 import { RESCHEDULE_DEFAULTS } from '../../../lib/constants';
-import { applyAcceptedReschedules } from '../../../lib/utils';
+import { applyAcceptedReschedules, checkAppointmentConflicts } from '../../../lib/utils';
 import { logger } from '../../../lib/logger';
 import { Appointment, WorkDays } from '../../../lib/types';
 
@@ -152,7 +152,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
 
       setAppointment(appointmentData as Appointment);
       generateAvailableDates(appointmentData as Appointment);
-      
+
       if (params.reason) {
         setJustification(params.reason);
       } else {
@@ -206,7 +206,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
       let workDays = appointment.business?.work_days;
       let lunchBreakStart: string | null = null;
       let lunchBreakEnd: string | null = null;
-      
+
       if (!workDays) {
         const { data: businessProfile, error: businessError } = await supabase
           .from('business_profiles')
@@ -220,11 +220,11 @@ const RescheduleAppointmentScreen: React.FC = () => {
           setLoadingTimes(false);
           return;
         }
-        
+
         workDays = businessProfile.work_days;
         lunchBreakStart = businessProfile.lunch_break_start;
         lunchBreakEnd = businessProfile.lunch_break_end;
-        
+
         if (typeof workDays === 'string') {
           try {
             workDays = JSON.parse(workDays);
@@ -242,13 +242,13 @@ const RescheduleAppointmentScreen: React.FC = () => {
           .select('lunch_break_start, lunch_break_end')
           .eq('id', appointment.business_id)
           .single();
-        
+
         if (businessProfile) {
           lunchBreakStart = businessProfile.lunch_break_start;
           lunchBreakEnd = businessProfile.lunch_break_end;
         }
       }
-      
+
       if (!workDays) {
         setTimeSlots([]);
         setLoadingTimes(false);
@@ -282,17 +282,27 @@ const RescheduleAppointmentScreen: React.FC = () => {
         return;
       }
 
+      // Buscar appointments existentes para esta data
+      // Usar um intervalo mais amplo para cobrir possíveis diferenças de fuso horário
+      const prevDay = new Date(selectedDate);
+      prevDay.setDate(prevDay.getDate() - 1);
+      const nextDay = new Date(selectedDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      const startDateStr = prevDay.toISOString().split('T')[0];
+      const endDateStr = nextDay.toISOString().split('T')[0];
+
       const { data: existingAppointments } = await supabase
         .from('appointments')
         .select('id, start_time, end_time')
         .eq('business_id', appointment.business_id)
-        .gte('start_time', `${dateString}T00:00:00`)
-        .lt('start_time', `${dateString}T23:59:59`)
+        .gte('start_time', `${startDateStr}T00:00:00`)
+        .lt('start_time', `${endDateStr}T23:59:59`)
         .in('status', ['pending', 'confirmed'])
         .neq('id', Number(params.appointmentId));
-      
+
       // Aplicar reagendamentos aceitos aos appointments existentes
-      const appointmentsWithReschedules = existingAppointments 
+      const appointmentsWithReschedules = existingAppointments
         ? await applyAcceptedReschedules(existingAppointments)
         : [];
 
@@ -306,7 +316,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
         lunchBreakStart,
         lunchBreakEnd,
       );
-      
+
       setTimeSlots(slots);
     } catch (error) {
       handleError(error, 'appointment');
@@ -350,7 +360,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
       if (lunchBreakStart && lunchBreakEnd) {
         const [lunchStartHour] = lunchBreakStart.split(':').map(Number);
         const [lunchEndHour] = lunchBreakEnd.split(':').map(Number);
-        
+
         // Verificar se o slot está dentro do horário de almoço
         if (currentHour >= lunchStartHour && currentHour < lunchEndHour) {
           type = 'lunch';
@@ -379,12 +389,12 @@ const RescheduleAppointmentScreen: React.FC = () => {
       const isOccupied = existingAppointments.some((apt) => {
         const aptStart = new Date(apt.start_time);
         const aptEnd = new Date(apt.end_time);
-        
+
         const aptDateString = aptStart.toISOString().split('T')[0];
         if (aptDateString !== dateString) {
           return false;
         }
-        
+
         // Verificar se há overlap entre o serviço (serviceStart até serviceEnd) e o appointment
         return (
           (serviceStart.getTime() < aptEnd.getTime() && serviceEnd.getTime() > aptStart.getTime())
@@ -406,7 +416,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
   const handleDateSelect = (date: Date) => {
     const dateString = format(date, 'yyyy-MM-dd');
     const isAvailable = markedDates.includes(dateString);
-    
+
     if (isAvailable) {
       setSelectedDate(date);
       setSelectedTime(null);
@@ -467,6 +477,24 @@ const RescheduleAppointmentScreen: React.FC = () => {
       const serviceDuration = parseServiceDuration(appointment.service?.duration_minutes || 60);
       const newEndTime = new Date(newStartTime);
       newEndTime.setMinutes(newEndTime.getMinutes() + serviceDuration);
+
+      // Verificar conflitos antes de prosseguir
+      const { hasConflict, error: conflictError } = await checkAppointmentConflicts(
+        appointment.business_id,
+        newStartTime.toISOString(),
+        newEndTime.toISOString(),
+        Number(params.appointmentId)
+      );
+
+      if (conflictError) {
+        handleError(conflictError, 'appointment');
+        return;
+      }
+
+      if (hasConflict) {
+        Alert.alert('Horário indisponível', 'Este horário já está ocupado. Selecione outro horário.');
+        return;
+      }
 
       // Horários originais do agendamento
       const originalStartTime = new Date(appointment.start_time);
@@ -574,21 +602,21 @@ const RescheduleAppointmentScreen: React.FC = () => {
     key: format(date, 'yyyy-MM-dd'),
     label: format(date, 'dd/MM'),
   }));
-  
+
   const maxDates = Math.min(RESCHEDULE_DEFAULTS.MAX_DATES, datePillItems.length);
   const displayedDates = datePillItems.slice(0, datesToShow);
   const hasMoreDates = datesToShow < maxDates;
   const hasLessDates = datesToShow > RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW;
   const selectedDateKey = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
-  
+
   const handleShowMoreDates = () => {
     setDatesToShow((prev) => Math.min(prev + RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW, maxDates));
   };
-  
+
   const handleShowLessDates = () => {
     setDatesToShow((prev) => Math.max(prev - RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW, RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW));
   };
-  
+
   // Converter todos os horários (disponíveis e não disponíveis) em PillItem[]
   // Mostrar todos os horários do expediente em grid, incluindo ocupados e horário de almoço
   const timePillItems: PillItem[] = timeSlots.map((slot) => ({
@@ -597,205 +625,205 @@ const RescheduleAppointmentScreen: React.FC = () => {
     disabled: !slot.available,
     showLunchIcon: slot.type === 'lunch',
   }));
-  
+
   const displayedTimes = timePillItems.slice(0, timesToShow);
   const hasMoreTimes = timesToShow < timePillItems.length;
   const hasLessTimes = timesToShow > RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW;
-  
+
   const handleShowMoreTimes = () => {
     setTimesToShow((prev) => Math.min(prev + RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW, timePillItems.length));
   };
-  
+
   const handleShowLessTimes = () => {
     setTimesToShow((prev) => Math.max(prev - RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW, RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW));
   };
 
   const styles = StyleSheet.create({
-      container: {
-        flex: 1,
-      },
-      loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#FAFAFA',
-      },
-      topBar: {
-        position: 'relative',
-        zIndex: 10,
-      },
-      topBarDivider: {
-        height: 14,
-        backgroundColor: '#EBEFFF',
-      },
-      topBarContent: {
-        height: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 16,
-        position: 'relative',
-      },
-      topBarGradientContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        right: 0,
-      },
-      topBarGradientOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        right: 0,
-        backgroundColor: 'rgba(0, 14, 61, 0.2)',
-      },
-      backButton: {
-        width: 24,
-        height: 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-      },
-      topBarSpacer: {
-        flex: 1,
-      },
-      topBarTitle: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#FEFEFE',
-        flex: 1,
-        textAlign: 'center',
-      },
-      notificationButton: {
-        width: 24,
-        height: 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-      },
-      scrollContent: {
-        // flexGrow é aplicado automaticamente pelo ScreenContainer
-        // paddingBottom é aplicado automaticamente quando há footer
-      },
-      content: {
-        gap: 24,
-      },
-      mainTitle: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#000000',
-        marginBottom: 4,
-      },
-      serviceName: {
-        fontSize: 14,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#474747',
-        marginBottom: 0,
-      },
-      section: {
-        gap: 16,
-        backgroundColor: '#FAFAFA',
-        paddingVertical: 8,
-      },
-      loader: {
-        marginVertical: 16,
-      },
-      emptyMessage: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_400Regular',
-        color: '#474747',
-        textAlign: 'center',
-        paddingVertical: 16,
-      },
-      // Modal Styles
-      modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
-        zIndex: 1000,
-      },
-      modalContent: {
-        backgroundColor: '#FEFEFE',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
-        paddingTop: 24,
-        paddingBottom: 0,
-        width: '100%',
-        ...Platform.select({
-          ios: {
-            shadowColor: '#1D1D1D',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.1,
-            shadowRadius: 8,
-          },
-          android: {
-            elevation: 4,
-          },
-        }),
-      },
-      modalScrollView: {
-        flex: 1,
-      },
-      modalScrollContent: {
-        gap: 24,
-        paddingBottom: 24,
-        paddingTop: 0,
-        paddingHorizontal: 0,
-        width: '100%',
-      },
-      // Confirmation Modal Styles
-      confirmationOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 24,
-        paddingTop: 24,
-        paddingBottom: 0,
-      },
-      confirmationModalContainer: {
-        backgroundColor: '#FEFEFE',
-        borderRadius: 24,
-        padding: 16,
-        width: '100%',
-        maxWidth: 400,
-        alignItems: 'center',
-        gap: 16,
-        marginBottom: 0,
-        ...Platform.select({
-          ios: {
-            shadowColor: '#1D1D1D',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.24,
-            shadowRadius: 16,
-          },
-          android: {
-            elevation: 8,
-          },
-        }),
-      },
-      confirmationIconContainer: {
-        // width e height serão aplicados dinamicamente via style prop
-        justifyContent: 'center',
-        alignItems: 'center',
-      },
-      confirmationTitle: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
-        color: '#17723F',
-        textAlign: 'center',
-      },
-      confirmationMessage: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_400Regular',
-        color: '#000000',
-        textAlign: 'center',
-        width: '90%',
-        maxWidth: 256,
-        alignSelf: 'center',
-      },
-    });
+    container: {
+      flex: 1,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#FAFAFA',
+    },
+    topBar: {
+      position: 'relative',
+      zIndex: 10,
+    },
+    topBarDivider: {
+      height: 14,
+      backgroundColor: '#EBEFFF',
+    },
+    topBarContent: {
+      height: 56,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 16,
+      position: 'relative',
+    },
+    topBarGradientContainer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      bottom: 0,
+      right: 0,
+    },
+    topBarGradientOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      bottom: 0,
+      right: 0,
+      backgroundColor: 'rgba(0, 14, 61, 0.2)',
+    },
+    backButton: {
+      width: 24,
+      height: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    topBarSpacer: {
+      flex: 1,
+    },
+    topBarTitle: {
+      fontSize: 16,
+      fontFamily: 'Montserrat_700Bold',
+      color: '#FEFEFE',
+      flex: 1,
+      textAlign: 'center',
+    },
+    notificationButton: {
+      width: 24,
+      height: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    scrollContent: {
+      // flexGrow é aplicado automaticamente pelo ScreenContainer
+      // paddingBottom é aplicado automaticamente quando há footer
+    },
+    content: {
+      gap: 24,
+    },
+    mainTitle: {
+      fontSize: 16,
+      fontFamily: 'Montserrat_700Bold',
+      color: '#000000',
+      marginBottom: 4,
+    },
+    serviceName: {
+      fontSize: 14,
+      fontFamily: 'Montserrat_700Bold',
+      color: '#474747',
+      marginBottom: 0,
+    },
+    section: {
+      gap: 16,
+      backgroundColor: '#FAFAFA',
+      paddingVertical: 8,
+    },
+    loader: {
+      marginVertical: 16,
+    },
+    emptyMessage: {
+      fontSize: 16,
+      fontFamily: 'Montserrat_400Regular',
+      color: '#474747',
+      textAlign: 'center',
+      paddingVertical: 16,
+    },
+    // Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+      zIndex: 1000,
+    },
+    modalContent: {
+      backgroundColor: '#FEFEFE',
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+      paddingTop: 24,
+      paddingBottom: 0,
+      width: '100%',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#1D1D1D',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+        },
+        android: {
+          elevation: 4,
+        },
+      }),
+    },
+    modalScrollView: {
+      flex: 1,
+    },
+    modalScrollContent: {
+      gap: 24,
+      paddingBottom: 24,
+      paddingTop: 0,
+      paddingHorizontal: 0,
+      width: '100%',
+    },
+    // Confirmation Modal Styles
+    confirmationOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      paddingTop: 24,
+      paddingBottom: 0,
+    },
+    confirmationModalContainer: {
+      backgroundColor: '#FEFEFE',
+      borderRadius: 24,
+      padding: 16,
+      width: '100%',
+      maxWidth: 400,
+      alignItems: 'center',
+      gap: 16,
+      marginBottom: 0,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#1D1D1D',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.24,
+          shadowRadius: 16,
+        },
+        android: {
+          elevation: 8,
+        },
+      }),
+    },
+    confirmationIconContainer: {
+      // width e height serão aplicados dinamicamente via style prop
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    confirmationTitle: {
+      fontSize: 16,
+      fontFamily: 'Montserrat_700Bold',
+      color: '#17723F',
+      textAlign: 'center',
+    },
+    confirmationMessage: {
+      fontSize: 16,
+      fontFamily: 'Montserrat_400Regular',
+      color: '#000000',
+      textAlign: 'center',
+      width: '90%',
+      maxWidth: 256,
+      alignSelf: 'center',
+    },
+  });
 
   if (loading && !appointment) {
     return (
@@ -812,7 +840,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       backgroundColor="#FAFAFA"
@@ -824,97 +852,97 @@ const RescheduleAppointmentScreen: React.FC = () => {
         />
       }
     >
-        <View style={styles.content}>
-          <Text style={styles.mainTitle}>Selecione o Melhor dia e horário</Text>
-          {appointment?.service?.name && (
-            <Text style={styles.serviceName}>{appointment.service.name}</Text>
-          )}
+      <View style={styles.content}>
+        <Text style={styles.mainTitle}>Selecione o Melhor dia e horário</Text>
+        {appointment?.service?.name && (
+          <Text style={styles.serviceName}>{appointment.service.name}</Text>
+        )}
 
-          {/* Date Selection */}
-          <View style={styles.section}>
-            <ScheduleSectionHeader
-              icon={<IconDateRange size={24} color="#E5102E" />}
-              title="Escolha uma data"
-            />
-
-            <PillGrid
-              items={displayedDates}
-              selectedKey={selectedDateKey}
-              onSelect={(key) => {
-                const date = availableDates.find((d) => format(d, 'yyyy-MM-dd') === key);
-                if (date) {
-                  handleDateSelect(date);
-                }
-              }}
-            />
-
-            {availableDates.length > RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW && (
-              <>
-                {hasMoreDates && (
-                  <InlineLink
-                    label="Ver mais datas"
-                    onPress={handleShowMoreDates}
-                  />
-                )}
-                {!hasMoreDates && hasLessDates && (
-                  <InlineLink
-                    label="Ver menos datas"
-                    onPress={handleShowLessDates}
-                  />
-                )}
-              </>
-            )}
-          </View>
-
-          {/* Time Selection */}
-          <View style={styles.section}>
-            <ScheduleSectionHeader
-              icon={<IconTimer size={24} color="#E5102E" />}
-              title="Escolha um horário"
-            />
-
-            {!selectedDate ? (
-              <Text style={styles.emptyMessage}>Selecione uma data primeiro</Text>
-            ) : loadingTimes ? (
-              <ActivityIndicator size="small" color="#000E3D" style={styles.loader} />
-            ) : timeSlots.length === 0 ? (
-              <Text style={styles.emptyMessage}>Nenhum horário disponível para esta data</Text>
-            ) : (
-              <>
-                <PillGrid
-                  items={displayedTimes}
-                  selectedKey={selectedTime}
-                  onSelect={(key) => handleTimeSelect(key)}
-                />
-
-                {timePillItems.length > RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW && (
-                  <>
-                    {hasMoreTimes && (
-                      <InlineLink
-                        label="Ver mais horários"
-                        onPress={handleShowMoreTimes}
-                      />
-                    )}
-                    {!hasMoreTimes && hasLessTimes && (
-                      <InlineLink
-                        label="Ver menos horários"
-                        onPress={handleShowLessTimes}
-                      />
-                    )}
-                  </>
-                )}
-              </>
-            )}
-          </View>
-
-          {/* Suggest Button */}
-          <PrimaryActionButton
-            title="Sugerir novo horário"
-            rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#FEFEFE" />}
-            disabled={!selectedDate || !selectedTime}
-            onPress={handleSuggestNewTime}
+        {/* Date Selection */}
+        <View style={styles.section}>
+          <ScheduleSectionHeader
+            icon={<IconDateRange size={24} color="#E5102E" />}
+            title="Escolha uma data"
           />
+
+          <PillGrid
+            items={displayedDates}
+            selectedKey={selectedDateKey}
+            onSelect={(key) => {
+              const date = availableDates.find((d) => format(d, 'yyyy-MM-dd') === key);
+              if (date) {
+                handleDateSelect(date);
+              }
+            }}
+          />
+
+          {availableDates.length > RESCHEDULE_DEFAULTS.INITIAL_DATES_TO_SHOW && (
+            <>
+              {hasMoreDates && (
+                <InlineLink
+                  label="Ver mais datas"
+                  onPress={handleShowMoreDates}
+                />
+              )}
+              {!hasMoreDates && hasLessDates && (
+                <InlineLink
+                  label="Ver menos datas"
+                  onPress={handleShowLessDates}
+                />
+              )}
+            </>
+          )}
         </View>
+
+        {/* Time Selection */}
+        <View style={styles.section}>
+          <ScheduleSectionHeader
+            icon={<IconTimer size={24} color="#E5102E" />}
+            title="Escolha um horário"
+          />
+
+          {!selectedDate ? (
+            <Text style={styles.emptyMessage}>Selecione uma data primeiro</Text>
+          ) : loadingTimes ? (
+            <ActivityIndicator size="small" color="#000E3D" style={styles.loader} />
+          ) : timeSlots.length === 0 ? (
+            <Text style={styles.emptyMessage}>Nenhum horário disponível para esta data</Text>
+          ) : (
+            <>
+              <PillGrid
+                items={displayedTimes}
+                selectedKey={selectedTime}
+                onSelect={(key) => handleTimeSelect(key)}
+              />
+
+              {timePillItems.length > RESCHEDULE_DEFAULTS.INITIAL_TIMES_TO_SHOW && (
+                <>
+                  {hasMoreTimes && (
+                    <InlineLink
+                      label="Ver mais horários"
+                      onPress={handleShowMoreTimes}
+                    />
+                  )}
+                  {!hasMoreTimes && hasLessTimes && (
+                    <InlineLink
+                      label="Ver menos horários"
+                      onPress={handleShowLessTimes}
+                    />
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* Suggest Button */}
+        <PrimaryActionButton
+          title="Sugerir novo horário"
+          rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#FEFEFE" />}
+          disabled={!selectedDate || !selectedTime}
+          onPress={handleSuggestNewTime}
+        />
+      </View>
 
       {/* Reschedule Modal */}
       <Modal
@@ -935,30 +963,30 @@ const RescheduleAppointmentScreen: React.FC = () => {
                 maxHeight: Dimensions.get('window').height * 0.82,
               }
             ]}>
-                <ScrollView
-                  style={styles.modalScrollView}
-                  contentContainerStyle={styles.modalScrollContent}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {appointment && selectedDate && selectedTime && (
-                    <RescheduleModalCard
-                      serviceName={appointment.service?.name || 'Serviço'}
-                      price={appointment.service?.price || 0}
-                      businessName={appointment.business?.business_name || 'Estabelecimento'}
-                      businessAddress={appointment.business?.address}
-                      businessLogoUrl={appointment.business?.logo_url}
-                      paymentMethod={(appointment.payment_method as 'pix' | 'card' | 'cash') || 'pix'}
-                      newDate={selectedDate}
-                      newTime={selectedTime}
-                      serviceDuration={parseServiceDuration(appointment.service?.duration_minutes || 60)}
-                      justification={justification || params.reason || ''}
-                      onSubmit={handleSubmitReschedule}
-                    />
-                  )}
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
+              <ScrollView
+                style={styles.modalScrollView}
+                contentContainerStyle={styles.modalScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {appointment && selectedDate && selectedTime && (
+                  <RescheduleModalCard
+                    serviceName={appointment.service?.name || 'Serviço'}
+                    price={appointment.service?.price || 0}
+                    businessName={appointment.business?.business_name || 'Estabelecimento'}
+                    businessAddress={appointment.business?.address}
+                    businessLogoUrl={appointment.business?.logo_url}
+                    paymentMethod={(appointment.payment_method as 'pix' | 'card' | 'cash') || 'pix'}
+                    newDate={selectedDate}
+                    newTime={selectedTime}
+                    serviceDuration={parseServiceDuration(appointment.service?.duration_minutes || 60)}
+                    justification={justification || params.reason || ''}
+                    onSubmit={handleSubmitReschedule}
+                  />
+                )}
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
       </Modal>
 
       {/* Confirmation Modal */}

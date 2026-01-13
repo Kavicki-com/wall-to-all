@@ -38,6 +38,7 @@ const ScheduleTimeScreen: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
   const [calendarResetKey, setCalendarResetKey] = useState(0);
   const [serviceName, setServiceName] = useState<string | null>(null);
+  const [serviceDuration, setServiceDuration] = useState<number>(60);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -67,7 +68,7 @@ const ScheduleTimeScreen: React.FC = () => {
       }
 
       const dateString = selectedDate.toISOString().split('T')[0];
-// Buscar horários de funcionamento da loja e duração do serviço
+      // Buscar horários de funcionamento da loja e duração do serviço
       const [businessResult, serviceResult] = await Promise.all([
         supabase
           .from('business_profiles')
@@ -95,7 +96,7 @@ const ScheduleTimeScreen: React.FC = () => {
 
       // duration_minutes deve estar em minutos
       let serviceDuration = serviceResult.data?.duration_minutes || 60;
-      
+
       // Se o valor for muito grande (provavelmente está em formato incorreto), converter
       // Valores normais de duração em minutos: 15, 30, 60, 90, 120, etc.
       // Se for maior que 480 (8 horas), provavelmente está em milissegundos ou segundos
@@ -132,8 +133,8 @@ const ScheduleTimeScreen: React.FC = () => {
       ];
       const dayName = dayNames[selectedDate.getDay()];
       const workDaysData = businessResult.data.work_days;
-      const workDay = workDaysData && typeof workDaysData === 'object' && dayName in workDaysData 
-        ? (workDaysData as any)[dayName] 
+      const workDay = workDaysData && typeof workDaysData === 'object' && dayName in workDaysData
+        ? (workDaysData as any)[dayName]
         : null;
 
       if (!workDay) {
@@ -144,24 +145,34 @@ const ScheduleTimeScreen: React.FC = () => {
       }
 
       // Buscar appointments existentes para esta data
-const { data: existingAppointments } = await supabase
+      // Usar um intervalo mais amplo para cobrir possíveis diferenças de fuso horário
+      // Buscamos desde o início do dia anterior até o fim do dia seguinte
+      const prevDay = new Date(selectedDate);
+      prevDay.setDate(prevDay.getDate() - 1);
+      const nextDay = new Date(selectedDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      const startDateStr = prevDay.toISOString().split('T')[0];
+      const endDateStr = nextDay.toISOString().split('T')[0];
+
+      const { data: existingAppointments } = await supabase
         .from('appointments')
         .select('id, start_time, end_time')
         .eq('business_id', Number(params.businessId))
-        .gte('start_time', `${dateString}T00:00:00`)
-        .lt('start_time', `${dateString}T23:59:59`)
+        .gte('start_time', `${startDateStr}T00:00:00`)
+        .lt('start_time', `${endDateStr}T23:59:59`)
         .in('status', ['pending', 'confirmed']);
-// Aplicar reagendamentos aceitos aos appointments existentes
-      const appointmentsWithReschedules = existingAppointments 
+      // Aplicar reagendamentos aceitos aos appointments existentes
+      const appointmentsWithReschedules = existingAppointments
         ? await applyAcceptedReschedules(existingAppointments)
         : [];
-// Obter horários de almoço
+      // Obter horários de almoço
       const lunchBreakStart = businessResult.data?.lunch_break_start;
       const lunchBreakEnd = businessResult.data?.lunch_break_end;
 
       // Gerar slots de horário baseado no horário de funcionamento
       // Usar appointments com reagendamentos aplicados
-const slots = generateTimeSlots(
+      const slots = generateTimeSlots(
         workDay.start,
         workDay.end,
         appointmentsWithReschedules || [],
@@ -170,7 +181,8 @@ const slots = generateTimeSlots(
         lunchBreakStart,
         lunchBreakEnd,
       );
-setTimeSlots(slots);
+      setTimeSlots(slots);
+      setServiceDuration(serviceDuration);
     } catch (error) {
       logger.error('Erro ao carregar horários:', error);
       setTimeSlots([]);
@@ -188,7 +200,7 @@ setTimeSlots(slots);
     lunchBreakStart?: string | null,
     lunchBreakEnd?: string | null,
   ): TimeSlot[] => {
-const slots: TimeSlot[] = [];
+    const slots: TimeSlot[] = [];
     const [startHour] = startTime.split(':').map(Number);
     const [endHour] = endTime.split(':').map(Number);
 
@@ -210,7 +222,7 @@ const slots: TimeSlot[] = [];
       if (lunchBreakStart && lunchBreakEnd) {
         const [lunchStartHour] = lunchBreakStart.split(':').map(Number);
         const [lunchEndHour] = lunchBreakEnd.split(':').map(Number);
-        
+
         // Verificar se o slot está dentro do horário de almoço
         if (currentHour >= lunchStartHour && currentHour < lunchEndHour) {
           type = 'lunch';
@@ -235,28 +247,15 @@ const slots: TimeSlot[] = [];
       const serviceStart = new Date(`${dateString}T${timeString}:00`);
       const serviceEnd = new Date(serviceStart);
       serviceEnd.setMinutes(serviceEnd.getMinutes() + serviceDuration);
-const overlapDetails: any[] = [];
       const isOccupied = existingAppointments.some((apt) => {
         const aptStart = new Date(apt.start_time);
         const aptEnd = new Date(apt.end_time);
-        
-        const aptDateString = aptStart.toISOString().split('T')[0];
-        const hasOverlap = (serviceStart.getTime() < aptEnd.getTime() && serviceEnd.getTime() > aptStart.getTime());
-        
-        overlapDetails.push({
-          aptStartISO: apt.start_time,
-          aptEndISO: apt.end_time,
-          aptStartTime: aptStart.getTime(),
-          aptEndTime: aptEnd.getTime(),
-          aptDateString,
-          hasOverlap,
-          matchesDate: aptDateString === dateString
-        });
-        
+
         // Verificar se há overlap entre o serviço (serviceStart até serviceEnd) e o appointment
-        return hasOverlap;
+        // Usamos lógica de sobreposição exclusiva: start1 < end2 AND end1 > start2
+        return (serviceStart.getTime() < aptEnd.getTime() && serviceEnd.getTime() > aptStart.getTime());
       });
-if (isOccupied) {
+      if (isOccupied) {
         type = 'occupied';
       }
 
@@ -268,10 +267,23 @@ if (isOccupied) {
     return slots;
   };
 
-  const formatTime = (time: string) => {
-    const [hours] = time.split(':');
-    const nextHour = parseInt(hours) + 1;
-    return `${hours}h às ${nextHour}h`;
+  const formatTime = (time: string, duration?: number | null) => {
+    const [hours] = time.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, 0, 0, 0);
+
+    const durationMinutes = duration || serviceDuration || 60;
+    const endDate = new Date(date.getTime() + durationMinutes * 60000);
+
+    const endHours = endDate.getHours();
+    const endMinutes = endDate.getMinutes();
+
+    const formatPart = (h: number, m: number) => {
+      if (m === 0) return `${h}h`;
+      return `${h}:${String(m).padStart(2, '0')}h`;
+    };
+
+    return `${formatPart(hours, 0)} às ${formatPart(endHours, endMinutes)}`;
   };
 
   const handleTimeSelect = (time: string) => {
@@ -339,7 +351,7 @@ if (isOccupied) {
   };
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       hasTabBar={true}
@@ -359,6 +371,7 @@ if (isOccupied) {
             variant="primary"
             accessibilityLabel="Continuar para confirmação do agendamento"
             accessibilityHint="Toque para continuar e confirmar o agendamento"
+
           />
         </View>
       ) : undefined}
@@ -416,6 +429,7 @@ if (isOccupied) {
                 accessibilityLabel={`Horário ${formatTime(slot.time)}${slot.type === 'lunch' ? ', horário de almoço' : slot.type === 'occupied' ? ', ocupado' : ', disponível'}`}
                 accessibilityHint={isDisabled ? "Este horário não está disponível" : isSelected ? "Horário selecionado. Toque novamente para desmarcar" : "Toque para selecionar este horário"}
                 accessibilityState={{ selected: isSelected, disabled: isDisabled }}
+
               >
                 {slot.type === 'lunch' && (
                   <View style={styles.lunchIcon}>
@@ -442,8 +456,8 @@ if (isOccupied) {
                     {slot.type === 'lunch'
                       ? 'Almoço'
                       : slot.type === 'occupied'
-                      ? 'Ocupado'
-                      : 'Disponível'}
+                        ? 'Ocupado'
+                        : 'Disponível'}
                   </Text>
                 </View>
               </TouchableOpacity>

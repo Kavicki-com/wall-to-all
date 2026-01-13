@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, ViewStyle, StyleSheet } from 'react-native';
+import { responsiveWidth, responsiveHeight } from '../../lib/responsive';
 
 export interface CardProps {
   children: React.ReactNode;
@@ -19,7 +20,7 @@ export const Card: React.FC<CardProps> = ({
   paddingVertical,
 }) => {
   const cardStyle = variant === 'primary' ? styles.cardPrimary : styles.cardSecondary;
-  
+
   const paddingStyle: ViewStyle = {};
   if (padding !== undefined) {
     paddingStyle.padding = padding;
@@ -38,23 +39,25 @@ export const Card: React.FC<CardProps> = ({
   );
 };
 
+
+
 const styles = StyleSheet.create({
   cardPrimary: {
     backgroundColor: '#FEFEFE',
-    borderRadius: 24,
+    borderRadius: responsiveWidth(24),
     shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: responsiveHeight(4) },
     shadowOpacity: 0.16,
-    shadowRadius: 16,
+    shadowRadius: responsiveWidth(16),
     elevation: 4,
   },
   cardSecondary: {
     backgroundColor: '#FEFEFE',
-    borderRadius: 4,
+    borderRadius: responsiveWidth(4),
     shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: responsiveHeight(4) },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowRadius: responsiveWidth(8),
     elevation: 4,
   },
 });

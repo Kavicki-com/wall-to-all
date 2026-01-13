@@ -42,9 +42,9 @@ export interface ScreenContainerProps {
   refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
-export default function ScreenContainer({ 
-  children, 
-  style, 
+export default function ScreenContainer({
+  children,
+  style,
   withSafeArea = true,
   safeAreaEdges,
   scroll = false,
@@ -61,11 +61,11 @@ export default function ScreenContainer({
   const { width } = useWindowDimensions();
   const DEFAULT_HORIZONTAL_PADDING = width >= 768 ? 24 : 16;
   const finalHorizontalPadding = horizontalPadding ?? DEFAULT_HORIZONTAL_PADDING;
-  
+
   // Calcular edges baseado em hasHeader ou header
   // Se header é fornecido, considerar hasHeader=true automaticamente
   const hasHeaderOrCustomHeader = hasHeader || !!header;
-  
+
   // Quando há scroll, o padding deve ser aplicado no contentContainerStyle, não no container
   // porque o ScrollView não herda padding do container pai
   // Aplicar flexGrow: 1 automaticamente para garantir que conteúdo curto preencha a altura
@@ -80,9 +80,9 @@ export default function ScreenContainer({
 
   const finalContentContainerStyle = scroll
     ? [
-        baseScrollContentStyle,
-        contentContainerStyle,
-      ]
+      baseScrollContentStyle,
+      contentContainerStyle,
+    ]
     : contentContainerStyle;
 
   const containerStyle: ViewStyle = {
@@ -113,7 +113,7 @@ export default function ScreenContainer({
     backgroundColor: 'transparent',
     paddingHorizontal: finalHorizontalPadding,
   };
-  
+
   const renderContent = () => {
     // Container principal que envolve header, conteúdo e footer
     const mainContainerStyle: ViewStyle = {
@@ -131,6 +131,7 @@ export default function ScreenContainer({
     // Renderizar conteúdo com padding
     const contentWrapper = scroll ? (
       <ScrollView
+
         style={{ flex: 1 }}
         contentContainerStyle={finalContentContainerStyle}
         showsVerticalScrollIndicator={false}
@@ -173,20 +174,20 @@ export default function ScreenContainer({
       </View>
     );
   };
-  
+
   if (withSafeArea) {
     const edges = computedEdges();
-    
+
     return (
-      <SafeAreaView 
+      <SafeAreaView
         style={containerStyle}
         edges={edges}
       >
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
         >
-            {renderContent()}
+          {renderContent()}
         </KeyboardAvoidingView>
       </SafeAreaView>
     );
@@ -194,10 +195,10 @@ export default function ScreenContainer({
 
   return (
     <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={containerStyle}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={containerStyle}
     >
-        {renderContent()}
+      {renderContent()}
     </KeyboardAvoidingView>
   );
 }

@@ -87,7 +87,7 @@ const MerchantServicesScreen: React.FC = () => {
           const rating =
             ratings.length > 0
               ? ratings.reduce((sum: number, r: { rating?: number }) => sum + (r?.rating || 0), 0) /
-                ratings.length
+              ratings.length
               : undefined;
           const { reviews, categories, ...rest } = service;
           const categoryName = categories?.name ?? null;
@@ -170,13 +170,13 @@ const MerchantServicesScreen: React.FC = () => {
 
   // --- RENDERIZAÇÃO DA TELA ---
   return (
-    <ScreenContainer 
-      scroll={false} 
-      backgroundColor="#FAFAFA" 
+    <ScreenContainer
+      scroll={false}
+      backgroundColor="#FAFAFA"
       hasHeader={true}
       horizontalPadding={24}
       header={
-        <AppHeader 
+        <AppHeader
           showBackButton={true}
           onPressBack={() => safeGoBack('/(merchant)/home')}
         />
@@ -189,6 +189,7 @@ const MerchantServicesScreen: React.FC = () => {
             onPress={handleAddService}
             style={{ borderRadius: 24, height: 48 }}
             width="100%"
+
           />
         </View>
       }
@@ -197,7 +198,7 @@ const MerchantServicesScreen: React.FC = () => {
         {/* 1. TOPO: Título e Busca */}
         <View style={styles.headerSection}>
           <Text style={styles.title}>Meus serviços</Text>
-          
+
           <View style={styles.searchBarContainer}>
             <TextInput
               style={styles.searchInput}
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
   mainContent: {
     flex: 1,
   },
-  
+
   // --- HEADER ---
   headerSection: {
     paddingTop: 20,

@@ -20,33 +20,33 @@ type Appointment = {
   payment_method: string;
   client_notes: string | null;
   service:
-    | {
-        id: string;
-        name: string;
-        price: number;
-        price_type: string;
-        duration_minutes: number;
-        photos: string[] | string | null;
-      }
-    | {
-        id: string;
-        name: string;
-        price: number;
-        price_type: string;
-        duration_minutes: number;
-        photos: string[] | string | null;
-      }[];
+  | {
+    id: string;
+    name: string;
+    price: number;
+    price_type: string;
+    duration_minutes: number;
+    photos: string[] | string | null;
+  }
+  | {
+    id: string;
+    name: string;
+    price: number;
+    price_type: string;
+    duration_minutes: number;
+    photos: string[] | string | null;
+  }[];
   client:
-    | {
-        id: string;
-        full_name: string | null;
-        avatar_url: string | null;
-      }
-    | {
-        id: string;
-        full_name: string | null;
-        avatar_url: string | null;
-      }[];
+  | {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  }
+  | {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  }[];
 };
 
 const normalizeAppointment = (appointment: Appointment): Appointment => ({
@@ -73,7 +73,8 @@ const MerchantDashboardScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        if (__DEV__) { logger.debug('Usuário não autenticado');
+        if (__DEV__) {
+          logger.debug('Usuário não autenticado');
         }
         setLoading(false);
         return;
@@ -111,7 +112,7 @@ const MerchantDashboardScreen: React.FC = () => {
       const monthEnd = endOfMonth(currentMonth);
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
-      
+
       // Buscar agendamentos que podem estar no mês (considerando data original ou reagendamento)
       // Buscar um range maior (2 meses antes e depois) para capturar reagendamentos
       const extendedStart = new Date(monthStart);
@@ -141,24 +142,24 @@ const MerchantDashboardScreen: React.FC = () => {
       } else if (appointmentsData) {
         // Aplicar reagendamentos aceitos aos agendamentos PRIMEIRO
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
-        
+
         // Filtrar por data DEPOIS de aplicar reagendamentos
         // Mostrar apenas agendamentos futuros ou do mês selecionado
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         const filteredAppointments = appointmentsWithReschedules.filter((apt) => {
           const aptDate = new Date(apt.start_time);
           aptDate.setHours(0, 0, 0, 0);
           const aptDateString = format(aptDate, 'yyyy-MM-dd');
-          
+
           // Incluir se estiver no mês selecionado OU se for um agendamento futuro
           const isInSelectedMonth = aptDateString >= startDate && aptDateString <= endDate;
           const isFuture = aptDate >= today;
-          
+
           return isInSelectedMonth || (isFuture && aptDateString < startDate);
         });
-        
+
         const normalized = filteredAppointments.map((apt) =>
           normalizeAppointment(apt as any as Appointment),
         );
@@ -250,7 +251,7 @@ const MerchantDashboardScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       backgroundColor="#FAFAFA"
@@ -258,71 +259,71 @@ const MerchantDashboardScreen: React.FC = () => {
       header={<AppHeader showBackButton={false} />}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-        {/* Título */}
-        <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
+      {/* Título */}
+      <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
 
-        {/* Calendário */}
-        <MonthCalendar
-          key={calendarResetKey}
-          currentMonth={currentMonth}
-          onMonthChange={(direction) => setCurrentMonth((prev) => (direction === 'next' ? addMonths(prev, 1) : subMonths(prev, 1)))}
-          selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
-          markedDates={markedDates}
-        />
+      {/* Calendário */}
+      <MonthCalendar
+        key={calendarResetKey}
+        currentMonth={currentMonth}
+        onMonthChange={(direction) => setCurrentMonth((prev) => (direction === 'next' ? addMonths(prev, 1) : subMonths(prev, 1)))}
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        markedDates={markedDates}
+      />
 
-        {/* Lista de Agendamentos Agrupados por Data */}
-        {sortedDates.map((dateKey) => {
-          const dateAppointments = groupedAppointments[dateKey];
-          const date = parseISO(dateKey);
-          const isTodayDate = isToday(date);
-          const hasReschedulePending = dateAppointments.some(
-            (apt) => apt.status?.toLowerCase() === 'rescheduled'
-          );
+      {/* Lista de Agendamentos Agrupados por Data */}
+      {sortedDates.map((dateKey) => {
+        const dateAppointments = groupedAppointments[dateKey];
+        const date = parseISO(dateKey);
+        const isTodayDate = isToday(date);
+        const hasReschedulePending = dateAppointments.some(
+          (apt) => apt.status?.toLowerCase() === 'rescheduled'
+        );
 
-          return (
-            <AppointmentDaySection
-              key={dateKey}
-              dateLabel={formatDateHeader(date)}
-              isToday={isTodayDate}
-              statusLabel={hasReschedulePending ? 'Reagendado - Pendente' : undefined}
-              hasAppointments={dateAppointments.length > 0}
-              containerStyle={styles.dateGroup}
-            >
-              {dateAppointments.map((appointment) => {
-                const appointmentDate = new Date(appointment.start_time);
-                const time = format(appointmentDate, 'HH:mm');
-                const dateLabel = `Data ${format(appointmentDate, 'dd/MM/yy')}`;
-                const serviceData = Array.isArray(appointment.service)
-                  ? appointment.service[0]
-                  : appointment.service;
-
-                return (
-                  <AppointmentCard
-                    key={appointment.id}
-                    time={time}
-                    dateLabel={dateLabel}
-                    serviceName={serviceData?.name || 'Serviço'}
-                    showShopName={false}
-                    onPress={() => router.push(`/(merchant)/dashboard/appointment/${appointment.id}`)}
-                  />
-                );
-              })}
-            </AppointmentDaySection>
-          );
-        })}
-
-        {/* Mensagem quando não há agendamentos */}
-        {sortedDates.length === 0 && (
+        return (
           <AppointmentDaySection
-            dateLabel={formatDateHeader(selectedDate)}
-            isToday={isToday(selectedDate)}
-            hasAppointments={false}
+            key={dateKey}
+            dateLabel={formatDateHeader(date)}
+            isToday={isTodayDate}
+            statusLabel={hasReschedulePending ? 'Reagendado - Pendente' : undefined}
+            hasAppointments={dateAppointments.length > 0}
             containerStyle={styles.dateGroup}
           >
-            {null}
-            </AppointmentDaySection>
-        )}
+            {dateAppointments.map((appointment) => {
+              const appointmentDate = new Date(appointment.start_time);
+              const time = format(appointmentDate, 'HH:mm');
+              const dateLabel = `Data ${format(appointmentDate, 'dd/MM/yy')}`;
+              const serviceData = Array.isArray(appointment.service)
+                ? appointment.service[0]
+                : appointment.service;
+
+              return (
+                <AppointmentCard
+                  key={appointment.id}
+                  time={time}
+                  dateLabel={dateLabel}
+                  serviceName={serviceData?.name || 'Serviço'}
+                  showShopName={false}
+                  onPress={() => router.push(`/(merchant)/dashboard/appointment/${appointment.id}`)}
+                />
+              );
+            })}
+          </AppointmentDaySection>
+        );
+      })}
+
+      {/* Mensagem quando não há agendamentos */}
+      {sortedDates.length === 0 && (
+        <AppointmentDaySection
+          dateLabel={formatDateHeader(selectedDate)}
+          isToday={isToday(selectedDate)}
+          hasAppointments={false}
+          containerStyle={styles.dateGroup}
+        >
+          {null}
+        </AppointmentDaySection>
+      )}
     </ScreenContainer>
   );
 };

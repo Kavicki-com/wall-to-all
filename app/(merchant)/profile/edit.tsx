@@ -18,6 +18,7 @@ import { supabase } from '../../../lib/supabase';
 import { useBusinessProfile } from '../../../context/BusinessProfileContext';
 import { IconChevronDown, IconCheckbox, IconCheckboxOutline, IconDelete } from '../../../lib/icons';
 import { Icon } from '../../../components/ui/Icon';
+import { useAuth } from '../../../context/AuthContext';
 import { fetchCategories, type Category } from '../../../lib/categories';
 import { CustomInput } from '../../../components/ui/CustomInput';
 import AppHeader from '../../../components/layout/AppHeader';
@@ -43,6 +44,7 @@ const DAYS_OF_WEEK = [
 const EditBusinessProfileScreen: React.FC = () => {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
+  const { session } = useAuth();
   const { businessProfile: contextBusinessProfile, loading: profileLoading, refreshBusinessProfile } = useBusinessProfile();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,13 +75,13 @@ const EditBusinessProfileScreen: React.FC = () => {
       setLogoUri(contextBusinessProfile.logo_url || null);
       setWorkDays(contextBusinessProfile.work_days || {});
       setLoading(false);
-    } else if (!profileLoading && !contextBusinessProfile) {
+    } else if (!profileLoading && !contextBusinessProfile && session) {
       Alert.alert('Erro', 'Perfil do negócio não encontrado.');
       router.replace('/(merchant)/settings');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // router é estável do expo-router, não precisa estar nas dependências
-  }, [contextBusinessProfile, profileLoading]);
+  }, [contextBusinessProfile, profileLoading, session]);
 
   const loadCategories = async () => {
     const categoriesData = await fetchCategories();
@@ -316,7 +318,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       const originalBannerUrl = contextBusinessProfile.banner_url || null;
       const hadNewBannerSelected = bannerUri && !bannerUri.startsWith('http');
       const bannerUploadFailed = hadNewBannerSelected && !bannerUrl;
-      
+
       if (bannerUploadFailed) {
         Alert.alert('Erro', 'Não foi possível fazer upload do banner. Tente novamente.');
         setSaving(false);
@@ -341,7 +343,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       // Só atualizar banner_url se houver uma mudança real
       // Se o banner não mudou (é a mesma URL ou ambos são null), manter o existente
       const hasBannerChanged = bannerUrl !== originalBannerUrl;
-      
+
       if (hasBannerChanged) {
         // Se o usuário removeu o banner (bannerUrl é null mas havia um antes),
         // ou se fez upload de um novo com sucesso, atualizar
@@ -353,7 +355,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       const originalLogoUrl = contextBusinessProfile.logo_url || null;
       const hadNewLogoSelected = logoUri && !logoUri.startsWith('http');
       const logoUploadFailed = hadNewLogoSelected && !logoUrl;
-      
+
       if (logoUploadFailed) {
         Alert.alert('Erro', 'Não foi possível fazer upload do logo. Tente novamente.');
         setSaving(false);
@@ -362,7 +364,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
       // Só atualizar logo_url se houver uma mudança real
       const hasLogoChanged = logoUrl !== originalLogoUrl;
-      
+
       if (hasLogoChanged) {
         updateData.logo_url = logoUrl;
       }
@@ -423,66 +425,66 @@ const EditBusinessProfileScreen: React.FC = () => {
               if (businessData) {
                 const businessId = businessData.id;
 
-              // 1. Deletar agendamentos
-              const { error: appointmentsError } = await supabase
-                .from('appointments')
-                .delete()
-                .eq('business_id', businessId);
+                // 1. Deletar agendamentos
+                const { error: appointmentsError } = await supabase
+                  .from('appointments')
+                  .delete()
+                  .eq('business_id', businessId);
 
-              if (appointmentsError) {
-                logger.error('Erro ao deletar agendamentos:', appointmentsError);
-                Alert.alert('Erro', 'Não foi possível deletar os agendamentos. Tente novamente.');
-                return;
+                if (appointmentsError) {
+                  logger.error('Erro ao deletar agendamentos:', appointmentsError);
+                  Alert.alert('Erro', 'Não foi possível deletar os agendamentos. Tente novamente.');
+                  return;
+                }
+
+                // 2. Deletar avaliações
+                const { error: reviewsError } = await supabase
+                  .from('reviews')
+                  .delete()
+                  .eq('business_id', businessId);
+
+                if (reviewsError) {
+                  logger.error('Erro ao deletar avaliações:', reviewsError);
+                  Alert.alert('Erro', 'Não foi possível deletar as avaliações. Tente novamente.');
+                  return;
+                }
+
+                // 3. Deletar serviços
+                const { error: servicesError } = await supabase
+                  .from('services')
+                  .delete()
+                  .eq('business_id', businessId);
+
+                if (servicesError) {
+                  logger.error('Erro ao deletar serviços:', servicesError);
+                  Alert.alert('Erro', 'Não foi possível deletar os serviços. Tente novamente.');
+                  return;
+                }
+
+                // 4. Deletar business_profile
+                const { error: businessProfileError } = await supabase
+                  .from('business_profiles')
+                  .delete()
+                  .eq('id', businessId);
+
+                if (businessProfileError) {
+                  logger.error('Erro ao deletar perfil do negócio:', businessProfileError);
+                  Alert.alert('Erro', 'Não foi possível deletar o perfil do negócio. Tente novamente.');
+                  return;
+                }
               }
 
-              // 2. Deletar avaliações
-              const { error: reviewsError } = await supabase
-                .from('reviews')
+              // 5. Deletar profile do usuário
+              const { error: profileError } = await supabase
+                .from('profiles')
                 .delete()
-                .eq('business_id', businessId);
+                .eq('id', user.id);
 
-              if (reviewsError) {
-                logger.error('Erro ao deletar avaliações:', reviewsError);
-                Alert.alert('Erro', 'Não foi possível deletar as avaliações. Tente novamente.');
+              if (profileError) {
+                logger.error('Erro ao deletar perfil do usuário:', profileError);
+                Alert.alert('Erro', 'Não foi possível deletar o perfil do usuário. Tente novamente.');
                 return;
               }
-
-              // 3. Deletar serviços
-              const { error: servicesError } = await supabase
-                .from('services')
-                .delete()
-                .eq('business_id', businessId);
-
-              if (servicesError) {
-                logger.error('Erro ao deletar serviços:', servicesError);
-                Alert.alert('Erro', 'Não foi possível deletar os serviços. Tente novamente.');
-                return;
-              }
-
-              // 4. Deletar business_profile
-              const { error: businessProfileError } = await supabase
-                .from('business_profiles')
-                .delete()
-                .eq('id', businessId);
-
-              if (businessProfileError) {
-                logger.error('Erro ao deletar perfil do negócio:', businessProfileError);
-                Alert.alert('Erro', 'Não foi possível deletar o perfil do negócio. Tente novamente.');
-                return;
-              }
-            }
-
-            // 5. Deletar profile do usuário
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .delete()
-              .eq('id', user.id);
-
-            if (profileError) {
-              logger.error('Erro ao deletar perfil do usuário:', profileError);
-              Alert.alert('Erro', 'Não foi possível deletar o perfil do usuário. Tente novamente.');
-              return;
-            }
 
               // 6. Deletar usuário do auth.users usando Edge Function
               try {
@@ -516,13 +518,13 @@ const EditBusinessProfileScreen: React.FC = () => {
 
   if (loading || profileLoading) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor="#FAFAFA"
         hasHeader={true}
         hasTabBar={false}
         header={
-          <AppHeader 
+          <AppHeader
             title="Editar perfil"
             showBackButton={true}
             onPressBack={() => safeGoBack('/(merchant)/settings')}
@@ -538,13 +540,13 @@ const EditBusinessProfileScreen: React.FC = () => {
 
   if (!contextBusinessProfile) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor="#FAFAFA"
         hasHeader={true}
         hasTabBar={false}
         header={
-          <AppHeader 
+          <AppHeader
             title="Editar perfil"
             showBackButton={true}
             onPressBack={() => safeGoBack('/(merchant)/settings')}
@@ -561,13 +563,13 @@ const EditBusinessProfileScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
       backgroundColor="#FAFAFA"
       header={
-        <AppHeader 
+        <AppHeader
           title="Editar perfil"
           showBackButton={true}
           onPressBack={() => safeGoBack('/(merchant)/settings')}
@@ -587,173 +589,173 @@ const EditBusinessProfileScreen: React.FC = () => {
         </View>
       }
     >
-        {/* Business Name */}
-        <CustomInput
-          label="Nome do seu negócio"
-          placeholder="Nome do seu negócio"
-          value={businessName}
-          onChangeText={setBusinessName}
-          containerStyle={styles.field}
-        />
+      {/* Business Name */}
+      <CustomInput
+        label="Nome do seu negócio"
+        placeholder="Nome do seu negócio"
+        value={businessName}
+        onChangeText={setBusinessName}
+        containerStyle={styles.field}
+      />
 
-        {/* Category (Área de atuação) */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Área de atuação</Text>
-          <TouchableOpacity
-            style={styles.input}
-            onPress={() => setShowCategoryPicker(true)}
-          >
-            <Text style={[styles.inputText, !selectedCategoryId && styles.inputPlaceholder]}>
-              {selectedCategoryId 
-                ? categories.find(c => c.id === selectedCategoryId)?.name || 'Selecione uma categoria'
-                : 'Selecione uma categoria'}
-            </Text>
-            <IconChevronDown size={24} color="#0F0F0F" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Lunch Time Checkbox */}
+      {/* Category (Área de atuação) */}
+      <View style={styles.field}>
+        <Text style={styles.label}>Área de atuação</Text>
         <TouchableOpacity
-          style={styles.checkboxContainer}
-          onPress={() => setHasLunchTime(!hasLunchTime)}
-          activeOpacity={0.7}
+          style={styles.input}
+          onPress={() => setShowCategoryPicker(true)}
         >
-          {hasLunchTime ? (
-            <IconCheckbox size={24} color="#000E3D" />
-          ) : (
-            <IconCheckboxOutline size={24} color="#000E3D" />
-          )}
-          <Text style={styles.checkboxLabel}>Horário de almoço</Text>
+          <Text style={[styles.inputText, !selectedCategoryId && styles.inputPlaceholder]}>
+            {selectedCategoryId
+              ? categories.find(c => c.id === selectedCategoryId)?.name || 'Selecione uma categoria'
+              : 'Selecione uma categoria'}
+          </Text>
+          <IconChevronDown size={24} color="#0F0F0F" />
         </TouchableOpacity>
+      </View>
 
-        {/* Lunch Time Input */}
-        {hasLunchTime && (
-          <View style={styles.field}>
-            <Text style={styles.label}>Horário de almoço</Text>
-            <TouchableOpacity style={[styles.input, styles.inputWithBorder]}>
-              <Text style={styles.inputText}>12:00</Text>
-              <IconChevronDown size={24} color="#0F0F0F" />
-            </TouchableOpacity>
-          </View>
+      {/* Lunch Time Checkbox */}
+      <TouchableOpacity
+        style={styles.checkboxContainer}
+        onPress={() => setHasLunchTime(!hasLunchTime)}
+        activeOpacity={0.7}
+      >
+        {hasLunchTime ? (
+          <IconCheckbox size={24} color="#000E3D" />
+        ) : (
+          <IconCheckboxOutline size={24} color="#000E3D" />
         )}
+        <Text style={styles.checkboxLabel}>Horário de almoço</Text>
+      </TouchableOpacity>
 
-        {/* Business Time */}
+      {/* Lunch Time Input */}
+      {hasLunchTime && (
         <View style={styles.field}>
-          <Text style={styles.label}>Tempo de Negócio</Text>
-          <TouchableOpacity
-            style={[styles.input, styles.inputWithBorder]}
-            onPress={() => setShowBusinessTimePicker(true)}
-          >
-            <Text style={[styles.inputText, !businessTime && styles.inputPlaceholder]}>
-              {businessTime || '1 ano'}
-            </Text>
+          <Text style={styles.label}>Horário de almoço</Text>
+          <TouchableOpacity style={[styles.input, styles.inputWithBorder]}>
+            <Text style={styles.inputText}>12:00</Text>
             <IconChevronDown size={24} color="#0F0F0F" />
           </TouchableOpacity>
         </View>
+      )}
 
-        {/* Work Days */}
-        <View style={styles.workDaysSection}>
-          <Text style={styles.label}>Dias de funcionamento</Text>
-          {DAYS_OF_WEEK.map((day) => {
-            const isEnabled = !!workDays[day.key];
-            const daySchedule = workDays[day.key];
+      {/* Business Time */}
+      <View style={styles.field}>
+        <Text style={styles.label}>Tempo de Negócio</Text>
+        <TouchableOpacity
+          style={[styles.input, styles.inputWithBorder]}
+          onPress={() => setShowBusinessTimePicker(true)}
+        >
+          <Text style={[styles.inputText, !businessTime && styles.inputPlaceholder]}>
+            {businessTime || '1 ano'}
+          </Text>
+          <IconChevronDown size={24} color="#0F0F0F" />
+        </TouchableOpacity>
+      </View>
 
-            return (
-              <View key={day.key} style={styles.daySelector}>
-                <TouchableOpacity
-                  style={styles.dayCheckbox}
-                  onPress={() => handleWorkDayToggle(day.key)}
-                  activeOpacity={0.7}
-                >
-                  {isEnabled ? (
-                    <IconCheckbox size={24} color="#000E3D" />
-                  ) : (
-                    <IconCheckboxOutline size={24} color="#474747" />
-                  )}
-                  <Text style={[styles.dayLabel, !isEnabled && styles.dayLabelDisabled]}>
-                    {day.label}
-                  </Text>
-                </TouchableOpacity>
-                {isEnabled && daySchedule && (
-                  <View style={styles.dayTimes}>
-                    <View style={styles.timeInputContainer}>
-                      <CustomInput
-                        label="Hora de abertura"
-                        placeholder="07:00"
-                        value={daySchedule.start}
-                        onChangeText={(value) => handleWorkDayTimeChange(day.key, 'start', value)}
-                        containerStyle={{ marginBottom: 0 }}
-                        inputContainerStyle={styles.timeInput}
-                      />
-                    </View>
-                    <View style={styles.timeInputContainer}>
-                      <CustomInput
-                        label="Hora de fechamento"
-                        placeholder="18:00"
-                        value={daySchedule.end}
-                        onChangeText={(value) => handleWorkDayTimeChange(day.key, 'end', value)}
-                        containerStyle={{ marginBottom: 0 }}
-                        inputContainerStyle={styles.timeInput}
-                      />
-                    </View>
-                  </View>
+      {/* Work Days */}
+      <View style={styles.workDaysSection}>
+        <Text style={styles.label}>Dias de funcionamento</Text>
+        {DAYS_OF_WEEK.map((day) => {
+          const isEnabled = !!workDays[day.key];
+          const daySchedule = workDays[day.key];
+
+          return (
+            <View key={day.key} style={styles.daySelector}>
+              <TouchableOpacity
+                style={styles.dayCheckbox}
+                onPress={() => handleWorkDayToggle(day.key)}
+                activeOpacity={0.7}
+              >
+                {isEnabled ? (
+                  <IconCheckbox size={24} color="#000E3D" />
+                ) : (
+                  <IconCheckboxOutline size={24} color="#474747" />
                 )}
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Description */}
-        <CustomInput
-          label="O que você faz?"
-          placeholder="Descreva seu negócio..."
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          numberOfLines={6}
-          textAlignVertical="top"
-          containerStyle={styles.field}
-          inputContainerStyle={StyleSheet.flatten([styles.input, styles.textArea])}
-        />
-
-        {/* Logo Upload */}
-        <View style={styles.field}>
-          <Text style={styles.uploadLabel}>Adicione o logotipo do seu negócio</Text>
-          <TouchableOpacity style={styles.logoUploadContainer} onPress={pickLogo}>
-            {logoUri ? (
-              <Image source={{ uri: logoUri }} style={styles.logoImage} />
-            ) : (
-              <View style={styles.logoPlaceholder}>
-                <IconDelete size={34} color="#474747" />
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Banner Upload */}
-        <View style={styles.field}>
-          <Text style={styles.uploadLabel}>Adicione uma foto de capa</Text>
-          <TouchableOpacity style={styles.bannerUploadContainer} onPress={pickBanner} activeOpacity={0.8}>
-            {bannerUri ? (
-              <Image source={{ uri: bannerUri }} style={styles.bannerImage} />
-            ) : (
-              <View style={styles.bannerPlaceholder}>
-                <View style={styles.bannerCircleButton}>
-                  <Icon name="add" size={24} color="#FFFFFF" />
+                <Text style={[styles.dayLabel, !isEnabled && styles.dayLabelDisabled]}>
+                  {day.label}
+                </Text>
+              </TouchableOpacity>
+              {isEnabled && daySchedule && (
+                <View style={styles.dayTimes}>
+                  <View style={styles.timeInputContainer}>
+                    <CustomInput
+                      label="Hora de abertura"
+                      placeholder="07:00"
+                      value={daySchedule.start}
+                      onChangeText={(value) => handleWorkDayTimeChange(day.key, 'start', value)}
+                      containerStyle={{ marginBottom: 0 }}
+                      inputContainerStyle={styles.timeInput}
+                    />
+                  </View>
+                  <View style={styles.timeInputContainer}>
+                    <CustomInput
+                      label="Hora de fechamento"
+                      placeholder="18:00"
+                      value={daySchedule.end}
+                      onChangeText={(value) => handleWorkDayTimeChange(day.key, 'end', value)}
+                      containerStyle={{ marginBottom: 0 }}
+                      inputContainerStyle={styles.timeInput}
+                    />
+                  </View>
                 </View>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
 
-        {/* Delete Account Button */}
-        <CustomButton
-          title="Excluir conta"
-          variant="danger"
-          onPress={handleDeleteAccount}
-          style={{ borderRadius: 24, marginTop: 8 }}
-          width="100%"
-        />
+      {/* Description */}
+      <CustomInput
+        label="O que você faz?"
+        placeholder="Descreva seu negócio..."
+        value={description}
+        onChangeText={setDescription}
+        multiline
+        numberOfLines={6}
+        textAlignVertical="top"
+        containerStyle={styles.field}
+        inputContainerStyle={StyleSheet.flatten([styles.input, styles.textArea])}
+      />
+
+      {/* Logo Upload */}
+      <View style={styles.field}>
+        <Text style={styles.uploadLabel}>Adicione o logotipo do seu negócio</Text>
+        <TouchableOpacity style={styles.logoUploadContainer} onPress={pickLogo}>
+          {logoUri ? (
+            <Image source={{ uri: logoUri }} style={styles.logoImage} />
+          ) : (
+            <View style={styles.logoPlaceholder}>
+              <IconDelete size={34} color="#474747" />
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Banner Upload */}
+      <View style={styles.field}>
+        <Text style={styles.uploadLabel}>Adicione uma foto de capa</Text>
+        <TouchableOpacity style={styles.bannerUploadContainer} onPress={pickBanner} activeOpacity={0.8}>
+          {bannerUri ? (
+            <Image source={{ uri: bannerUri }} style={styles.bannerImage} />
+          ) : (
+            <View style={styles.bannerPlaceholder}>
+              <View style={styles.bannerCircleButton}>
+                <Icon name="add" size={24} color="#FFFFFF" />
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Delete Account Button */}
+      <CustomButton
+        title="Excluir conta"
+        variant="danger"
+        onPress={handleDeleteAccount}
+        style={{ borderRadius: 24, marginTop: 8 }}
+        width="100%"
+      />
 
       {/* Category Picker Modal */}
       <Modal

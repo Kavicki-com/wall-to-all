@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { IconRatingStar } from '../lib/icons';
+import { responsiveHeight, responsiveWidth, responsiveFontSize } from '../lib/responsive';
 
 type Props = {
   id: number;
@@ -91,12 +92,12 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 0,
     backgroundColor: '#FAFAFA',
-    borderRadius: 12,
+    borderRadius: responsiveWidth(12),
     overflow: 'hidden',
   },
 
   imageContainer: {
-    height: 140,
+    height: responsiveHeight(140),
     position: 'relative',
   },
 
@@ -111,28 +112,28 @@ const styles = StyleSheet.create({
 
   categoryBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: responsiveHeight(8),
+    right: responsiveWidth(8),
     backgroundColor: '#FEFEFE',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: responsiveWidth(12),
+    paddingHorizontal: responsiveWidth(10),
+    paddingVertical: responsiveHeight(4),
   },
 
   categoryText: {
-    fontSize: 12,
+    fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
     color: '#000E3D',
   },
 
   info: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 6,
+    paddingHorizontal: responsiveWidth(12),
+    paddingVertical: responsiveHeight(10),
+    gap: responsiveHeight(6),
   },
 
   name: {
-    fontSize: 16,
+    fontSize: responsiveFontSize(16),
     fontFamily: 'Montserrat_700Bold',
     color: '#000E3D',
   },
@@ -140,23 +141,23 @@ const styles = StyleSheet.create({
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: responsiveWidth(4),
   },
 
   ratingValue: {
-    fontSize: 12,
+    fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
     color: '#0F0F0F',
   },
 
   ratingCount: {
-    fontSize: 12,
+    fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
     color: '#474747',
   },
 
   price: {
-    fontSize: 16,
+    fontSize: responsiveFontSize(16),
     fontFamily: 'Montserrat_700Bold',
     color: '#17723F',
   },

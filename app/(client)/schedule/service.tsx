@@ -145,7 +145,7 @@ const ScheduleServiceScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
@@ -165,6 +165,7 @@ const ScheduleServiceScreen: React.FC = () => {
             variant="primary"
             accessibilityLabel="Continuar para seleção de data"
             accessibilityHint="Toque para continuar e selecionar a data do agendamento"
+
           />
         </View>
       ) : undefined}

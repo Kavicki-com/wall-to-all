@@ -58,11 +58,15 @@ Thumbs.db
 
 # Generated native folders
 /ios
-/android
+# /android
 
 # Editor
 .cursor/
+.agent/
 ARCHITECTURE.md
+
+# Debug/Development Components
+components/NetworkDiagnostic.tsx
 
 .env.local
 

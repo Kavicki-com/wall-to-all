@@ -125,7 +125,7 @@ const MerchantHomeScreen: React.FC = () => {
       startOfToday.setHours(0, 0, 0, 0);
       const endOfToday = new Date(today);
       endOfToday.setHours(23, 59, 59, 999);
-      
+
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
         .select(
@@ -146,12 +146,12 @@ const MerchantHomeScreen: React.FC = () => {
         logger.error('Erro ao buscar agendamentos do lojista:', appointmentsError);
       } else if (appointmentsData) {
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
-        
+
         const todayAppointments = appointmentsWithReschedules.filter((apt) => {
           const appointmentDate = new Date(apt.start_time);
           return appointmentDate >= startOfToday && appointmentDate <= endOfToday;
         });
-        
+
         setAppointments(todayAppointments as Appointment[]);
       }
     } catch (error) {
@@ -211,111 +211,111 @@ const MerchantHomeScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       backgroundColor="#FAFAFA"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       header={<AppHeader showBackButton={false} />}
     >
-        <View style={styles.avatarSection}>
-          {businessProfile?.logo_url ? (
-            <Image
-              source={{ uri: businessProfile.logo_url }}
-              style={styles.avatar}
-            />
-          ) : (
-            <View style={[styles.avatar, styles.placeholderAvatar]} />
-          )}
-          <View style={styles.businessNameContainer}>
-            <Text style={styles.businessName}>
-              {businessProfile?.business_name || 'Meu Negócio'}
+      <View style={styles.avatarSection}>
+        {businessProfile?.logo_url ? (
+          <Image
+            source={{ uri: businessProfile.logo_url }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={[styles.avatar, styles.placeholderAvatar]} />
+        )}
+        <View style={styles.businessNameContainer}>
+          <Text style={styles.businessName}>
+            {businessProfile?.business_name || 'Meu Negócio'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
+        {appointments.length > 0 ? (
+          <ScrollView
+            nestedScrollEnabled
+            scrollEnabled
+            showsVerticalScrollIndicator
+            style={styles.appointmentsScrollArea}
+            contentContainerStyle={styles.appointmentsList}
+          >
+            {appointments.map((item) => {
+              const startDate = new Date(item.start_time);
+              const time = startDate.toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              });
+              const dateLabel = `Data ${startDate.toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: '2-digit',
+              })}`;
+              const serviceName = Array.isArray(item.service)
+                ? item.service[0]?.name
+                : item.service?.name;
+
+              return (
+                <AppointmentCard
+                  key={item.id}
+                  time={time}
+                  dateLabel={dateLabel}
+                  serviceName={serviceName || 'Serviço'}
+                  showShopName={false}
+                  onPress={() => router.push(`/(merchant)/dashboard/appointment/${item.id}`)}
+                />
+              );
+            })}
+          </ScrollView>
+        ) : (
+          <View style={styles.emptyStateCard}>
+            <Text style={styles.emptyStateText}>
+              Você ainda não tem nenhum agendamento, divulgue seu perfil para receber mais clientes
             </Text>
           </View>
-        </View>
+        )}
+        <CustomButton
+          title="Compartilhar perfil"
+          variant="outline"
+          onPress={handleShareProfile}
+          rightIcon={<IconShare size={24} color="#000E3D" />}
+          style={{ borderRadius: 24 }}
+          width="100%"
+        />
+      </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
-          {appointments.length > 0 ? (
-            <ScrollView
-              nestedScrollEnabled
-              scrollEnabled
-              showsVerticalScrollIndicator
-              style={styles.appointmentsScrollArea}
-              contentContainerStyle={styles.appointmentsList}
-            >
-              {appointments.map((item) => {
-                const startDate = new Date(item.start_time);
-                const time = startDate.toLocaleTimeString('pt-BR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: false,
-                });
-                const dateLabel = `Data ${startDate.toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: '2-digit',
-                })}`;
-                const serviceName = Array.isArray(item.service)
-                  ? item.service[0]?.name
-                  : item.service?.name;
-
-                return (
-                  <AppointmentCard
-                    key={item.id}
-                    time={time}
-                    dateLabel={dateLabel}
-                    serviceName={serviceName || 'Serviço'}
-                    showShopName={false}
-                    onPress={() => router.push(`/(merchant)/dashboard/appointment/${item.id}`)}
-                  />
-                );
-              })}
-            </ScrollView>
-          ) : (
-            <View style={styles.emptyStateCard}>
-              <Text style={styles.emptyStateText}>
-                Você ainda não tem nenhum agendamento, divulgue seu perfil para receber mais clientes
-              </Text>
-            </View>
-          )}
-          <CustomButton
-            title="Compartilhar perfil"
-            variant="outline"
-            onPress={handleShareProfile}
-            rightIcon={<IconShare size={24} color="#000E3D" />}
-            style={{ borderRadius: 24 }}
-            width="100%"
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Meus Serviços</Text>
+        {services.length > 0 ? (
+          <FlatList
+            data={services}
+            renderItem={renderServiceCard}
+            keyExtractor={(item) => item.id.toString()}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.servicesCarousel}
+            initialNumToRender={3}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            removeClippedSubviews={true}
           />
-        </View>
+        ) : (
+          <Text style={styles.emptyServicesText}>Nenhum serviço cadastrado</Text>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Meus Serviços</Text>
-          {services.length > 0 ? (
-            <FlatList
-              data={services}
-              renderItem={renderServiceCard}
-              keyExtractor={(item) => item.id.toString()}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.servicesCarousel}
-              initialNumToRender={3}
-              maxToRenderPerBatch={5}
-              windowSize={5}
-              removeClippedSubviews={true}
-            />
-          ) : (
-            <Text style={styles.emptyServicesText}>Nenhum serviço cadastrado</Text>
-          )}
-          
-          <CustomButton
-            title="Cadastrar novo serviço"
-            variant="outline"
-            onPress={() => router.push('/(merchant)/services/create')}
-            style={{ borderRadius: 24, height: 48, marginTop: 16 }}
-            width="100%"
-          />
-        </View>
+        <CustomButton
+          title="Cadastrar novo serviço"
+          variant="outline"
+          onPress={() => router.push('/(merchant)/services/create')}
+          style={{ borderRadius: 24, height: 48, marginTop: 16 }}
+          width="100%"
+        />
+      </View>
     </ScreenContainer>
   );
 };

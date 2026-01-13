@@ -8,16 +8,17 @@ const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO
 const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 // Verifica se as credenciais são válidas (não são placeholders)
-const isValidUrl = supabaseUrl && 
-  supabaseUrl !== 'https://SEU-PROJETO.supabase.co' && 
+const isValidUrl = supabaseUrl &&
+  supabaseUrl !== 'https://SEU-PROJETO.supabase.co' &&
   supabaseUrl !== 'https://seu-projeto.supabase.co' &&
   supabaseUrl.startsWith('https://') &&
   supabaseUrl.includes('.supabase.co');
 
-const isValidKey = supabaseAnonKey && 
+const isValidKey = supabaseAnonKey &&
   supabaseAnonKey !== 'SEU_SUPABASE_ANON_KEY' &&
   supabaseAnonKey !== 'sua-chave-anon-aqui' &&
   supabaseAnonKey.length > 20;
+
 
 if (!isValidUrl || !isValidKey) {
   // Only show detailed error message outside of test environment
@@ -56,12 +57,12 @@ Veja o arquivo .env.example para um template de referência.
 
 ⚠️  O app continuará funcionando, mas as funcionalidades de autenticação não estarão disponíveis.
     `.trim();
-    
+
     logger.error(errorMessage);
   }
-  
+
   logger.warn('[Supabase] Usando valores padrão. Configure as credenciais para usar o Supabase.');
-  
+
   // Usa valores padrão para evitar crash, mas o app não funcionará corretamente
   // O AuthContext tratará a ausência de credenciais
 }
@@ -93,15 +94,15 @@ export const isSupabaseConfigured = isValidUrl && isValidKey;
 // Função auxiliar para verificar se é erro de refresh token
 const isInvalidRefreshTokenError = (error: unknown): boolean => {
   if (!error) return false;
-  
+
   const isErrorLike = (e: unknown): e is { message?: string; code?: string; name?: string } => {
     return typeof e === 'object' && e !== null;
   };
-  
+
   if (!isErrorLike(error)) {
     return false;
   }
-  
+
   const errorMessage = error.message || String(error) || '';
   return (
     errorMessage.includes('Invalid Refresh Token') ||
@@ -130,7 +131,7 @@ if (typeof console !== 'undefined' && console.error) {
     }).join(' ');
 
     // Verifica se contém erro de refresh token (case insensitive)
-    const hasRefreshTokenError = 
+    const hasRefreshTokenError =
       argsString.toLowerCase().includes('invalid refresh token') ||
       argsString.toLowerCase().includes('refresh token not found') ||
       argsString.toLowerCase().includes('refresh_token_not_found') ||
@@ -155,25 +156,195 @@ if (typeof console !== 'undefined' && console.error) {
 }
 
 // Função utilitária para limpar tokens inválidos
-export const clearInvalidAuthTokens = async () => {
+export const clearInvalidAuthTokens = async (): Promise<boolean> => {
   try {
-    const keys = await AsyncStorage.getAllKeys();
-    const supabaseKeys = keys.filter(key => 
-      key.includes('supabase') || 
-      key.includes('auth') ||
-      key.startsWith('sb-') ||
-      key.includes('supabase.auth.token')
-    );
-    
-    if (supabaseKeys.length > 0) {
-      await AsyncStorage.multiRemove(supabaseKeys);
-      if (__DEV__) { logger.debug('[Supabase] Tokens inválidos removidos do AsyncStorage');
+    // Validação: verifica se AsyncStorage está disponível
+    if (!AsyncStorage || typeof AsyncStorage.getAllKeys !== 'function') {
+      if (__DEV__) {
+        logger.warn('[Supabase] AsyncStorage não disponível para limpar tokens');
       }
-      return true;
+      return false;
     }
-    return false;
+
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+
+      // Validação: verifica se keys é um array válido
+      if (!Array.isArray(keys)) {
+        if (__DEV__) {
+          logger.warn('[Supabase] getAllKeys não retornou um array válido');
+        }
+        return false;
+      }
+
+      const supabaseKeys = keys.filter(key => {
+        // Validação: verifica se key é string válida
+        if (typeof key !== 'string' || key.length === 0) {
+          return false;
+        }
+        return (
+          key.includes('supabase') ||
+          key.includes('auth') ||
+          key.startsWith('sb-') ||
+          key.includes('supabase.auth.token')
+        );
+      });
+
+      if (supabaseKeys.length > 0) {
+        try {
+          await AsyncStorage.multiRemove(supabaseKeys);
+          if (__DEV__) {
+            logger.debug('[Supabase] Tokens inválidos removidos do AsyncStorage:', supabaseKeys.length);
+          }
+          return true;
+        } catch (removeError) {
+          // Fallback: tenta remover um por um se multiRemove falhar
+          if (__DEV__) {
+            logger.warn('[Supabase] Erro ao remover tokens em lote, tentando individualmente:', removeError);
+          }
+
+          let successCount = 0;
+          for (const key of supabaseKeys) {
+            try {
+              await AsyncStorage.removeItem(key);
+              successCount++;
+            } catch (individualError) {
+              if (__DEV__) {
+                logger.warn(`[Supabase] Erro ao remover token individual ${key}:`, individualError);
+              }
+            }
+          }
+
+          if (successCount > 0) {
+            if (__DEV__) {
+              logger.debug(`[Supabase] ${successCount} tokens removidos individualmente`);
+            }
+            return true;
+          }
+
+          return false;
+        }
+      }
+      return false;
+    } catch (storageError) {
+      // Erro ao acessar AsyncStorage
+      if (__DEV__) {
+        logger.error('[Supabase] Erro ao acessar AsyncStorage:', storageError);
+      }
+      return false;
+    }
   } catch (error) {
-    logger.error('[Supabase] Erro ao limpar tokens:', error);
+    // Erro geral não esperado
+    logger.error('[Supabase] Erro inesperado ao limpar tokens:', error);
     return false;
+  }
+};
+
+// Função auxiliar para verificar se é erro de autenticação (401/403)
+const isAuthError = (error: unknown): boolean => {
+  if (!error) return false;
+
+  const isErrorLike = (e: unknown): e is { message?: string; code?: string; status?: number; statusCode?: number } => {
+    return typeof e === 'object' && e !== null;
+  };
+
+  if (!isErrorLike(error)) {
+    return false;
+  }
+
+  const status = error.status || error.statusCode;
+  const errorMessage = (error.message || String(error) || '').toLowerCase();
+
+  return (
+    status === 401 ||
+    status === 403 ||
+    errorMessage.includes('unauthorized') ||
+    errorMessage.includes('forbidden') ||
+    errorMessage.includes('jwt') ||
+    errorMessage.includes('token expired') ||
+    errorMessage.includes('session expired')
+  );
+};
+
+// Wrapper para chamadas Supabase que intercepta erros de autenticação
+export const safeSupabaseCall = async <T>(
+  call: () => Promise<{ data: T | null; error: unknown }>
+): Promise<{ data: T | null; error: unknown; shouldRetry: boolean }> => {
+  try {
+    const result = await call();
+
+    // Verifica se há erro de autenticação
+    if (result.error && isAuthError(result.error)) {
+      if (__DEV__) {
+        logger.warn('[Supabase] Erro de autenticação detectado, tentando refresh de sessão');
+      }
+
+      try {
+        // Tenta fazer refresh da sessão
+        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+
+        if (refreshError || !session) {
+          // Refresh falhou - limpa tokens e força logout
+          if (__DEV__) {
+            logger.warn('[Supabase] Refresh de sessão falhou, limpando tokens');
+          }
+
+          await clearInvalidAuthTokens();
+
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            // Ignora erros no signOut
+          }
+
+          return {
+            data: null,
+            error: refreshError || new Error('Sessão expirada. Por favor, faça login novamente.'),
+            shouldRetry: false,
+          };
+        }
+
+        // Refresh bem-sucedido - tenta novamente a chamada original
+        if (__DEV__) {
+          logger.debug('[Supabase] Sessão renovada com sucesso, tentando novamente');
+        }
+
+        const retryResult = await call();
+        return {
+          ...retryResult,
+          shouldRetry: false, // Já tentou uma vez
+        };
+      } catch (refreshError) {
+        if (__DEV__) {
+          logger.error('[Supabase] Erro ao tentar refresh de sessão:', refreshError);
+        }
+
+        await clearInvalidAuthTokens();
+
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // Ignora erros no signOut
+        }
+
+        return {
+          data: null,
+          error: refreshError,
+          shouldRetry: false,
+        };
+      }
+    }
+
+    return {
+      ...result,
+      shouldRetry: false,
+    };
+  } catch (error) {
+    // Erro não relacionado a autenticação
+    return {
+      data: null,
+      error,
+      shouldRetry: false,
+    };
   }
 };

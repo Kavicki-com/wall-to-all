@@ -16,6 +16,7 @@ import { CustomButton } from '../../../components/CustomButton';
 import ScheduleConfirmCard from '../../../components/ui/ScheduleConfirmCard';
 import { validateTime, validateDate } from '../../../lib/validations';
 import { safeGoBack } from '../../../lib/router-utils';
+import { checkAppointmentConflicts } from '../../../lib/utils';
 import { notifyAppointmentRequested } from '../../../lib/notifications';
 import { logger } from '../../../lib/logger';
 
@@ -115,17 +116,17 @@ const ScheduleConfirmScreen: React.FC = () => {
 
   const formatDateAndTime = () => {
     if (!params.date || !params.time) return 'Hoje - 10h às 11h';
-    
+
     const date = new Date(params.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const compareDate = new Date(date);
     compareDate.setHours(0, 0, 0, 0);
-    
+
     const isToday = compareDate.getTime() === today.getTime();
     const [hours] = params.time.split(':');
     const nextHour = parseInt(hours) + 1;
-    
+
     if (isToday) {
       return `Hoje - ${hours}h às ${nextHour}h`;
     }
@@ -181,33 +182,32 @@ const ScheduleConfirmScreen: React.FC = () => {
       const normalizedStartDate = startDate ?? new Date(startTime);
       const endDate = new Date(normalizedStartDate.getTime() + durationMinutes * 60000);
       const endTime = endDate.toISOString();
-const businessIdNum = parseInt(params.businessId, 10);
+      const businessIdNum = parseInt(params.businessId, 10);
       if (isNaN(businessIdNum)) {
         Alert.alert('Erro', 'ID do negócio inválido');
         setSubmitting(false);
         return;
       }
 
-      const { count: conflictCount, error: conflictError } = await supabase
-        .from('appointments')
-        .select('id', { count: 'exact', head: true })
-        .eq('business_id', businessIdNum)
-        .in('status', ['pending', 'confirmed'])
-        .lte('start_time', endTime)
-        .gte('end_time', startTime);
-if (conflictError) {
+      const { hasConflict, error: conflictError } = await checkAppointmentConflicts(
+        businessIdNum,
+        startTime,
+        endTime
+      );
+
+      if (conflictError) {
         const processed = handleError(conflictError, 'appointment');
         showError(processed.userMessage);
         setSubmitting(false);
         return;
       }
 
-      if (conflictCount && conflictCount > 0) {
+      if (hasConflict) {
         Alert.alert('Horário indisponível', 'Selecione outro horário, este já está ocupado.');
         setSubmitting(false);
         return;
       }
-const serviceIdNum = parseInt(params.serviceId, 10);
+      const serviceIdNum = parseInt(params.serviceId, 10);
       if (isNaN(serviceIdNum)) {
         Alert.alert('Erro', 'ID do serviço inválido');
         setSubmitting(false);
@@ -228,7 +228,7 @@ const serviceIdNum = parseInt(params.serviceId, 10);
         })
         .select()
         .single();
-if (error) {
+      if (error) {
         const processed = handleError(error, 'appointment');
         showError(processed.userMessage);
         setSubmitting(false);
@@ -239,7 +239,7 @@ if (error) {
       if (appointmentData) {
         try {
           logger.debug('Agendamento criado, buscando dados para notificação...');
-          
+
           // Buscar dados do cliente
           const { data: clientData, error: clientError } = await supabase
             .from('profiles')
@@ -275,7 +275,7 @@ if (error) {
           if (merchantId && service && appointmentData.id) {
             // appointmentData.id já é number conforme os tipos do Supabase
             const appointmentId = appointmentData.id;
-            
+
             logger.debug('Enviando notificação para merchant:', merchantId);
             await notifyAppointmentRequested(
               merchantId,
@@ -322,7 +322,7 @@ if (error) {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       hasTabBar={true}

@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, safeSupabaseCall } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { logger } from '../lib/logger';
+import { handleError } from '../lib/errorHandler';
+import { useToast } from '../components/ui/ToastProvider';
 
 export type BusinessProfile = {
   id: number;
@@ -36,7 +38,7 @@ const BusinessProfileContext = createContext<BusinessProfileContextType>({
   businessProfile: null,
   loading: true,
   error: null,
-  refreshBusinessProfile: async () => {},
+  refreshBusinessProfile: async () => { },
 });
 
 interface BusinessProfileProviderProps {
@@ -44,7 +46,8 @@ interface BusinessProfileProviderProps {
 }
 
 export const BusinessProfileProvider: React.FC<BusinessProfileProviderProps> = ({ children }) => {
-  const { session } = useAuth();
+  const { session, validateSession } = useAuth();
+  const { showError } = useToast();
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,39 +57,66 @@ export const BusinessProfileProvider: React.FC<BusinessProfileProviderProps> = (
       setLoading(true);
       setError(null);
 
+      // Verifica se há sessão válida antes de fazer chamada de API
       if (!session?.user?.id) {
         setBusinessProfile(null);
         setLoading(false);
         return;
       }
 
-      const { data: businessData, error: businessError } = await supabase
-        .from('business_profiles')
-        .select(`
-          *,
-          banner_url,
-          categories:category_id (
-            id,
-            name
-          )
-        `)
-        .eq('owner_id', session.user.id)
-        .single();
+      // Valida sessão antes de fazer a chamada
+      if (validateSession) {
+        try {
+          const isValid = await validateSession();
+          if (!isValid) {
+            setBusinessProfile(null);
+            const msg = 'Sessão expirada. Por favor, faça login novamente.';
+            setError(msg);
+            showError(msg);
+            setLoading(false);
+            return;
+          }
+        } catch (validationError) {
+          if (__DEV__) {
+            logger.warn('[BusinessProfileContext] Erro ao validar sessão:', validationError);
+          }
+          // Continua mesmo se validação falhar - safeSupabaseCall vai tratar
+        }
+      }
 
-      if (businessError) {
+      // Usa safeSupabaseCall para interceptar erros de autenticação
+      const result = await safeSupabaseCall(async () => {
+        return await supabase
+          .from('business_profiles')
+          .select(`
+            *,
+            banner_url,
+            categories:category_id (
+              id,
+              name
+            )
+          `)
+          .eq('owner_id', session.user.id)
+          .single();
+      });
+
+      if (result.error) {
         // PGRST116 significa que não há perfil (0 linhas) - isso é esperado em alguns casos
-        if (businessError.code !== 'PGRST116') {
-          logger.error('[BusinessProfileContext] Erro ao buscar perfil do negócio:', businessError);
-          setError(businessError.message);
+        if (result.error && typeof result.error === 'object' && 'code' in result.error && result.error.code !== 'PGRST116') {
+          const processedError = handleError(result.error, 'businessProfile');
+          logger.error('[BusinessProfileContext] Erro ao buscar perfil do negócio:', result.error);
+          setError(processedError.userMessage);
+          showError(processedError.userMessage);
         }
         setBusinessProfile(null);
-      } else if (businessData) {
+      } else if (result.data) {
         // Processar categoria para garantir formato consistente
+        const data = result.data as any;
         const profile = {
-          ...businessData,
-          categories: Array.isArray(businessData.categories) 
-            ? businessData.categories[0] || null
-            : businessData.categories || null,
+          ...data,
+          categories: Array.isArray(data.categories)
+            ? data.categories[0] || null
+            : data.categories || null,
         } as BusinessProfile;
         setBusinessProfile(profile);
         setError(null);
@@ -96,13 +126,14 @@ export const BusinessProfileProvider: React.FC<BusinessProfileProviderProps> = (
       }
     } catch (err: unknown) {
       logger.error('[BusinessProfileContext] Erro ao carregar perfil do negócio:', err);
-      const error = err as { message?: string };
-      setError(error.message || 'Erro ao carregar perfil do negócio');
+      const processedError = handleError(err, 'businessProfile');
+      setError(processedError.userMessage);
+      showError(processedError.userMessage);
       setBusinessProfile(null);
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, validateSession]);
 
   // Recarregar perfil quando a sessão mudar
   useEffect(() => {

@@ -10,7 +10,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeGoBack } from '../../lib/router-utils';
-import { IconCheckboxPayment } from '../../lib/assets';
+import { RadioButton } from '../../components/ui/RadioButton';
 import { useToast } from '../../components/ui/ToastProvider';
 import SelectDropdown from '../../components/ui/SelectDropdown';
 import ServiceImagePicker from '../../components/ui/ServiceImagePicker';
@@ -44,7 +44,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Estados para múltiplas fotos (até 4)
   const [serviceImages, setServiceImages] = useState<string[]>([]);
   const [imagesUploading, setImagesUploading] = useState(false);
@@ -85,24 +85,24 @@ const MerchantSignupServicesScreen: React.FC = () => {
   // Função para converter duração de formato texto para minutos
   const parseDurationToMinutes = (durationText: string): number => {
     if (!durationText) return 60; // Default 1 hora
-    
+
     // Remove espaços e converte para lowercase
     const cleaned = durationText.trim().toLowerCase();
-    
+
     // Tenta extrair horas e minutos
     const hourMatch = cleaned.match(/(\d+)\s*h/);
     const minuteMatch = cleaned.match(/(\d+)\s*m/);
-    
+
     let hours = 0;
     let minutes = 0;
-    
+
     if (hourMatch) {
       hours = parseInt(hourMatch[1], 10);
     }
     if (minuteMatch) {
       minutes = parseInt(minuteMatch[1], 10);
     }
-    
+
     // Se não encontrou horas nem minutos, tenta interpretar como número puro
     // Para evitar ambiguidade, assumimos que números pequenos (<= 8) são horas
     // e números maiores são minutos (mais comum para serviços)
@@ -120,7 +120,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
         }
       }
     }
-    
+
     const totalMinutes = hours * 60 + minutes;
     return totalMinutes > 0 ? totalMinutes : 60; // Default 60 minutos se não conseguir converter
   };
@@ -138,7 +138,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
       // Buscar dados salvos anteriormente
       const draftKey = 'merchant_signup_draft';
       const stored = await AsyncStorage.getItem(draftKey);
-      
+
       if (!stored) {
         setError('Dados do cadastro não encontrados. Por favor, volte e preencha novamente.');
         return;
@@ -225,151 +225,134 @@ const MerchantSignupServicesScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
 
-          {/* Form */}
-          <View style={styles.form}>
-            {/* Nome do serviço */}
-            <CustomInput
-              label="Nome do Serviço"
-              placeholder="Nome do Serviço"
-              value={serviceName}
-              onChangeText={setServiceName}
-            />
+        {/* Form */}
+        <View style={styles.form}>
+          {/* Nome do serviço */}
+          <CustomInput
+            label="Nome do Serviço"
+            placeholder="Nome do Serviço"
+            value={serviceName}
+            onChangeText={setServiceName}
+          />
 
-            {/* Forma de cobrança */}
-            <View style={styles.radioGroup}>
-              <Text style={styles.label}>Forma de cobrança</Text>
-              <View style={styles.radioRow}>
+          {/* Forma de cobrança */}
+          <View style={styles.radioGroup}>
+            <Text style={styles.label}>Forma de cobrança</Text>
+            <View style={styles.radioRow}>
+              <RadioButton
+                label="Valor Fixo"
+                selected={chargeType === 'fixed'}
+                onPress={() => setChargeType('fixed')}
+                style={{ marginRight: 12 }}
+              />
+              <RadioButton
+                label="Valor por hora"
+                selected={chargeType === 'hourly'}
+                onPress={() => setChargeType('hourly')}
+              />
+            </View>
+          </View>
+
+          {/* Preço */}
+          <CustomInput
+            label="Preço"
+            placeholder="R$ 100,00"
+            keyboardType="numeric"
+            value={price}
+            onChangeText={handlePriceChange}
+          />
+
+          {/* Duração */}
+          <CustomInput
+            label="Duração"
+            placeholder="1h"
+            value={duration}
+            onChangeText={setDuration}
+          />
+
+          {/* Categoria do Serviço */}
+          <View style={styles.radioGroup}>
+            <Text style={styles.label}>Categoria do Serviço</Text>
+            <View style={styles.chipRow}>
+              <View style={styles.chipContainer}>
                 <TouchableOpacity
-                  style={styles.radioOption}
-                  onPress={() => setChargeType('fixed')}
+                  style={[
+                    category === 'local' ? styles.chip : styles.chipOutline,
+                    category === 'local' && styles.chipActive,
+                  ]}
                   activeOpacity={0.7}
+                  onPress={() => setCategory('local')}
                 >
-                  <View style={styles.radioContainer}>
-                    {chargeType === 'fixed' ? (
-                      <IconCheckboxPayment width={24} height={24} />
-                    ) : (
-                      <View style={styles.radioCircle} />
-                    )}
-                    <Text style={styles.radioLabel}>Valor Fixo</Text>
-                  </View>
+                  <Text
+                    style={[
+                      category === 'local' ? styles.chipText : styles.chipTextOutline,
+                      category === 'local' && styles.chipTextActive,
+                    ]}
+                  >
+                    No meu local
+                  </Text>
+                  {category === 'local' && (
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setCategory('home');
+                      }}
+                      style={styles.chipCloseButton}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Icon name="close" family="MaterialSymbols" size={16} color="#FEFEFE" />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
+              </View>
+              <View style={styles.chipContainer}>
                 <TouchableOpacity
-                  style={styles.radioOption}
-                  onPress={() => setChargeType('hourly')}
+                  style={[
+                    category === 'home' ? styles.chip : styles.chipOutline,
+                    category === 'home' && styles.chipActive,
+                  ]}
                   activeOpacity={0.7}
+                  onPress={() => setCategory('home')}
                 >
-                  <View style={styles.radioContainer}>
-                    {chargeType === 'hourly' ? (
-                      <IconCheckboxPayment width={24} height={24} />
-                    ) : (
-                      <View style={styles.radioCircle} />
-                    )}
-                    <Text style={styles.radioLabel}>Valor por hora</Text>
-                  </View>
+                  <Text
+                    style={[
+                      category === 'home' ? styles.chipText : styles.chipTextOutline,
+                      category === 'home' && styles.chipTextActive,
+                    ]}
+                  >
+                    À domicílio
+                  </Text>
+                  {category === 'home' && (
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setCategory('local');
+                      }}
+                      style={styles.chipCloseButton}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Icon name="close" family="MaterialSymbols" size={16} color="#FEFEFE" />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
+          </View>
 
-            {/* Preço */}
-            <CustomInput
-              label="Preço"
-              placeholder="R$ 100,00"
-              keyboardType="numeric"
-              value={price}
-              onChangeText={handlePriceChange}
-            />
+          {/* Descrição do serviço */}
+          <CustomInput
+            label="Descrição do Serviço"
+            placeholder="Deixe aqui sua opinião."
+            multiline
+            numberOfLines={4}
+            value={description}
+            onChangeText={setDescription}
+            containerStyle={styles.textareaGroup}
+          />
 
-            {/* Duração */}
-            <CustomInput
-              label="Duração"
-              placeholder="1h"
-              value={duration}
-              onChangeText={setDuration}
-            />
-
-            {/* Categoria do Serviço */}
-            <View style={styles.radioGroup}>
-              <Text style={styles.label}>Categoria do Serviço</Text>
-              <View style={styles.chipRow}>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[
-                      category === 'local' ? styles.chip : styles.chipOutline,
-                      category === 'local' && styles.chipActive,
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => setCategory('local')}
-                  >
-                    <Text
-                      style={[
-                        category === 'local' ? styles.chipText : styles.chipTextOutline,
-                        category === 'local' && styles.chipTextActive,
-                      ]}
-                    >
-                      No meu local
-                    </Text>
-                    {category === 'local' && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setCategory('home');
-                        }}
-                        style={styles.chipCloseButton}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Icon name="close" family="MaterialSymbols" size={16} color="#FEFEFE" />
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.chipContainer}>
-                  <TouchableOpacity
-                    style={[
-                      category === 'home' ? styles.chip : styles.chipOutline,
-                      category === 'home' && styles.chipActive,
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => setCategory('home')}
-                  >
-                    <Text
-                      style={[
-                        category === 'home' ? styles.chipText : styles.chipTextOutline,
-                        category === 'home' && styles.chipTextActive,
-                      ]}
-                    >
-                      À domicílio
-                    </Text>
-                    {category === 'home' && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setCategory('local');
-                        }}
-                        style={styles.chipCloseButton}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Icon name="close" family="MaterialSymbols" size={16} color="#FEFEFE" />
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            {/* Descrição do serviço */}
-            <CustomInput
-              label="Descrição do Serviço"
-              placeholder="Deixe aqui sua opinião."
-              multiline
-              numberOfLines={4}
-              value={description}
-              onChangeText={setDescription}
-              containerStyle={styles.textareaGroup}
-            />
-
-            {/* Disponibilidade */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Disponibilidade</Text>
+          {/* Disponibilidade */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Disponibilidade</Text>
             <SelectDropdown<AvailabilityOption>
               data={AVAILABILITY_OPTIONS}
               labelKey="label"
@@ -378,18 +361,18 @@ const MerchantSignupServicesScreen: React.FC = () => {
               selectedValue={availability}
               placeholder="Selecione aqui"
             />
-            </View>
-
-            {/* Fotos do serviço */}
-            <ServiceImagePicker
-              images={serviceImages}
-              onImagesChange={setServiceImages}
-              uploading={imagesUploading}
-              maxImages={4}
-            />
           </View>
 
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
+          {/* Fotos do serviço */}
+          <ServiceImagePicker
+            images={serviceImages}
+            onImagesChange={setServiceImages}
+            uploading={imagesUploading}
+            maxImages={4}
+          />
+        </View>
+
+        {!!error && <Text style={styles.errorText}>{error}</Text>}
 
         {/* Botão Continuar */}
         <View style={styles.actions}>

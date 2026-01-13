@@ -85,24 +85,24 @@ const EditServiceScreen: React.FC = () => {
 
   const parseDurationToMinutes = (durationText: string): number => {
     if (!durationText) return 60; // Default 1 hora
-    
+
     // Remove espaços e converte para lowercase
     const cleaned = durationText.trim().toLowerCase();
-    
+
     // Tenta extrair horas e minutos
     const hourMatch = cleaned.match(/(\d+)\s*h/);
     const minuteMatch = cleaned.match(/(\d+)\s*m/);
-    
+
     let hours = 0;
     let minutes = 0;
-    
+
     if (hourMatch) {
       hours = parseInt(hourMatch[1], 10);
     }
     if (minuteMatch) {
       minutes = parseInt(minuteMatch[1], 10);
     }
-    
+
     // Se não encontrou horas nem minutos, tenta interpretar como número puro
     // Para evitar ambiguidade, assumimos que números pequenos (<= 8) são horas
     // e números maiores são minutos (mais comum para serviços)
@@ -120,7 +120,7 @@ const EditServiceScreen: React.FC = () => {
         }
       }
     }
-    
+
     const totalMinutes = hours * 60 + minutes;
     return totalMinutes > 0 ? totalMinutes : 60; // Default 60 minutos se não conseguir converter
   };
@@ -189,8 +189,8 @@ const EditServiceScreen: React.FC = () => {
         serviceData.is_active
           ? AVAILABILITY_OPTIONS[0]
           : serviceData.is_active === false
-          ? AVAILABILITY_OPTIONS[1]
-          : null,
+            ? AVAILABILITY_OPTIONS[1]
+            : null,
       );
       setChargeType(serviceData.price_type === 'hourly' ? 'hourly' : 'fixed');
       setServiceImages(normalizedPhotos);
@@ -414,13 +414,13 @@ const EditServiceScreen: React.FC = () => {
 
   if (!service) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor="#FAFAFA"
         hasHeader={true}
         hasTabBar={false}
         header={
-          <AppHeader 
+          <AppHeader
             title="Editar serviço"
             showBackButton={true}
             onPressBack={() => safeGoBack('/(merchant)/services')}
@@ -435,13 +435,13 @@ const EditServiceScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
       backgroundColor="#FAFAFA"
       header={
-        <AppHeader 
+        <AppHeader
           title="Editar serviço"
           showBackButton={true}
           onPressBack={() => safeGoBack('/(merchant)/services')}
@@ -457,6 +457,7 @@ const EditServiceScreen: React.FC = () => {
             isLoading={saving && !imagesUploading}
             disabled={saving || imagesUploading}
             style={{ marginBottom: 12 }}
+
           />
           <CustomButton
             compact
@@ -469,98 +470,98 @@ const EditServiceScreen: React.FC = () => {
         </View>
       }
     >
-          <View style={styles.form}>
-            <CustomInput
-              label="Nome do Serviço"
-              placeholder="Nome do Serviço"
-              value={serviceName}
-              onChangeText={setServiceName}
-              containerStyle={styles.inputGroup}
+      <View style={styles.form}>
+        <CustomInput
+          label="Nome do Serviço"
+          placeholder="Nome do Serviço"
+          value={serviceName}
+          onChangeText={setServiceName}
+          containerStyle={styles.inputGroup}
+        />
+
+        <View style={styles.radioGroup}>
+          <Text style={styles.label}>Forma de cobrança</Text>
+          <RadioGroup
+            options={[
+              { label: 'Valor Fixo', value: 'fixed' },
+              { label: 'Valor por hora', value: 'hourly' },
+            ]}
+            value={chargeType}
+            onValueChange={(value) => setChargeType(value as 'fixed' | 'hourly')}
+            direction="row"
+            gap={12}
+          />
+        </View>
+
+        <CustomInput
+          label="Preço"
+          placeholder="R$ 100,00"
+          keyboardType="numeric"
+          value={price}
+          onChangeText={handlePriceChange}
+          containerStyle={styles.inputGroup}
+        />
+
+        <CustomInput
+          label="Duração"
+          placeholder="1h"
+          value={duration}
+          onChangeText={setDuration}
+          containerStyle={styles.inputGroup}
+        />
+
+        <View style={styles.radioGroup}>
+          <Text style={styles.label}>Categoria do Serviço</Text>
+          <View style={styles.chipRow}>
+            <Chip
+              label="No meu local"
+              selected={category === 'local'}
+              variant={category === 'local' ? 'filled' : 'outline'}
+              onPress={() => setCategory('local')}
+              onClose={category === 'local' ? () => setCategory('home') : undefined}
             />
-
-            <View style={styles.radioGroup}>
-              <Text style={styles.label}>Forma de cobrança</Text>
-              <RadioGroup
-                options={[
-                  { label: 'Valor Fixo', value: 'fixed' },
-                  { label: 'Valor por hora', value: 'hourly' },
-                ]}
-                value={chargeType}
-                onValueChange={(value) => setChargeType(value as 'fixed' | 'hourly')}
-                direction="row"
-                gap={12}
-              />
-            </View>
-
-            <CustomInput
-              label="Preço"
-              placeholder="R$ 100,00"
-              keyboardType="numeric"
-              value={price}
-              onChangeText={handlePriceChange}
-              containerStyle={styles.inputGroup}
-            />
-
-            <CustomInput
-              label="Duração"
-              placeholder="1h"
-              value={duration}
-              onChangeText={setDuration}
-              containerStyle={styles.inputGroup}
-            />
-
-            <View style={styles.radioGroup}>
-              <Text style={styles.label}>Categoria do Serviço</Text>
-              <View style={styles.chipRow}>
-                <Chip
-                  label="No meu local"
-                  selected={category === 'local'}
-                  variant={category === 'local' ? 'filled' : 'outline'}
-                  onPress={() => setCategory('local')}
-                  onClose={category === 'local' ? () => setCategory('home') : undefined}
-                />
-                <Chip
-                  label="À domicílio"
-                  selected={category === 'home'}
-                  variant={category === 'home' ? 'filled' : 'outline'}
-                  onPress={() => setCategory('home')}
-                  onClose={category === 'home' ? () => setCategory('local') : undefined}
-                />
-              </View>
-            </View>
-
-            <CustomInput
-              label="Descrição do Serviço"
-              placeholder="Conte mais sobre o serviço."
-              multiline
-              numberOfLines={4}
-              value={description}
-              onChangeText={setDescription}
-              containerStyle={styles.textareaGroup}
-              inputContainerStyle={styles.textarea}
-            />
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Disponibilidade</Text>
-              <SelectDropdown<AvailabilityOption>
-                data={AVAILABILITY_OPTIONS}
-                labelKey="label"
-                valueKey="value"
-                onSelect={(option) => setAvailability(option)}
-                selectedValue={availability}
-                placeholder="Selecione aqui"
-              />
-            </View>
-
-            <ServiceImagePicker
-              images={serviceImages}
-              onImagesChange={setServiceImages}
-              uploading={imagesUploading}
-              maxImages={4}
+            <Chip
+              label="À domicílio"
+              selected={category === 'home'}
+              variant={category === 'home' ? 'filled' : 'outline'}
+              onPress={() => setCategory('home')}
+              onClose={category === 'home' ? () => setCategory('local') : undefined}
             />
           </View>
+        </View>
 
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
+        <CustomInput
+          label="Descrição do Serviço"
+          placeholder="Conte mais sobre o serviço."
+          multiline
+          numberOfLines={4}
+          value={description}
+          onChangeText={setDescription}
+          containerStyle={styles.textareaGroup}
+          inputContainerStyle={styles.textarea}
+        />
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Disponibilidade</Text>
+          <SelectDropdown<AvailabilityOption>
+            data={AVAILABILITY_OPTIONS}
+            labelKey="label"
+            valueKey="value"
+            onSelect={(option) => setAvailability(option)}
+            selectedValue={availability}
+            placeholder="Selecione aqui"
+          />
+        </View>
+
+        <ServiceImagePicker
+          images={serviceImages}
+          onImagesChange={setServiceImages}
+          uploading={imagesUploading}
+          maxImages={4}
+        />
+      </View>
+
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
     </ScreenContainer>
   );
 };

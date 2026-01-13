@@ -23,7 +23,7 @@ export const getPriceLevel = (services: Array<{ price?: number }>): number => {
   if (avg > 200) return 4; // $$$$
   if (avg > 100) return 3; // $$$
   if (avg > 30) return 2;  // $$
-  
+
   return 1; // $ (até 30)
 };
 
@@ -34,7 +34,7 @@ export const getPriceLevel = (services: Array<{ price?: number }>): number => {
  */
 export const getPriceRange = (services: Array<{ price: number }>): string => {
   if (!services || services.length === 0) return '$----';
-  
+
   const prices = services.map((s) => s.price).filter((p) => p > 0);
   if (prices.length === 0) return '$----';
 
@@ -64,7 +64,7 @@ export const applyAcceptedReschedules = async <T extends { id: string | number; 
   try {
     // Buscar todos os reagendamentos aceitos para esses agendamentos
     const appointmentIds = appointments.map(apt => typeof apt.id === 'string' ? parseInt(apt.id, 10) : apt.id);
-    
+
     const { data: acceptedReschedules, error } = await supabase
       .from('appointment_reschedules')
       .select('appointment_id, new_start_time, new_end_time')
@@ -83,7 +83,7 @@ export const applyAcceptedReschedules = async <T extends { id: string | number; 
 
     // Criar um mapa de appointment_id -> reagendamento aceito (mais recente)
     const rescheduleMap = new Map<number | string, { new_start_time: string; new_end_time: string }>();
-    
+
     acceptedReschedules.forEach((reschedule) => {
       const aptId = reschedule.appointment_id;
       // Se já existe, manter o mais recente (já vem ordenado por accepted_at desc)
@@ -129,7 +129,7 @@ export const calculateAppointmentPrice = (
   if (priceType === 'fixed') {
     return servicePrice;
   }
-  
+
   // Para preço por hora, calcular baseado na duração
   // durationMinutes / 60 converte minutos em horas
   return servicePrice * (durationMinutes / 60);
@@ -157,8 +157,8 @@ export const checkAppointmentConflicts = async (
       .select('id, start_time, end_time')
       .eq('business_id', businessId)
       .in('status', ['pending', 'confirmed'])
-      .lte('start_time', endTime)
-      .gte('end_time', startTime);
+      .lt('start_time', endTime)
+      .gt('end_time', startTime);
 
     // Excluir o agendamento atual se fornecido (para reagendamentos)
     if (excludeAppointmentId) {

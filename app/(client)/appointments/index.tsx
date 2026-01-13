@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
+import { logger } from '../../../lib/logger';
 import { format } from 'date-fns';
 import AppHeader from '../../../components/layout/AppHeader';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
@@ -82,7 +83,7 @@ const ClientAppointmentsScreen: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const PAGE_SIZE = 50;
-  
+
   const pageRef = React.useRef(0);
 
   const appointmentsKey = useMemo(() => {
@@ -104,7 +105,7 @@ const ClientAppointmentsScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log('Usuário não autenticado');
+
         setLoading(false);
         setLoadingMore(false);
         setRefreshing(false);
@@ -113,7 +114,7 @@ const ClientAppointmentsScreen: React.FC = () => {
 
       let appointmentsData;
       let error;
-      
+
       if (reset) {
         const result = await supabase
           .from('appointments')
@@ -127,14 +128,14 @@ const ClientAppointmentsScreen: React.FC = () => {
           .eq('client_id', user.id)
           .order('start_time', { ascending: false })
           .limit(1000);
-        
+
         appointmentsData = result.data;
         error = result.error;
       } else {
         const currentPage = pageRef.current;
         const from = currentPage * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-        
+
         const result = await supabase
           .from('appointments')
           .select(
@@ -147,13 +148,13 @@ const ClientAppointmentsScreen: React.FC = () => {
           .eq('client_id', user.id)
           .order('start_time', { ascending: false })
           .range(from, to);
-        
+
         appointmentsData = result.data;
         error = result.error;
       }
 
       if (error) {
-        console.error('Erro ao buscar agendamentos:', error);
+        logger.error('Erro ao buscar agendamentos:', error);
         setLoading(false);
         setLoadingMore(false);
         setRefreshing(false);
@@ -162,9 +163,9 @@ const ClientAppointmentsScreen: React.FC = () => {
 
       if (appointmentsData) {
         const appointmentsWithAcceptedReschedules = await applyAcceptedReschedules(appointmentsData);
-        
+
         const appointmentIds = appointmentsWithAcceptedReschedules.map(apt => apt.id);
-        
+
         if (appointmentIds.length > 0) {
           const { data: pendingReschedules } = await supabase
             .from('appointment_reschedules')
@@ -208,7 +209,7 @@ const ClientAppointmentsScreen: React.FC = () => {
             pageRef.current = nextPage;
           }
         }
-        
+
         if (!reset) {
           setHasMore(appointmentsData.length === PAGE_SIZE);
         } else {
@@ -216,7 +217,7 @@ const ClientAppointmentsScreen: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar agendamentos:', error);
+      logger.error('Erro ao carregar agendamentos:', error);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -245,31 +246,31 @@ const ClientAppointmentsScreen: React.FC = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const currentSelectedString = selectedDate.toISOString().split('T')[0];
-      
+
       const hasSelectedDateAppointments = appointments.some((apt) => {
         const aptDate = new Date(apt.start_time);
         aptDate.setHours(0, 0, 0, 0);
         return aptDate.toISOString().split('T')[0] === currentSelectedString;
       });
-      
+
       if (!hasSelectedDateAppointments) {
-        const sortedAppointments = [...appointments].sort((a, b) => 
+        const sortedAppointments = [...appointments].sort((a, b) =>
           new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
         );
-        
+
         const todayString = today.toISOString().split('T')[0];
         const futureAppointment = sortedAppointments.find((apt) => {
           const aptDate = new Date(apt.start_time);
           aptDate.setHours(0, 0, 0, 0);
           return aptDate.toISOString().split('T')[0] >= todayString;
         });
-        
+
         const appointmentToShow = futureAppointment || sortedAppointments[0];
-        
+
         if (appointmentToShow) {
           const appointmentDate = new Date(appointmentToShow.start_time);
           appointmentDate.setHours(0, 0, 0, 0);
-          
+
           setSelectedDate(appointmentDate);
           setCurrentMonth(appointmentDate);
         }
@@ -346,14 +347,14 @@ const ClientAppointmentsScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       backgroundColor="#FAFAFA"
       contentContainerStyle={styles.scrollContent}
       header={
-        <AppHeader 
-          showBackButton={true} 
+        <AppHeader
+          showBackButton={true}
           onPressBack={() => safeGoBack('/(client)/home')}
         />
       }
@@ -477,17 +478,17 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingTop: 16,
-    paddingBottom: 100, 
+    paddingBottom: 100,
   },
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: '#E5102E',
     marginBottom: 16,
-    paddingHorizontal: 24, 
+    paddingHorizontal: 24,
   },
   footerContainer: {
-    backgroundColor: '#FAFAFA', 
+    backgroundColor: '#FAFAFA',
     paddingTop: 10,
     paddingHorizontal: 0,
     paddingBottom: 20,

@@ -141,13 +141,13 @@ const ClientHomeScreen: React.FC = () => {
 
       if (appointmentsData) {
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
-        
+
         // Filtrar apenas agendamentos do dia atual (após aplicar reagendamentos)
         const todayAppointments = appointmentsWithReschedules.filter((apt) => {
           const appointmentDate = new Date(apt.start_time);
           return appointmentDate >= startOfToday && appointmentDate <= endOfToday;
         });
-        
+
         setAppointments(todayAppointments as Appointment[]);
       }
 
@@ -239,6 +239,7 @@ const ClientHomeScreen: React.FC = () => {
       reviewCount={item.review_count}
       category={item.categories?.name || item.business_profiles?.business_name || null}
       onPress={() => router.push(`/(client)/store/${item.business_id}`)}
+
     />
   );
 
@@ -282,7 +283,7 @@ const ClientHomeScreen: React.FC = () => {
     businessesList: {
       gap: 10,
       paddingRight: 24,
-      paddingBottom: 20, 
+      paddingBottom: 20,
     },
     servicesList: {
       paddingRight: 24,
@@ -308,7 +309,7 @@ const ClientHomeScreen: React.FC = () => {
       width: '100%',
     },
     footerContainer: {
-      backgroundColor: '#FAFAFA', 
+      backgroundColor: '#FAFAFA',
       paddingTop: 10,
       paddingHorizontal: 0,
       paddingBottom: 22,
@@ -324,7 +325,7 @@ const ClientHomeScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       backgroundColor="#FAFAFA"
@@ -362,134 +363,134 @@ const ClientHomeScreen: React.FC = () => {
         </View>
       }
     >
-        <View style={styles.headerArea}>
-          <TouchableOpacity 
-            activeOpacity={0.9} 
-            onPress={() => router.push('/(client)/search')}
-            style={styles.searchTouchArea}
-          >
-            <View pointerEvents="none" style={styles.searchWrapper}>
-              <SearchBar
-                value="" 
-                onChangeText={() => {}} 
-                placeholder="O que você procura?"
-                showFilterButton={true}
-                containerStyle={{ width: '100%', paddingHorizontal: 0 }}
-              />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoriesContainer}
-          contentContainerStyle={styles.categoriesContent}
+      <View style={styles.headerArea}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => router.push('/(client)/search')}
+          style={styles.searchTouchArea}
         >
-          {categories.map((category) => (
-            <Chip
-              key={category.id.toString()}
-              label={category.name}
-              variant="outline"
-              onPress={() => {
-                router.push({
-                  pathname: '/(client)/search/results',
-                  params: { category: category.name },
-                });
-              }}
-              style={{ marginRight: 4 }}
+          <View pointerEvents="none" style={styles.searchWrapper}>
+            <SearchBar
+              value=""
+              onChangeText={() => { }}
+              placeholder="O que você procura?"
+              showFilterButton={true}
+              containerStyle={{ width: '100%', paddingHorizontal: 0 }}
             />
-          ))}
-        </ScrollView>
-
-        {appointments.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
-            <ScrollView
-              nestedScrollEnabled
-              scrollEnabled
-              showsVerticalScrollIndicator
-              style={styles.appointmentsScrollArea}
-              contentContainerStyle={styles.appointmentsList}
-            >
-              {appointments.map((item) => {
-                const startDate = new Date(item.start_time);
-                const time = startDate.toLocaleTimeString('pt-BR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: false,
-                });
-                const dateLabel = `Data ${startDate.toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: '2-digit',
-                })}`;
-
-                return (
-                  <AppointmentCard
-                    key={item.id.toString()}
-                    time={time}
-                    dateLabel={dateLabel}
-                    serviceName={item.service?.name || 'Serviço'}
-                    showShopName={false}
-                    onPress={() => router.push(`/(client)/appointments/${item.id}`)}
-                    containerStyle={styles.appointmentCard}
-                  />
-                );
-              })}
-            </ScrollView>
           </View>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoriesContainer}
+        contentContainerStyle={styles.categoriesContent}
+      >
+        {categories.map((category) => (
+          <Chip
+            key={category.id.toString()}
+            label={category.name}
+            variant="outline"
+            onPress={() => {
+              router.push({
+                pathname: '/(client)/search/results',
+                params: { category: category.name },
+              });
+            }}
+            style={{ marginRight: 4 }}
+          />
+        ))}
+      </ScrollView>
+
+      {appointments.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
+          <ScrollView
+            nestedScrollEnabled
+            scrollEnabled
+            showsVerticalScrollIndicator
+            style={styles.appointmentsScrollArea}
+            contentContainerStyle={styles.appointmentsList}
+          >
+            {appointments.map((item) => {
+              const startDate = new Date(item.start_time);
+              const time = startDate.toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              });
+              const dateLabel = `Data ${startDate.toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: '2-digit',
+              })}`;
+
+              return (
+                <AppointmentCard
+                  key={item.id.toString()}
+                  time={time}
+                  dateLabel={dateLabel}
+                  serviceName={item.service?.name || 'Serviço'}
+                  showShopName={false}
+                  onPress={() => router.push(`/(client)/appointments/${item.id}`)}
+                  containerStyle={styles.appointmentCard}
+                />
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Lojas em destaque</Text>
+        {allFeaturedBusinesses.length > 0 ? (
+          <FlatList
+            data={allFeaturedBusinesses}
+            renderItem={renderBusinessCard}
+            keyExtractor={(item) => item.id.toString()}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.businessesList}
+            initialNumToRender={3}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            removeClippedSubviews={true}
+            getItemLayout={(data, index) => ({
+              length: businessCardWidth + businessGap,
+              offset: (businessCardWidth + businessGap) * index,
+              index,
+            })}
+          />
+        ) : (
+          <Text style={styles.emptyText}>Nenhuma loja em destaque no momento</Text>
         )}
+      </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Lojas em destaque</Text>
-          {allFeaturedBusinesses.length > 0 ? (
-            <FlatList
-              data={allFeaturedBusinesses}
-              renderItem={renderBusinessCard}
-              keyExtractor={(item) => item.id.toString()}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.businessesList}
-              initialNumToRender={3}
-              maxToRenderPerBatch={5}
-              windowSize={5}
-              removeClippedSubviews={true}
-              getItemLayout={(data, index) => ({
-                length: businessCardWidth + businessGap,
-                offset: (businessCardWidth + businessGap) * index,
-                index,
-              })}
-            />
-          ) : (
-            <Text style={styles.emptyText}>Nenhuma loja em destaque no momento</Text>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
-          {allPopularServices.length > 0 ? (
-            <FlatList
-              data={allPopularServices}
-              renderItem={renderServiceCard}
-              keyExtractor={(item) => item.id.toString()}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.servicesList}
-              initialNumToRender={4}
-              maxToRenderPerBatch={6}
-              windowSize={5}
-              removeClippedSubviews={true}
-              getItemLayout={(data, index) => ({
-                length: serviceCardWidth + serviceGap,
-                offset: (serviceCardWidth + serviceGap) * index,
-                index,
-              })}
-            />
-          ) : (
-            <Text style={styles.emptyText}>Nenhum serviço disponível no momento</Text>
-          )}
-        </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
+        {allPopularServices.length > 0 ? (
+          <FlatList
+            data={allPopularServices}
+            renderItem={renderServiceCard}
+            keyExtractor={(item) => item.id.toString()}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.servicesList}
+            initialNumToRender={4}
+            maxToRenderPerBatch={6}
+            windowSize={5}
+            removeClippedSubviews={true}
+            getItemLayout={(data, index) => ({
+              length: serviceCardWidth + serviceGap,
+              offset: (serviceCardWidth + serviceGap) * index,
+              index,
+            })}
+          />
+        ) : (
+          <Text style={styles.emptyText}>Nenhum serviço disponível no momento</Text>
+        )}
+      </View>
     </ScreenContainer>
   );
 };

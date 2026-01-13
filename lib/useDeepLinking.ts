@@ -9,12 +9,12 @@ let recoverySessionTimeout: NodeJS.Timeout | null = null;
 
 export const setIsRecoverySession = (value: boolean) => {
   isRecoverySession = value;
-  
+
   // Limpa timeout anterior se existir
   if (recoverySessionTimeout) {
     clearTimeout(recoverySessionTimeout);
   }
-  
+
   // Limpa a flag após 5 minutos (tempo suficiente para completar o reset)
   if (value) {
     recoverySessionTimeout = setTimeout(() => {
@@ -40,15 +40,15 @@ export const extractAuthParams = (url: string): Record<string, string | boolean>
       logger.debug('[DeepLinking] extractAuthParams - Iniciando extração');
       logger.debug('[DeepLinking] extractAuthParams - URL length:', url.length);
     }
-    
+
     // Procura por fragmento (#) na URL
     const hashIndex = url.indexOf('#');
-    if (__DEV__) { 
+    if (__DEV__) {
       logger.debug('[DeepLinking] extractAuthParams - hashIndex:', hashIndex);
     }
-    
+
     if (hashIndex === -1) {
-      if (__DEV__) { 
+      if (__DEV__) {
         logger.warn('[DeepLinking] extractAuthParams - ✗ Nenhum hash (#) encontrado na URL');
       }
       return null;
@@ -56,13 +56,15 @@ export const extractAuthParams = (url: string): Record<string, string | boolean>
 
     // Decodifica o fragment para tratar %26 como &
     const fragment = decodeURIComponent(url.substring(hashIndex + 1));
-    if (__DEV__) { logger.debug('[DeepLinking] extractAuthParams - Fragment decodificado (primeiros 100 chars):', fragment.substring(0, 100));
+    if (__DEV__) {
+      logger.debug('[DeepLinking] extractAuthParams - Fragment decodificado (primeiros 100 chars):', fragment.substring(0, 100));
     }
     const params: Record<string, string> = {};
 
     // Parse dos parâmetros do fragmento
     const pairs = fragment.split('&');
-    if (__DEV__) { logger.debug('[DeepLinking] extractAuthParams - Número de pares encontrados:', pairs.length);
+    if (__DEV__) {
+      logger.debug('[DeepLinking] extractAuthParams - Número de pares encontrados:', pairs.length);
     }
     pairs.forEach((pair, index) => {
       const [key, value] = pair.split('=');
@@ -76,7 +78,8 @@ export const extractAuthParams = (url: string): Record<string, string | boolean>
       }
     });
 
-    if (__DEV__) { logger.debug('[DeepLinking] extractAuthParams - Params extraídos:', {
+    if (__DEV__) {
+      logger.debug('[DeepLinking] extractAuthParams - Params extraídos:', {
         keys: Object.keys(params),
         hasAccessToken: !!params.access_token,
         hasRefreshToken: !!params.refresh_token,
@@ -88,7 +91,7 @@ export const extractAuthParams = (url: string): Record<string, string | boolean>
 
     // Verifica se a URL contém erros do Supabase (link expirado/inválido)
     if (params.error || params.error_code) {
-      if (__DEV__) { 
+      if (__DEV__) {
         logger.error('[DeepLinking] extractAuthParams - ✗ URL contém erro do Supabase:', {
           error: params.error,
           errorCode: params.error_code,
@@ -112,9 +115,9 @@ export const extractAuthParams = (url: string): Record<string, string | boolean>
       return params;
     }
 
-    if (__DEV__) { 
+    if (__DEV__) {
       logger.error('[DeepLinking] extractAuthParams - ✗ Faltando tokens!', {
-        hasAccessToken: !!params.access_token, 
+        hasAccessToken: !!params.access_token,
         hasRefreshToken: !!params.refresh_token,
         foundKeys: Object.keys(params),
       });
@@ -133,26 +136,26 @@ export const extractAuthParams = (url: string): Record<string, string | boolean>
  * Retorna true se a sessão foi configurada com sucesso
  */
 export const processAuthTokensFromUrl = async (url: string): Promise<boolean> => {
-if (__DEV__) {
+  if (__DEV__) {
     logger.debug('[DeepLinking] ========== processAuthTokensFromUrl CHAMADO ==========');
-    console.log('[DEBUG] processAuthTokensFromUrl URL:', url.substring(0, 100));
+    logger.debug('[DEBUG] processAuthTokensFromUrl URL:', url.substring(0, 100));
   }
-  
+
   if (!isSupabaseConfigured) {
-if (__DEV__) { 
+    if (__DEV__) {
       logger.error('[DeepLinking] Supabase não configurado!');
     }
     return false;
   }
 
-  if (__DEV__) { 
+  if (__DEV__) {
     logger.debug('[DeepLinking] === PROCESSANDO TOKENS DA URL ===');
     logger.debug('[DeepLinking] URL (primeiros 100 chars):', url.substring(0, 100) + '...');
   }
 
   const params = extractAuthParams(url);
-if (!params) {
-    if (__DEV__) { 
+  if (!params) {
+    if (__DEV__) {
       logger.warn('[DeepLinking] ✗ Nenhum token de autenticação encontrado na URL');
     }
     return false;
@@ -174,7 +177,8 @@ if (!params) {
   const refreshToken = typeof params.refresh_token === 'string' ? params.refresh_token : null;
   const type = typeof params.type === 'string' ? params.type : undefined;
 
-  if (__DEV__) { logger.debug('[DeepLinking] Params extraídos:', {
+  if (__DEV__) {
+    logger.debug('[DeepLinking] Params extraídos:', {
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
       accessTokenLength: accessToken?.length,
@@ -184,7 +188,7 @@ if (!params) {
   }
 
   try {
-    if (__DEV__) { 
+    if (__DEV__) {
       logger.debug('[DeepLinking] Configurando sessão com tokens...');
       logger.debug('[DeepLinking] Tipo de sessão:', type || 'normal');
       logger.debug('[DeepLinking] Access token length:', accessToken?.length);
@@ -194,7 +198,7 @@ if (!params) {
     // Se for uma sessão de recuperação, define a flag para pular busca de user_role
     if (type === 'recovery') {
       setIsRecoverySession(true);
-      if (__DEV__) { 
+      if (__DEV__) {
         logger.debug('[DeepLinking] ✓ Sessão de RECUPERAÇÃO detectada - pulando busca de user_role');
       }
     } else {
@@ -217,27 +221,28 @@ if (!params) {
     if (__DEV__) {
       logger.debug('[DeepLinking] Chamando setSession...');
     }
-if (__DEV__) {
+    if (__DEV__) {
       logger.debug('[DeepLinking] ========== CHAMANDO setSession ==========');
-      console.log('[DEBUG] setSession - isRecovery:', type === 'recovery');
-      console.log('[DEBUG] setSession - accessToken length:', accessToken?.length);
+      logger.debug('[DEBUG] setSession - isRecovery:', type === 'recovery');
+      logger.debug('[DEBUG] setSession - accessToken length:', accessToken?.length);
     }
 
     const { data, error } = await supabase.auth.setSession({
       access_token: accessToken,
       refresh_token: refreshToken,
     });
-if (__DEV__) {
+    if (__DEV__) {
       logger.debug('[DeepLinking] ========== setSession RESULTADO ==========');
-      console.log('[DEBUG] setSession resultado - hasError:', !!error);
-      console.log('[DEBUG] setSession resultado - hasSession:', !!data?.session);
-      console.log('[DEBUG] setSession resultado - error:', error?.message);
+      logger.debug('[DEBUG] setSession resultado - hasError:', !!error);
+      logger.debug('[DEBUG] setSession resultado - hasSession:', !!data?.session);
+      logger.debug('[DEBUG] setSession resultado - error:', error?.message);
       if (error) {
-        console.error('[DEBUG] setSession ERRO:', error);
+        logger.error('[DEBUG] setSession ERRO:', error);
       }
     }
 
-    if (__DEV__) { logger.debug('[DeepLinking] Resultado setSession:', {
+    if (__DEV__) {
+      logger.debug('[DeepLinking] Resultado setSession:', {
         hasData: !!data,
         hasSession: !!data?.session,
         hasUser: !!data?.session?.user,
@@ -269,7 +274,7 @@ if (__DEV__) {
       return false;
     }
 
-    if (__DEV__) { 
+    if (__DEV__) {
       logger.debug('[DeepLinking] ✓ Sessão configurada com sucesso!');
       logger.debug('[DeepLinking] Email:', data.session.user?.email);
       logger.debug('[DeepLinking] User ID:', data.session.user?.id);
@@ -278,8 +283,8 @@ if (__DEV__) {
     // Verifica se a sessão foi realmente persistida após setSession
     // Em produção, pode haver um delay na persistência
     const verifySession = async () => {
-const { data: { session: verifiedSession }, error: verifyError } = await supabase.auth.getSession();
-if (verifyError) {
+      const { data: { session: verifiedSession }, error: verifyError } = await supabase.auth.getSession();
+      if (verifyError) {
         logger.error('[DeepLinking] Erro ao verificar sessão após setSession:', verifyError);
         return false;
       }
@@ -290,11 +295,12 @@ if (verifyError) {
         // Aguarda um pouco e tenta novamente
         await new Promise(resolve => setTimeout(resolve, 500));
         const { data: { session: retrySession } } = await supabase.auth.getSession();
-if (!retrySession) {
+        if (!retrySession) {
           logger.error('[DeepLinking] Sessão ainda não encontrada após retry');
           return false;
         }
-        if (__DEV__) { logger.debug('[DeepLinking] Sessão encontrada após retry');
+        if (__DEV__) {
+          logger.debug('[DeepLinking] Sessão encontrada após retry');
         }
       }
       return true;
@@ -317,16 +323,16 @@ if (!retrySession) {
     if (data?.session?.user) {
       const user = data.session.user;
       const provider = user.app_metadata?.provider;
-      
+
       if (provider === 'google') {
         if (__DEV__) {
           logger.debug('[DeepLinking] OAuth Google detectado, salvando dados no AsyncStorage');
         }
-        
+
         try {
           // Salvar flag indicando que é OAuth Google
           await AsyncStorage.setItem('oauth_google_signup', 'true');
-          
+
           // Salvar dados do Google para usar no signup
           const oauthData = {
             full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
@@ -335,9 +341,9 @@ if (!retrySession) {
             provider: 'google',
             user_id: user.id,
           };
-          
+
           await AsyncStorage.setItem('oauth_google_data', JSON.stringify(oauthData));
-          
+
           if (__DEV__) {
             logger.debug('[DeepLinking] Dados OAuth salvos:', {
               full_name: oauthData.full_name,
