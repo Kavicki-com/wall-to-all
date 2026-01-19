@@ -49,15 +49,12 @@
     "react-native-svg": "15.12.1"
   },
   "devDependencies": {
-    "@config-plugins/detox": "^11.0.0",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^12.5.1",
-    "@types/detox": "^17.14.3",
     "@types/jest": "^29.5.12",
     "@types/react": "~19.1.10",
     "@typescript-eslint/eslint-plugin": "^8.14.0",
     "@typescript-eslint/parser": "^8.14.0",
-    "detox": "^20.46.0",
     "dotenv": "^16.6.1",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",

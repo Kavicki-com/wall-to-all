@@ -238,7 +238,13 @@ const ClientHomeScreen: React.FC = () => {
       rating={item.rating}
       reviewCount={item.review_count}
       category={item.categories?.name || item.business_profiles?.business_name || null}
-      onPress={() => router.push(`/(client)/store/${item.business_id}`)}
+      onPress={() => router.push({
+        pathname: '/(client)/schedule/time',
+        params: {
+          businessId: item.business_id?.toString() || '',
+          serviceId: item.id.toString(),
+        },
+      })}
 
     />
   );

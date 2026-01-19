@@ -3,7 +3,7 @@ import { Session } from '@supabase/supabase-js';
 import { supabase, clearInvalidAuthTokens, isSupabaseConfigured } from '../lib/supabase';
 import { handleError } from '../lib/errorHandler';
 import { AUTH_TIMEOUTS } from '../lib/constants';
-import { getIsRecoverySession } from '../lib/useDeepLinking';
+import { getIsRecoverySession, getIsOAuthSignupSession } from '../lib/useDeepLinking';
 import { logger } from '../lib/logger';
 import { useToast } from '../components/ui/ToastProvider';
 
@@ -437,10 +437,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               // Validação adicional: verifica se user.id existe e é string válida
               const userId = newSession.user?.id;
               if (userId && typeof userId === 'string' && userId.length > 0) {
-                // Se for sessão de recuperação, não busca user_role (não é necessário)
-                if (getIsRecoverySession()) {
+                // Se for sessão de recuperação OU signup OAuth novo, não busca user_role
+                if (getIsRecoverySession() || getIsOAuthSignupSession()) {
                   if (__DEV__) {
-                    logger.debug('[AuthContext] Sessão de recuperação detectada - pulando busca de user_role');
+                    const sessionType = getIsRecoverySession() ? 'recuperação' : 'signup OAuth';
+                    logger.debug(`[AuthContext] Sessão de ${sessionType} detectada - pulando busca de user_role`);
                   }
                   setUserRole(null);
                   setProfileError(null);

@@ -67,7 +67,7 @@ const ScheduleTimeScreen: React.FC = () => {
         return;
       }
 
-      const dateString = selectedDate.toISOString().split('T')[0];
+      const dateString = selectedDate.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
       // Buscar horários de funcionamento da loja e duração do serviço
       const [businessResult, serviceResult] = await Promise.all([
         supabase
@@ -207,6 +207,23 @@ const ScheduleTimeScreen: React.FC = () => {
     // Calcular a duração do serviço em horas (arredondado para cima)
     const serviceDurationHours = Math.ceil(serviceDuration / 60);
 
+    // Verificar se a data selecionada é hoje (fuso horário de Brasília)
+    const now = new Date();
+    const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); // formato yyyy-MM-dd
+    const isToday = dateString === todayStr;
+
+    // Obter hora atual em Brasília (só usado se for hoje)
+    // Brasília é UTC-3 (Brasil não tem mais horário de verão desde 2019)
+    let currentBrasiliaHour = 0;
+    let currentBrasiliaMinutes = 0;
+    if (isToday) {
+      const utcHours = now.getUTCHours();
+      const utcMinutes = now.getUTCMinutes();
+      // Brasília = UTC - 3 horas
+      currentBrasiliaHour = (utcHours - 3 + 24) % 24;
+      currentBrasiliaMinutes = utcMinutes;
+    }
+
     let currentHour = startHour;
 
     // Gerar slots apenas dentro do horário de funcionamento
@@ -217,6 +234,18 @@ const ScheduleTimeScreen: React.FC = () => {
 
       // Verificar se está ocupado por appointment existente
       let type: 'available' | 'occupied' | 'lunch' = 'available';
+
+      // Se for hoje, verificar se o horário já passou
+      if (isToday) {
+        // Bloquear se a hora atual já passou do início do slot
+        // ou se estamos na mesma hora mas já passou alguns minutos
+        if (currentHour < currentBrasiliaHour || (currentHour === currentBrasiliaHour && currentBrasiliaMinutes > 0)) {
+          type = 'occupied';
+          slots.push({ time: timeString, available: false, type });
+          currentHour += 1;
+          continue;
+        }
+      }
 
       // Verificar se está no horário de almoço
       if (lunchBreakStart && lunchBreakEnd) {

@@ -288,7 +288,7 @@ const MerchantSignupPersonalScreen: React.FC = () => {
           onBlur={handleEmailBlur}
           keyboardType="email-address"
           autoCapitalize="none"
-          editable={!isOAuth}
+          disabled={isOAuth}
           error={errors.email}
         />
 
@@ -313,7 +313,7 @@ const MerchantSignupPersonalScreen: React.FC = () => {
           onChangeText={handleConfirmEmailChange}
           keyboardType="email-address"
           autoCapitalize="none"
-          editable={!isOAuth}
+          disabled={isOAuth}
           error={errors.confirmEmail}
         />
 

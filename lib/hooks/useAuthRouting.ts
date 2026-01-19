@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { logger } from '../logger';
@@ -36,7 +37,7 @@ export function useAuthRouting() {
 
   // Verifica se está em uma rota de cadastro ou recuperação
   const isInSignupFlow = (allSegments: string) => {
-    return segments[0] === '(auth)' && SIGNUP_ROUTES.some(route => 
+    return segments[0] === '(auth)' && SIGNUP_ROUTES.some(route =>
       allSegments.includes(route) || segments.some(seg => seg.includes(route))
     );
   };
@@ -46,7 +47,7 @@ export function useAuthRouting() {
     if (__DEV__) {
       logger.warn('[useAuthRouting] Timeout de 10s ao carregar perfil - deslogando usuário');
     }
-    
+
     Alert.alert(
       'Tempo Esgotado',
       'Não foi possível carregar seu perfil. Por favor, faça login novamente.',
@@ -90,24 +91,24 @@ export function useAuthRouting() {
     // 5. Está em rota protegida (client ou merchant) - NÃO em (auth)
     // 6. Não está em fluxo de cadastro
     // 7. Não está em reset de senha
-    const shouldApplyTimeout = 
-      session && 
-      !isLoading && 
-      !userRole && 
-      !profileError && 
+    const shouldApplyTimeout =
+      session &&
+      !isLoading &&
+      !userRole &&
+      !profileError &&
       inProtectedRoute && // Só em rotas protegidas, não em (auth)
-      !isInSignup && 
+      !isInSignup &&
       !isInResetPassword;
 
     if (shouldApplyTimeout) {
       // Inicia contador se ainda não foi iniciado
       if (!profileLoadStartRef.current) {
         profileLoadStartRef.current = Date.now();
-        
+
         if (__DEV__) {
           logger.debug('[useAuthRouting] Iniciando timeout de 10s para carregamento de perfil (após login)');
         }
-        
+
         // Configura timeout de 10 segundos
         profileLoadTimeoutRef.current = setTimeout(() => {
           const elapsed = Date.now() - (profileLoadStartRef.current || 0);
@@ -142,19 +143,19 @@ export function useAuthRouting() {
 
   // Lógica principal de roteamento
   useEffect(() => {
-    if (__DEV__) { 
-      logger.debug('[useAuthRouting] Estado:', { 
-        isLoading, 
-        hasSession: !!session, 
-        userRole, 
-        profileError, 
-        segment: segments[0] 
+    if (__DEV__) {
+      logger.debug('[useAuthRouting] Estado:', {
+        isLoading,
+        hasSession: !!session,
+        userRole,
+        profileError,
+        segment: segments[0]
       });
     }
-    
+
     // Retorna early se ainda estiver carregando para evitar redirecionamentos prematuros
     if (isLoading) {
-      if (__DEV__) { 
+      if (__DEV__) {
         logger.debug('[useAuthRouting] Ainda carregando, aguardando...');
       }
       hasRedirectedRef.current = false;
@@ -166,31 +167,68 @@ export function useAuthRouting() {
       clearTimeout(redirectTimeoutRef.current);
       redirectTimeoutRef.current = null;
     }
-    
+
     const allSegments = segments.join('/');
     const isInSignup = isInSignupFlow(allSegments);
     const isInResetPassword = segments[0] === '(auth)' && allSegments.includes('reset-password');
 
     // Timeout para redirecionar quando há sessão mas não há role
-    if (session && !userRole && !profileError && segments[0] === '(auth)' && !isInSignup && !isInResetPassword) {
-      if (__DEV__) { 
-        logger.debug('[useAuthRouting] Sessão existe mas role não encontrado, aguardando 3s antes de redirecionar...');
-      }
-      redirectTimeoutRef.current = setTimeout(() => {
-        if (!hasRedirectedRef.current) {
-          if (__DEV__) { 
-            logger.debug('[useAuthRouting] Timeout: redirecionando para user-type-selection');
+    // Também trata o caso quando segments está vazio (app iniciando)
+    const isInAuthOrNoSegment = segments[0] === '(auth)' || !segments[0];
+
+    if (session && !userRole && !profileError && isInAuthOrNoSegment && !isInSignup && !isInResetPassword) {
+      // Verifica se é OAuth Google para pular o delay
+      const checkOAuthAndRedirect = async () => {
+        try {
+          const oauthFlag = await AsyncStorage.getItem('oauth_google_signup');
+
+          if (oauthFlag === 'true') {
+            // OAuth detectado - redireciona imediatamente sem delay
+            if (__DEV__) {
+              logger.debug('[useAuthRouting] OAuth Google detectado - redirecionando imediatamente para user-type-selection');
+            }
+            if (!hasRedirectedRef.current) {
+              hasRedirectedRef.current = true;
+              router.replace('/(auth)/user-type-selection');
+            }
+            return;
           }
-          hasRedirectedRef.current = true;
-          router.replace('/(auth)/user-type-selection');
+
+          // Não é OAuth - usa o delay padrão de 3s
+          if (__DEV__) {
+            logger.debug('[useAuthRouting] Sessão existe mas role não encontrado, aguardando 3s antes de redirecionar...');
+          }
+          redirectTimeoutRef.current = setTimeout(() => {
+            if (!hasRedirectedRef.current) {
+              if (__DEV__) {
+                logger.debug('[useAuthRouting] Timeout: redirecionando para user-type-selection');
+              }
+              hasRedirectedRef.current = true;
+              router.replace('/(auth)/user-type-selection');
+            }
+            redirectTimeoutRef.current = null;
+          }, 3000);
+        } catch (error) {
+          if (__DEV__) {
+            logger.error('[useAuthRouting] Erro ao verificar OAuth flag:', error);
+          }
+          // Em caso de erro, usa o delay padrão
+          redirectTimeoutRef.current = setTimeout(() => {
+            if (!hasRedirectedRef.current) {
+              hasRedirectedRef.current = true;
+              router.replace('/(auth)/user-type-selection');
+            }
+            redirectTimeoutRef.current = null;
+          }, 3000);
         }
-        redirectTimeoutRef.current = null;
-      }, 3000);
+      };
+
+      checkOAuthAndRedirect();
     }
-    
+
     // Alerta de erro de perfil
     if (profileError && session && !isInResetPassword) {
-      if (__DEV__) { 
+      if (__DEV__) {
         logger.debug('[useAuthRouting] Erro de perfil detectado');
       }
       Alert.alert(
@@ -224,8 +262,8 @@ export function useAuthRouting() {
 
     // Sem sessão: redireciona para login se não estiver em auth
     if (!session) {
-if (!inAuthGroup) {
-        if (__DEV__) { 
+      if (!inAuthGroup) {
+        if (__DEV__) {
           logger.debug('[useAuthRouting] Sem sessão, redirecionando para login');
         }
         router.replace('/(auth)/login');
@@ -234,43 +272,43 @@ if (!inAuthGroup) {
     }
 
     // Usuário logado: lógica de redirecionamento
-    if (__DEV__) { 
+    if (__DEV__) {
       logger.debug('[useAuthRouting] Usuário logado, userRole:', userRole, 'segments:', segments);
     }
-    
-    if (__DEV__) { 
-      logger.debug('[useAuthRouting] Verificação de cadastro:', { 
-        inAuthGroup, 
-        allSegments, 
+
+    if (__DEV__) {
+      logger.debug('[useAuthRouting] Verificação de cadastro:', {
+        inAuthGroup,
+        allSegments,
         isInSignup,
-        segments 
+        segments
       });
     }
-    
+
     // Se está em fluxo de cadastro, permite continuar
     if (isInSignup) {
-      if (__DEV__) { 
+      if (__DEV__) {
         logger.debug('[useAuthRouting] Usuário em fluxo de cadastro, permitindo continuar');
       }
       hasRedirectedRef.current = false;
       return;
     }
-      
+
     // Redireciona para home correta baseado no role
     const shouldRedirect = userRole && (
-      (inAuthGroup && !isInSignup) || 
-      !currentSegment || 
+      (inAuthGroup && !isInSignup) ||
+      !currentSegment ||
       (userRole === 'merchant' && !inMerchantGroup) ||
       (userRole === 'client' && !inClientGroup)
     );
-    
+
     if (shouldRedirect && !hasRedirectedRef.current) {
       hasRedirectedRef.current = true;
       const targetRoute = userRole === 'merchant' ? '/(merchant)/home' : '/(client)/home';
-      if (__DEV__) { 
+      if (__DEV__) {
         logger.debug('[useAuthRouting] Redirecionando', userRole, 'para home:', targetRoute);
       }
-      
+
       try {
         router.replace(targetRoute);
       } catch (error) {
@@ -296,7 +334,7 @@ if (!inAuthGroup) {
     } else {
       const allSegments = segments.join('/');
       const isInSignup = isInSignupFlow(allSegments);
-      
+
       if (isInSignup) {
         hasRedirectedRef.current = false;
       }
@@ -309,33 +347,33 @@ if (!inAuthGroup) {
       const currentSegment = segments[0];
       const allSegments = segments.join('/');
       const isInSignup = segments[0] === '(auth)' && isInSignupFlow(allSegments);
-      
-      if (__DEV__) { 
-        logger.debug('[useAuthRouting] useEffect2: Verificação de cadastro:', { 
+
+      if (__DEV__) {
+        logger.debug('[useAuthRouting] useEffect2: Verificação de cadastro:', {
           currentSegment,
-          allSegments, 
+          allSegments,
           isInSignup,
-          segments 
+          segments
         });
       }
-      
+
       if (isInSignup) {
-        if (__DEV__) { 
+        if (__DEV__) {
           logger.debug('[useAuthRouting] useEffect2: Usuário em fluxo de cadastro, permitindo continuar');
         }
         hasRedirectedRef.current = false;
         return;
       }
-      
-      if (!isInSignup && userRole && (!currentSegment || 
-          (userRole === 'merchant' && currentSegment !== '(merchant)') ||
-          (userRole === 'client' && currentSegment !== '(client)'))) {
+
+      if (!isInSignup && userRole && (!currentSegment ||
+        (userRole === 'merchant' && currentSegment !== '(merchant)') ||
+        (userRole === 'client' && currentSegment !== '(client)'))) {
         const targetRoute = userRole === 'merchant' ? '/(merchant)/home' : '/(client)/home';
-        if (__DEV__) { 
+        if (__DEV__) {
           logger.debug('[useAuthRouting] useEffect2: Redirecionando', userRole, 'para', targetRoute);
         }
         hasRedirectedRef.current = true;
-        
+
         requestAnimationFrame(() => {
           router.replace(targetRoute);
         });

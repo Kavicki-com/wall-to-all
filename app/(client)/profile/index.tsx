@@ -201,14 +201,20 @@ const ClientProfileScreen: React.FC = () => {
       rating={item.rating}
       reviewCount={item.review_count}
       category={item.categories?.name || null}
-      onPress={() => router.push(`/(client)/store/${item.business_id}`)}
+      onPress={() => router.push({
+        pathname: '/(client)/schedule/time',
+        params: {
+          businessId: item.business_id?.toString() || '',
+          serviceId: item.id.toString(),
+        },
+      })}
     />
   );
 
   if (loading || profileLoading) {
     return (
-      <ScreenContainer 
-        style={{ backgroundColor: '#FAFAFA' }} 
+      <ScreenContainer
+        style={{ backgroundColor: '#FAFAFA' }}
         hasHeader={false}
       >
         <View style={styles.loadingContainer}>
@@ -219,7 +225,7 @@ const ClientProfileScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={false}
       backgroundColor="#FAFAFA"

@@ -7,6 +7,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 let isRecoverySession = false;
 let recoverySessionTimeout: NodeJS.Timeout | null = null;
 
+// Flag para indicar que estamos em um signup via OAuth (Google)
+// Isso permite pular a busca de user_role (que não existirá para novos usuários)
+let isOAuthSignupSession = false;
+let oauthSignupSessionTimeout: NodeJS.Timeout | null = null;
+
 export const setIsRecoverySession = (value: boolean) => {
   isRecoverySession = value;
 
@@ -28,6 +33,29 @@ export const setIsRecoverySession = (value: boolean) => {
 
 export const getIsRecoverySession = (): boolean => {
   return isRecoverySession;
+};
+
+export const setIsOAuthSignupSession = (value: boolean) => {
+  isOAuthSignupSession = value;
+
+  // Limpa timeout anterior se existir
+  if (oauthSignupSessionTimeout) {
+    clearTimeout(oauthSignupSessionTimeout);
+  }
+
+  // Limpa a flag após 10 minutos (tempo suficiente para completar o signup)
+  if (value) {
+    oauthSignupSessionTimeout = setTimeout(() => {
+      isOAuthSignupSession = false;
+      oauthSignupSessionTimeout = null;
+    }, 10 * 60 * 1000);
+  } else {
+    oauthSignupSessionTimeout = null;
+  }
+};
+
+export const getIsOAuthSignupSession = (): boolean => {
+  return isOAuthSignupSession;
 };
 
 /**
@@ -218,6 +246,53 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
       return false;
     }
 
+    // IMPORTANTE: Detectar OAuth Google e salvar dados ANTES de setSession
+    // Isso evita race condition onde onAuthStateChange dispara antes dos dados serem salvos
+    try {
+      // Decodifica o JWT para extrair informações do usuário
+      const tokenParts = accessToken.split('.');
+      if (tokenParts.length === 3) {
+        const payload = JSON.parse(atob(tokenParts[1]));
+        const provider = payload.app_metadata?.provider;
+
+        if (provider === 'google') {
+          if (__DEV__) {
+            logger.debug('[DeepLinking] OAuth Google detectado no token, salvando dados ANTES de setSession');
+          }
+
+          // Define flag de sessão OAuth para pular verificação de role no AuthContext
+          setIsOAuthSignupSession(true);
+
+          // Salvar flag indicando que é OAuth Google
+          await AsyncStorage.setItem('oauth_google_signup', 'true');
+
+          // Salvar dados do Google para usar no signup
+          const oauthData = {
+            full_name: payload.user_metadata?.full_name || payload.user_metadata?.name || '',
+            email: payload.email || '',
+            avatar_url: payload.user_metadata?.avatar_url || payload.user_metadata?.picture || null,
+            provider: 'google',
+            user_id: payload.sub,
+          };
+
+          await AsyncStorage.setItem('oauth_google_data', JSON.stringify(oauthData));
+
+          if (__DEV__) {
+            logger.debug('[DeepLinking] Dados OAuth salvos ANTES de setSession:', {
+              full_name: oauthData.full_name,
+              email: oauthData.email,
+              has_avatar: !!oauthData.avatar_url,
+            });
+          }
+        }
+      }
+    } catch (decodeError) {
+      if (__DEV__) {
+        logger.warn('[DeepLinking] Não foi possível decodificar JWT para extrair dados OAuth:', decodeError);
+      }
+      // Não bloqueia o fluxo, os dados serão salvos após setSession como fallback
+    }
+
     if (__DEV__) {
       logger.debug('[DeepLinking] Chamando setSession...');
     }
@@ -318,42 +393,44 @@ export const processAuthTokensFromUrl = async (url: string): Promise<boolean> =>
       logger.debug('[DeepLinking] ✓ Sessão persistida e verificada com sucesso!');
     }
 
-    // Detectar se é OAuth do Google e salvar dados no AsyncStorage
-    // Isso permite pular a etapa de dados pessoais no signup
+    // Fallback: se a decodificação do JWT falhou, salva os dados após setSession
+    // Isso é menos ideal mas garante que os dados sejam salvos
     if (data?.session?.user) {
       const user = data.session.user;
       const provider = user.app_metadata?.provider;
 
       if (provider === 'google') {
-        if (__DEV__) {
-          logger.debug('[DeepLinking] OAuth Google detectado, salvando dados no AsyncStorage');
-        }
+        // Define flag de sessão OAuth para pular verificação de role no AuthContext (fallback)
+        setIsOAuthSignupSession(true);
 
-        try {
-          // Salvar flag indicando que é OAuth Google
-          await AsyncStorage.setItem('oauth_google_signup', 'true');
-
-          // Salvar dados do Google para usar no signup
-          const oauthData = {
-            full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
-            email: user.email || '',
-            avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
-            provider: 'google',
-            user_id: user.id,
-          };
-
-          await AsyncStorage.setItem('oauth_google_data', JSON.stringify(oauthData));
-
+        // Verifica se já foi salvo antes
+        const existingFlag = await AsyncStorage.getItem('oauth_google_signup');
+        if (existingFlag !== 'true') {
           if (__DEV__) {
-            logger.debug('[DeepLinking] Dados OAuth salvos:', {
-              full_name: oauthData.full_name,
-              email: oauthData.email,
-              has_avatar: !!oauthData.avatar_url,
-            });
+            logger.debug('[DeepLinking] OAuth Google detectado (fallback), salvando dados no AsyncStorage');
           }
-        } catch (storageError) {
-          logger.error('[DeepLinking] Erro ao salvar dados OAuth no AsyncStorage:', storageError);
-          // Não bloqueia o fluxo, apenas loga o erro
+
+          try {
+            await AsyncStorage.setItem('oauth_google_signup', 'true');
+            const oauthData = {
+              full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
+              email: user.email || '',
+              avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+              provider: 'google',
+              user_id: user.id,
+            };
+            await AsyncStorage.setItem('oauth_google_data', JSON.stringify(oauthData));
+
+            if (__DEV__) {
+              logger.debug('[DeepLinking] Dados OAuth salvos (fallback):', {
+                full_name: oauthData.full_name,
+                email: oauthData.email,
+                has_avatar: !!oauthData.avatar_url,
+              });
+            }
+          } catch (storageError) {
+            logger.error('[DeepLinking] Erro ao salvar dados OAuth no AsyncStorage (fallback):', storageError);
+          }
         }
       }
     }

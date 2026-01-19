@@ -74,3 +74,4 @@ components/NetworkDiagnostic.tsx
 
 # Backup files
 *.backup
+google-service-account.json
