@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { processAuthTokensFromUrl } from '../useDeepLinking';
+import { processAuthTokensFromUrl, getCallbackProcessed } from '../useDeepLinking';
 import { logger } from '../logger';
 
 /**
@@ -44,10 +44,14 @@ export function useDeepLinkHandler() {
         try {
           const realUrl = await Linking.getInitialURL();
 
-          if (realUrl && isAuthLink(realUrl) && !realUrl.includes('expo-development-client')) {
+          if (realUrl && isAuthLink(realUrl) && !realUrl.includes('expo-development-client') && !deepLinkProcessedRef.current) {
             if (__DEV__) {
               logger.debug('[useDeepLinkHandler] URL real encontrada via getInitialURL:', realUrl);
             }
+
+            // Marca como processado ANTES para evitar double processing
+            deepLinkProcessedRef.current = true;
+
             // Processa os tokens e navega para reset-password
             try {
               const success = await processAuthTokensFromUrl(realUrl);
@@ -56,7 +60,6 @@ export function useDeepLinkHandler() {
                   logger.debug('[useDeepLinkHandler] Tokens processados com sucesso, navegando após getInitialURL');
                 }
                 navigateAfterProcess(realUrl);
-                deepLinkProcessedRef.current = true;
               }
             } catch (error: unknown) {
               if (__DEV__) {
@@ -66,7 +69,6 @@ export function useDeepLinkHandler() {
               // O componente reset-password.tsx vai tratar o erro
               if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.startsWith('SUPABASE_ERROR:')) {
                 navigateAfterProcess(realUrl);
-                deepLinkProcessedRef.current = true;
               }
             }
           }
@@ -79,6 +81,15 @@ export function useDeepLinkHandler() {
       }
 
       // Se for um deep link de autenticação, processa os tokens e navega
+      // IMPORTANTE: Para auth/callback, verifica se o callback.tsx já processou
+      const isCallback = event.url && event.url.includes('auth/callback');
+      if (isCallback && getCallbackProcessed()) {
+        if (__DEV__) {
+          logger.debug('[useDeepLinkHandler] auth/callback já foi processado pelo callback.tsx, ignorando');
+        }
+        return;
+      }
+
       if (event.url && isAuthLink(event.url) && !deepLinkProcessedRef.current) {
         if (__DEV__) {
           logger.debug('[useDeepLinkHandler] ========== Deep link de autenticação detectado ==========');
@@ -149,6 +160,19 @@ export function useDeepLinkHandler() {
 
         try {
           const checkUrl = await Linking.getInitialURL();
+
+          // Verifica se callback.tsx já processou auth/callback
+          const isCallbackUrl = checkUrl && checkUrl.includes('auth/callback');
+          if (isCallbackUrl && getCallbackProcessed()) {
+            if (__DEV__) {
+              logger.debug('[useDeepLinkHandler] Verificação periódica: auth/callback já foi processado, parando');
+            }
+            if (checkInterval) {
+              clearInterval(checkInterval);
+              checkInterval = null;
+            }
+            return;
+          }
 
           if (checkUrl && isAuthLink(checkUrl) && !checkUrl.includes('expo-development-client') && !deepLinkProcessedRef.current) {
             if (__DEV__) {

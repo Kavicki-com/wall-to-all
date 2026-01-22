@@ -34,6 +34,7 @@ export function useAuthRouting() {
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const profileLoadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const profileLoadStartRef = useRef<number | null>(null);
+  const profileVerifiedViaOAuthRef = useRef(false); // Indica que perfil foi verificado via OAuth
 
   // Verifica se está em uma rota de cadastro ou recuperação
   const isInSignupFlow = (allSegments: string) => {
@@ -98,7 +99,9 @@ export function useAuthRouting() {
       !profileError &&
       inProtectedRoute && // Só em rotas protegidas, não em (auth)
       !isInSignup &&
-      !isInResetPassword;
+      !isInResetPassword &&
+      !hasRedirectedRef.current && // Não aplica se já redirecionamos com sucesso via perfil
+      !profileVerifiedViaOAuthRef.current; // Não aplica se perfil foi verificado via OAuth
 
     if (shouldApplyTimeout) {
       // Inicia contador se ainda não foi iniciado
@@ -177,15 +180,64 @@ export function useAuthRouting() {
     const isInAuthOrNoSegment = segments[0] === '(auth)' || !segments[0];
 
     if (session && !userRole && !profileError && isInAuthOrNoSegment && !isInSignup && !isInResetPassword) {
-      // Verifica se é OAuth Google para pular o delay
-      const checkOAuthAndRedirect = async () => {
+      // Verifica se é OAuth Google e se já existe perfil completo
+      const checkProfileAndRedirect = async () => {
         try {
+          // IMPORTANTE: Verificar se já existe um perfil completo para este usuário
+          // Isso evita redirecionar para signup quando o usuário já tem conta
+          if (isSupabaseConfigured && session.user?.id) {
+            const { data: existingProfile, error: profileCheckError } = await supabase
+              .from('profiles')
+              .select('id, signup_complete, user_type')
+              .eq('id', session.user.id)
+              .maybeSingle();
+
+            if (__DEV__) {
+              logger.debug('[useAuthRouting] Verificação de perfil existente:', {
+                userId: session.user.id,
+                hasProfile: !!existingProfile,
+                signupComplete: existingProfile?.signup_complete,
+                userType: existingProfile?.user_type,
+                error: profileCheckError?.message,
+              });
+            }
+
+            // Se o perfil existe e está completo, redirecionar DIRETAMENTE para a home correta
+            // Não esperamos o AuthContext buscar o userRole (que pode dar timeout)
+            // Usamos o user_type que já temos do perfil
+            if (!profileCheckError && existingProfile && existingProfile.signup_complete === true) {
+              const targetRoute = existingProfile.user_type === 'merchant'
+                ? '/(merchant)/home'
+                : '/(client)/home';
+
+              if (__DEV__) {
+                logger.debug('[useAuthRouting] ✓ Perfil completo encontrado! Redirecionando diretamente para:', targetRoute);
+              }
+
+              // Limpar quaisquer flags OAuth antigas que possam existir
+              await AsyncStorage.removeItem('oauth_google_signup');
+              await AsyncStorage.removeItem('oauth_google_data');
+
+              // Marcar que perfil foi verificado via OAuth (previne timeout de 10s)
+              profileVerifiedViaOAuthRef.current = true;
+
+              // Redirecionar diretamente para a home correta
+              if (!hasRedirectedRef.current) {
+                hasRedirectedRef.current = true;
+                router.replace(targetRoute);
+              }
+
+              return; // Não continua o fluxo
+            }
+          }
+
+          // Se não encontrou perfil completo, verifica a flag OAuth
           const oauthFlag = await AsyncStorage.getItem('oauth_google_signup');
 
           if (oauthFlag === 'true') {
-            // OAuth detectado - redireciona imediatamente sem delay
+            // OAuth novo usuário - redireciona imediatamente para signup
             if (__DEV__) {
-              logger.debug('[useAuthRouting] OAuth Google detectado - redirecionando imediatamente para user-type-selection');
+              logger.debug('[useAuthRouting] OAuth Google novo usuário - redirecionando para user-type-selection');
             }
             if (!hasRedirectedRef.current) {
               hasRedirectedRef.current = true;
@@ -194,7 +246,7 @@ export function useAuthRouting() {
             return;
           }
 
-          // Não é OAuth - usa o delay padrão de 3s
+          // Não é OAuth OU perfil incompleto - usa o delay padrão de 3s
           if (__DEV__) {
             logger.debug('[useAuthRouting] Sessão existe mas role não encontrado, aguardando 3s antes de redirecionar...');
           }
@@ -210,7 +262,7 @@ export function useAuthRouting() {
           }, 3000);
         } catch (error) {
           if (__DEV__) {
-            logger.error('[useAuthRouting] Erro ao verificar OAuth flag:', error);
+            logger.error('[useAuthRouting] Erro ao verificar perfil:', error);
           }
           // Em caso de erro, usa o delay padrão
           redirectTimeoutRef.current = setTimeout(() => {
@@ -223,7 +275,7 @@ export function useAuthRouting() {
         }
       };
 
-      checkOAuthAndRedirect();
+      checkProfileAndRedirect();
     }
 
     // Alerta de erro de perfil
@@ -260,8 +312,19 @@ export function useAuthRouting() {
     const inMerchantGroup = currentSegment === '(merchant)';
     const inClientGroup = currentSegment === '(client)';
 
-    // Sem sessão: redireciona para login se não estiver em auth
+    // Verifica se está na rota /auth/callback (OAuth callback)
+    const inAuthCallback = currentSegment === 'auth' && (segments as string[])[1] === 'callback';
+
+    // Sem sessão: redireciona para login se não estiver em auth ou auth/callback
     if (!session) {
+      // Não redireciona se estiver no callback OAuth (aguardando processamento)
+      if (inAuthCallback) {
+        if (__DEV__) {
+          logger.debug('[useAuthRouting] Em /auth/callback, aguardando processamento OAuth');
+        }
+        return;
+      }
+
       if (!inAuthGroup) {
         if (__DEV__) {
           logger.debug('[useAuthRouting] Sem sessão, redirecionando para login');
@@ -331,6 +394,7 @@ export function useAuthRouting() {
   useEffect(() => {
     if (!session) {
       hasRedirectedRef.current = false;
+      profileVerifiedViaOAuthRef.current = false; // Reset ao deslogar
     } else {
       const allSegments = segments.join('/');
       const isInSignup = isInSignupFlow(allSegments);

@@ -437,11 +437,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               // Validação adicional: verifica se user.id existe e é string válida
               const userId = newSession.user?.id;
               if (userId && typeof userId === 'string' && userId.length > 0) {
-                // Se for sessão de recuperação OU signup OAuth novo, não busca user_role
-                if (getIsRecoverySession() || getIsOAuthSignupSession()) {
+                // Verifica se é OAuth Google - se for, pula busca de user_role
+                // O useAuthRouting vai verificar o perfil e redirecionar diretamente
+                const isGoogleProvider = newSession.user?.app_metadata?.provider === 'google';
+
+                // Se for sessão de recuperação OU signup OAuth novo OU provider Google, não busca user_role
+                if (getIsRecoverySession() || getIsOAuthSignupSession() || isGoogleProvider) {
                   if (__DEV__) {
-                    const sessionType = getIsRecoverySession() ? 'recuperação' : 'signup OAuth';
-                    logger.debug(`[AuthContext] Sessão de ${sessionType} detectada - pulando busca de user_role`);
+                    const sessionType = getIsRecoverySession()
+                      ? 'recuperação'
+                      : isGoogleProvider
+                        ? 'Google OAuth'
+                        : 'signup OAuth';
+                    logger.debug(`[AuthContext] Sessão de ${sessionType} detectada - pulando busca de user_role (useAuthRouting fará redirecionamento)`);
                   }
                   setUserRole(null);
                   setProfileError(null);
