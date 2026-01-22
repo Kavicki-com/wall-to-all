@@ -75,3 +75,9 @@ components/NetworkDiagnostic.tsx
 # Backup files
 *.backup
 google-service-account.json
+
+# Marketing assets (Play Store graphics)
+feature-graphic*.png
+
+# Android keystores
+*.keystore
