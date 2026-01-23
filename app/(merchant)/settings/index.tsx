@@ -10,6 +10,7 @@ import {
   IconDocs,
   IconHelp,
   IconDelete,
+  IconGroup,
 } from '../../../lib/icons';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
@@ -99,9 +100,9 @@ const SettingsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor="#FAFAFA"
       >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#E5102E" />
@@ -111,121 +112,121 @@ const SettingsScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
-      scroll={false} 
-      backgroundColor="#FAFAFA" 
+    <ScreenContainer
+      scroll={false}
+      backgroundColor="#FAFAFA"
     >
       {/* Profile Container */}
-        {/* Profile Avatar */}
-        <View style={styles.profileContainer}>
-          <View style={styles.avatarContainer}>
-            {businessProfile?.logo_url ? (
-              <Image source={{ uri: businessProfile.logo_url }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.placeholderAvatar]} />
-            )}
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.businessName}>
-              {businessProfile?.business_name || 'Nome do Negócio'}
-            </Text>
-            <Text style={styles.businessCategory}>
-              {businessProfile?.categories?.name || 'Cortes masculinos e femininos'}
-            </Text>
-          </View>
+      {/* Profile Avatar */}
+      <View style={styles.profileContainer}>
+        <View style={styles.avatarContainer}>
+          {businessProfile?.logo_url ? (
+            <Image source={{ uri: businessProfile.logo_url }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.placeholderAvatar]} />
+          )}
         </View>
-
-        {/* Options List */}
-        <View style={styles.optionsContainer}>
-          <View style={styles.optionsList}>
-            {/* Editar Perfil */}
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={() => router.push('/(merchant)/profile/edit')}
-              activeOpacity={0.7}
-            >
-              <IconAccountCircle size={24} color="#000E3D" />
-              <Text style={styles.optionText}>Editar Perfil</Text>
-              <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-              </View>
-            </TouchableOpacity>
-
-            {/* Alterar Senha */}
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={() => router.push('/(merchant)/profile/password')}
-              activeOpacity={0.7}
-            >
-              <IconLock size={24} color="#000E3D" />
-              <Text style={styles.optionText}>Alterar Senha</Text>
-              <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-              </View>
-            </TouchableOpacity>
-
-            {/* Excluir Conta */}
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={handleDeleteAccount}
-              activeOpacity={0.7}
-            >
-              <IconDelete size={24} color="#000E3D" />
-              <Text style={styles.optionText}>Excluir Conta</Text>
-              <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-              </View>
-            </TouchableOpacity>
-
-            {/* Suporte */}
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={() => Alert.alert('Suporte', 'Entre em contato pelo e-mail: suporte@walltoall.com')}
-              activeOpacity={0.7}
-            >
-              <IconSupport size={24} color="#000E3D" />
-              <Text style={styles.optionText}>Suporte</Text>
-              <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-              </View>
-            </TouchableOpacity>
-
-            {/* Termos de uso */}
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={() => router.push('/(merchant)/settings/terms')}
-              activeOpacity={0.7}
-            >
-              <IconDocs size={24} color="#000E3D" />
-              <Text style={styles.optionText}>Termos de uso</Text>
-              <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-              </View>
-            </TouchableOpacity>
-
-            {/* FAQ */}
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={() => router.push('/(merchant)/settings/faq')}
-              activeOpacity={0.7}
-            >
-              <IconHelp size={24} color="#000E3D" />
-              <Text style={styles.optionText}>FAQ</Text>
-              <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-              </View>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.profileInfo}>
+          <Text style={styles.businessName}>
+            {businessProfile?.business_name || 'Nome do Negócio'}
+          </Text>
+          <Text style={styles.businessCategory}>
+            {businessProfile?.categories?.name || 'Cortes masculinos e femininos'}
+          </Text>
         </View>
-        {/* Logout Button */}
-        <View style={styles.logoutContainer}>
-          <CustomButton
-            title="Sair"
-            variant="ghost"
-            onPress={handleLogout}
-            style={{ borderRadius: 24, width: '90%', maxWidth: 342, alignSelf: 'center' }}
-          />
+      </View>
+
+      {/* Options List */}
+      <View style={styles.optionsContainer}>
+        <View style={styles.optionsList}>
+          {/* Editar Perfil */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={() => router.push('/(merchant)/profile/edit')}
+            activeOpacity={0.7}
+          >
+            <IconAccountCircle size={24} color="#000E3D" />
+            <Text style={styles.optionText}>Editar Perfil</Text>
+            <View style={styles.chevronContainer}>
+              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Alterar Senha */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={() => router.push('/(merchant)/profile/password')}
+            activeOpacity={0.7}
+          >
+            <IconLock size={24} color="#000E3D" />
+            <Text style={styles.optionText}>Alterar Senha</Text>
+            <View style={styles.chevronContainer}>
+              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Excluir Conta */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.7}
+          >
+            <IconDelete size={24} color="#000E3D" />
+            <Text style={styles.optionText}>Excluir Conta</Text>
+            <View style={styles.chevronContainer}>
+              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Suporte */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={() => Alert.alert('Suporte', 'Entre em contato pelo e-mail: suporte@walltoall.com')}
+            activeOpacity={0.7}
+          >
+            <IconSupport size={24} color="#000E3D" />
+            <Text style={styles.optionText}>Suporte</Text>
+            <View style={styles.chevronContainer}>
+              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Termos de uso */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={() => router.push('/(merchant)/settings/terms')}
+            activeOpacity={0.7}
+          >
+            <IconDocs size={24} color="#000E3D" />
+            <Text style={styles.optionText}>Termos de uso</Text>
+            <View style={styles.chevronContainer}>
+              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+            </View>
+          </TouchableOpacity>
+
+          {/* FAQ */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={() => router.push('/(merchant)/settings/faq')}
+            activeOpacity={0.7}
+          >
+            <IconHelp size={24} color="#000E3D" />
+            <Text style={styles.optionText}>FAQ</Text>
+            <View style={styles.chevronContainer}>
+              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+            </View>
+          </TouchableOpacity>
         </View>
+      </View>
+      {/* Logout Button */}
+      <View style={styles.logoutContainer}>
+        <CustomButton
+          title="Sair"
+          variant="ghost"
+          onPress={handleLogout}
+          style={{ borderRadius: 24, width: '90%', maxWidth: 342, alignSelf: 'center' }}
+        />
+      </View>
     </ScreenContainer>
   );
 };

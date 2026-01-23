@@ -19,6 +19,7 @@ import {
   IconDocs,
   IconHelp,
   IconDelete,
+  IconGroup,
 } from '../../../lib/icons';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
@@ -204,6 +205,19 @@ const SettingsScreen: React.FC = () => {
           >
             <IconDelete size={24} color="#000E3D" />
             <Text style={styles.optionText}>Excluir Conta</Text>
+            <View style={styles.chevronContainer}>
+              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Indicações */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={() => router.push('/(client)/settings/referral')}
+            activeOpacity={0.7}
+          >
+            <IconGroup size={24} color="#000E3D" />
+            <Text style={styles.optionText}>Indique e Ganhe</Text>
             <View style={styles.chevronContainer}>
               <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
             </View>

@@ -46,6 +46,11 @@ export type DbAppointmentReschedule = Database['public']['Tables']['appointment_
 export type DbAppointmentRescheduleInsert = Database['public']['Tables']['appointment_reschedules']['Insert'];
 export type DbAppointmentRescheduleUpdate = Database['public']['Tables']['appointment_reschedules']['Update'];
 
+export type DbReferralCode = Database['public']['Tables']['referral_codes']['Row'];
+export type DbReferral = Database['public']['Tables']['referrals']['Row'];
+export type DbCommission = Database['public']['Tables']['commissions']['Row'];
+export type DbReferralSettings = Database['public']['Tables']['referral_settings']['Row'];
+
 // ===== ENUMS =====
 
 export type AppointmentStatus = Database['public']['Enums']['appointment_status'];
@@ -115,8 +120,8 @@ export type BusinessProfile = DbBusinessProfile & {
     id: number;
     name: string;
   } | null;
-  services?: Array<{ 
-    id: number; 
+  services?: Array<{
+    id: number;
     name: string;
     price?: number;
   }>;
@@ -191,6 +196,27 @@ export type BusinessWithDetails = BusinessProfile & {
   category?: string | null;
   accepted_payment_methods: AcceptedPaymentMethods | null;
   work_days: WorkDays | null;
+};
+
+/**
+ * Referral com detalhes do usuário indicado
+ */
+export type ReferralWithDetails = DbReferral & {
+  referred: {
+    full_name: string | null;
+    avatar_url: string | null;
+  };
+};
+
+/**
+ * Resumo de comissões
+ */
+export type CommissionSummary = {
+  totalEarned: number;
+  availableBalance: number;
+  pendingBalance: number;
+  referralCount: number;
+  paidAmount: number;
 };
 
 

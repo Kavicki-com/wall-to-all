@@ -141,11 +141,11 @@ const MerchantSignupLoadingScreen: React.FC = () => {
   useEffect(() => {
     const completeSignup = async () => {
       const draftKey = 'merchant_signup_draft';
-      
+
       try {
         // Buscar dados salvos no AsyncStorage
         const stored = await AsyncStorage.getItem(draftKey);
-        
+
         if (!stored) {
           logger.error('[MerchantSignupLoading] Dados do cadastro não encontrados');
           Alert.alert('Erro', 'Dados do cadastro não encontrados. Por favor, tente novamente.');
@@ -167,7 +167,7 @@ const MerchantSignupLoadingScreen: React.FC = () => {
 
         // Verificar se é OAuth
         const isOAuth = draftData.is_oauth === true;
-        
+
         // Tentar criar usuário no Supabase Auth (apenas se NÃO for OAuth)
         let user: User | null = null;
         let session: Session | null = null;
@@ -177,12 +177,12 @@ const MerchantSignupLoadingScreen: React.FC = () => {
           if (__DEV__) {
             logger.debug('[MerchantSignupLoading] OAuth detectado, usando sessão existente');
           }
-          
+
           const { data: sessionData } = await supabase.auth.getSession();
           if (sessionData?.session?.user) {
             user = sessionData.session.user;
             session = sessionData.session;
-            
+
             if (__DEV__) {
               logger.debug('[MerchantSignupLoading] Sessão OAuth recuperada:', user.email);
             }
@@ -250,7 +250,7 @@ const MerchantSignupLoadingScreen: React.FC = () => {
                 email: draftData.email,
                 password: draftData.password,
               });
-              
+
               if (signInError || !signInData?.session) {
                 Alert.alert(
                   'Confirme seu e-mail',
@@ -303,6 +303,28 @@ const MerchantSignupLoadingScreen: React.FC = () => {
 
         if (profileError) {
           logger.error('[MerchantSignupLoading] Erro ao criar/atualizar profile:', profileError);
+        }
+
+        // Processar Referral (se houver código)
+        // Fazemos isso após garantir que o profile existe
+        // Mas não bloqueamos o resto do fluxo se falhar (pode ser processado manualmente depois)
+        if (draftData.referral_code) {
+          try {
+            const { error: referralError } = await supabase.rpc('process_referral', {
+              p_referred_id: user.id,
+              p_referral_code: draftData.referral_code
+            });
+
+            if (referralError) {
+              logger.warn('[MerchantSignupLoading] Erro ao processar referral:', referralError);
+            } else {
+              if (__DEV__) {
+                logger.debug('[MerchantSignupLoading] Referral processado com sucesso');
+              }
+            }
+          } catch (refErr) {
+            logger.warn('[MerchantSignupLoading] Exceção ao processar referral:', refErr);
+          }
         }
 
         // Criar ou atualizar business_profile
@@ -371,7 +393,11 @@ const MerchantSignupLoadingScreen: React.FC = () => {
         }
 
         // Limpar dados do draft e flags OAuth
+        if (draftData.referral_code) {
+          await AsyncStorage.setItem('last_used_referral_code', draftData.referral_code.toUpperCase());
+        }
         await AsyncStorage.removeItem(draftKey);
+        await AsyncStorage.removeItem('referral_code');
         if (isOAuth) {
           await AsyncStorage.removeItem('oauth_google_signup');
           await AsyncStorage.removeItem('oauth_google_data');

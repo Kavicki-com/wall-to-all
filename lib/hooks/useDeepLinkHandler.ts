@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { processAuthTokensFromUrl, getCallbackProcessed } from '../useDeepLinking';
+import { processAuthTokensFromUrl, getCallbackProcessed, extractAndSaveReferralCode } from '../useDeepLinking';
 import { logger } from '../logger';
 
 /**
@@ -40,6 +40,9 @@ export function useDeepLinkHandler() {
         if (__DEV__) {
           logger.debug('[useDeepLinkHandler] URL do Expo dev server ignorada no listener global:', event.url);
         }
+        // Tentar extrair referral code mesmo do dev-client
+        await extractAndSaveReferralCode(event.url, true);
+
         // Tenta obter a URL real do getInitialURL
         try {
           const realUrl = await Linking.getInitialURL();
@@ -96,6 +99,9 @@ export function useDeepLinkHandler() {
           logger.debug('[DEBUG] useDeepLinkHandler - isAuthLink: true, processando...');
         }
         deepLinkProcessedRef.current = true;
+
+        // Captura referral code também em links de auth
+        await extractAndSaveReferralCode(event.url);
 
         try {
           if (__DEV__) {
@@ -160,6 +166,10 @@ export function useDeepLinkHandler() {
 
         try {
           const checkUrl = await Linking.getInitialURL();
+
+          if (checkUrl) {
+            await extractAndSaveReferralCode(checkUrl, true);
+          }
 
           // Verifica se callback.tsx já processou auth/callback
           const isCallbackUrl = checkUrl && checkUrl.includes('auth/callback');

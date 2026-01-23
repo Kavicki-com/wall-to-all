@@ -19,11 +19,11 @@ const ClientSignupLoadingScreen: React.FC = () => {
     const draftKey = 'client_signup_draft';
     setLoading(true);
     setError(null);
-    
+
     try {
       // Buscar dados salvos no AsyncStorage
       const stored = await AsyncStorage.getItem(draftKey);
-      
+
       if (!stored) {
         logger.error('[ClientSignupLoading] Dados do cadastro não encontrados');
         setError('Dados do cadastro não encontrados. Por favor, tente novamente.');
@@ -45,7 +45,7 @@ const ClientSignupLoadingScreen: React.FC = () => {
 
       // Verificar se é OAuth
       const isOAuth = draftData.is_oauth === true;
-      
+
       // Tentar criar usuário no Supabase Auth (apenas se NÃO for OAuth)
       let user: User | null = null;
       let session: Session | null = null;
@@ -55,12 +55,12 @@ const ClientSignupLoadingScreen: React.FC = () => {
         if (__DEV__) {
           logger.debug('[ClientSignupLoading] OAuth detectado, usando sessão existente');
         }
-        
+
         const { data: sessionData } = await supabase.auth.getSession();
         if (sessionData?.session?.user) {
           user = sessionData.session.user;
           session = sessionData.session;
-          
+
           if (__DEV__) {
             logger.debug('[ClientSignupLoading] Sessão OAuth recuperada:', user.email);
           }
@@ -105,11 +105,11 @@ const ClientSignupLoadingScreen: React.FC = () => {
         } else if (signUpError) {
           // Outro erro ao criar usuário
           logger.error('[ClientSignupLoading] Erro ao criar usuário:', signUpError);
-          
+
           // Verificar se é erro de rede
-          const isNetworkError = signUpError.message?.toLowerCase().includes('network') || 
-                                signUpError.message?.toLowerCase().includes('fetch');
-          
+          const isNetworkError = signUpError.message?.toLowerCase().includes('network') ||
+            signUpError.message?.toLowerCase().includes('fetch');
+
           if (isNetworkError) {
             setError('Erro de conexão. Verifique sua internet e tente novamente.');
             return; // Permite retentativa sem deletar draft
@@ -134,7 +134,7 @@ const ClientSignupLoadingScreen: React.FC = () => {
               email: draftData.email,
               password: draftData.password,
             });
-            
+
             if (signInError || !signInData?.session) {
               // Se não conseguir fazer login, usuário precisa confirmar email
               setError('Enviamos um e-mail de confirmação. Por favor, confirme seu e-mail para prosseguir.');
@@ -198,8 +198,34 @@ const ClientSignupLoadingScreen: React.FC = () => {
         }
       }
 
+      // Processar Referral (se houver código)
+      // Fazemos isso após garantir que o profile existe
+      if (draftData.referral_code) {
+        try {
+          const { error: referralError } = await supabase.rpc('process_referral', {
+            p_referred_id: user.id,
+            p_referral_code: draftData.referral_code
+          });
+
+          if (referralError) {
+            // Log erro mas não bloqueia o fluxo
+            logger.warn('[ClientSignupLoading] Erro ao processar referral:', referralError);
+          } else {
+            if (__DEV__) {
+              logger.debug('[ClientSignupLoading] Referral processado com sucesso');
+            }
+          }
+        } catch (refErr) {
+          logger.warn('[ClientSignupLoading] Exceção ao processar referral:', refErr);
+        }
+      }
+
       // Limpar dados do draft e flags OAuth APENAS NO SUCESSO
+      if (draftData.referral_code) {
+        await AsyncStorage.setItem('last_used_referral_code', draftData.referral_code.toUpperCase());
+      }
       await AsyncStorage.removeItem(draftKey);
+      await AsyncStorage.removeItem('referral_code');
       if (isOAuth) {
         await AsyncStorage.removeItem('oauth_google_signup');
         await AsyncStorage.removeItem('oauth_google_data');
@@ -243,7 +269,7 @@ const ClientSignupLoadingScreen: React.FC = () => {
         <View style={styles.logoWrapper}>
           <LogoWallToAll width={64} height={40} />
         </View>
-        
+
         {loading ? (
           <>
             <ActivityIndicator size="large" color="#000E3D" style={{ marginBottom: 16 }} />
@@ -254,7 +280,7 @@ const ClientSignupLoadingScreen: React.FC = () => {
         ) : error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
-            
+
             <View style={styles.buttonContainer}>
               {!isFatalError && (
                 <CustomButton
@@ -264,7 +290,7 @@ const ClientSignupLoadingScreen: React.FC = () => {
                   style={styles.button}
                 />
               )}
-              
+
               <CustomButton
                 title={isFatalError ? "Voltar" : "Ir para Login"}
                 onPress={handleGoBack}
