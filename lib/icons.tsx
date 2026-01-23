@@ -172,6 +172,10 @@ export const IconGroup = ({ size, color, style }: { size?: number; color?: strin
   <Icon name="group" size={size} color={color} style={style} />
 );
 
+export const IconMetrics = ({ size, color, style }: { size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
+  <Icon name="insights" size={size} color={color} style={style} />
+);
+
 // Ícones de marcas - usando famílias específicas
 export const IconPix = ({ size, color, style, width, height }: { size?: number; color?: string; style?: StyleProp<TextStyle>; width?: number; height?: number }) => (
   <Icon name="pix" family="FontAwesome6" size={size || width || height || 24} color={color} style={style} />

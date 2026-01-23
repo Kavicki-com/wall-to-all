@@ -11,6 +11,7 @@ import {
   IconHelp,
   IconDelete,
   IconGroup,
+  IconMetrics,
 } from '../../../lib/icons';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
@@ -113,7 +114,7 @@ const SettingsScreen: React.FC = () => {
 
   return (
     <ScreenContainer
-      scroll={false}
+      scroll={true}
       backgroundColor="#FAFAFA"
     >
       {/* Profile Container */}
@@ -160,6 +161,32 @@ const SettingsScreen: React.FC = () => {
           >
             <IconLock size={24} color="#000E3D" />
             <Text style={styles.optionText}>Alterar Senha</Text>
+            <View style={styles.chevronContainer}>
+              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Minhas Métricas */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={() => router.push('/(merchant)/settings/metrics')}
+            activeOpacity={0.7}
+          >
+            <IconMetrics size={24} color="#000E3D" />
+            <Text style={styles.optionText}>Minhas Métricas</Text>
+            <View style={styles.chevronContainer}>
+              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Programa de Associados */}
+          <TouchableOpacity
+            style={styles.optionItem}
+            onPress={() => router.push('/(merchant)/settings/referral')}
+            activeOpacity={0.7}
+          >
+            <IconGroup size={24} color="#000E3D" />
+            <Text style={styles.optionText}>Programa de Associados</Text>
             <View style={styles.chevronContainer}>
               <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
             </View>
@@ -249,26 +276,26 @@ const styles = StyleSheet.create({
   },
   profileContainer: {
     alignItems: 'center',
-    marginBottom: 32,
-    gap: 8,
+    marginBottom: 20,
+    gap: 6,
   },
   avatarContainer: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
   },
   placeholderAvatar: {
     backgroundColor: '#E0E0E0',
   },
   profileInfo: {
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   businessName: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Montserrat_700Bold',
     color: '#0F0F0F',
     textAlign: 'center',
@@ -280,10 +307,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   optionsContainer: {
-    marginBottom: 32,
+    marginBottom: 16,
   },
   optionsList: {
-    gap: 12,
+    gap: 8,
   },
   optionItem: {
     flexDirection: 'row',
@@ -291,8 +318,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEFEFE',
     borderRadius: 4,
     paddingHorizontal: 8,
-    paddingVertical: 16,
-    gap: 26,
+    paddingVertical: 12,
+    gap: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.25,
@@ -301,7 +328,7 @@ const styles = StyleSheet.create({
   },
   optionText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Montserrat_700Bold',
     color: '#000E3D',
   },
@@ -312,7 +339,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoutContainer: {
-    paddingBottom: 24,
+    paddingBottom: 16,
     alignItems: 'center',
   },
 });
