@@ -521,6 +521,7 @@ export type Database = {
           id: string
           last_signup_step: string | null
           referral_code: string | null
+          referral_code_id: number | null
           referred_by: string | null
           signup_complete: boolean
           signup_completed_at: string | null
@@ -536,6 +537,7 @@ export type Database = {
           id: string
           last_signup_step?: string | null
           referral_code?: string | null
+          referral_code_id?: number | null
           referred_by?: string | null
           signup_complete?: boolean
           signup_completed_at?: string | null
@@ -551,6 +553,7 @@ export type Database = {
           id?: string
           last_signup_step?: string | null
           referral_code?: string | null
+          referral_code_id?: number | null
           referred_by?: string | null
           signup_complete?: boolean
           signup_completed_at?: string | null

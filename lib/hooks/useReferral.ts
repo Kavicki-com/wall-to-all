@@ -91,7 +91,6 @@ export function useReferral() {
                         setReferralCode(newData);
 
                         // Atualizar profile também com o ID
-                        // @ts-ignore - Tipo local desatualizado
                         await supabase
                             .from('profiles')
                             .update({ referral_code_id: newData.id })
