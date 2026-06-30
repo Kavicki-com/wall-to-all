@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { Icon } from './Icon';
+import { colors } from '../../lib/theme';
 
 export interface ChipProps {
   label: string;
@@ -86,7 +87,7 @@ export const Chip: React.FC<ChipProps> = ({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             disabled={disabled}
           >
-            <Icon name="close" family="MaterialSymbols" size={16} color={isSelected ? "#FEFEFE" : "#000E3D"} />
+            <Icon name="close" family="MaterialSymbols" size={16} color={isSelected ? colors.surface : colors.brand} />
           </TouchableOpacity>
         )}
       </TouchableOpacity>
@@ -113,7 +114,7 @@ export const Chip: React.FC<ChipProps> = ({
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           disabled={disabled}
         >
-          <Icon name="close" family="MaterialSymbols" size={16} color={isSelected ? "#FEFEFE" : "#000E3D"} />
+          <Icon name="close" family="MaterialSymbols" size={16} color={isSelected ? colors.surface : colors.brand} />
         </TouchableOpacity>
       )}
     </TouchableOpacity>
@@ -132,11 +133,11 @@ const styles = StyleSheet.create({
   },
   chipOutline: {
     borderWidth: 1,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     backgroundColor: 'transparent',
   },
   chipFilled: {
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
     borderWidth: 0,
   },
   chipDisabled: {
@@ -147,10 +148,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   chipTextOutline: {
-    color: '#000E3D',
+    color: colors.brand,
   },
   chipTextFilled: {
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   chipTextDisabled: {
     opacity: 0.7,

@@ -20,6 +20,7 @@ import ScreenContainer from '../../components/layout/ScreenContainer';
 import SignupHeaderMerchant from '../../components/auth/SignupHeaderMerchant';
 import { CustomButton } from '../../components/CustomButton';
 import { logger } from '../../lib/logger';
+import { colors } from '../../lib/theme';
 
 type AvailabilityOption = {
   value: string;
@@ -207,7 +208,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
   return (
     <ScreenContainer
       scroll
-      backgroundColor="#FEFEFE"
+      backgroundColor={colors.surface}
       contentContainerStyle={{ flexGrow: 1, paddingTop: 0, paddingBottom: 16 }}
       header={
         <SignupHeaderMerchant
@@ -300,7 +301,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
                       style={styles.chipCloseButton}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Icon name="close" family="MaterialSymbols" size={16} color="#FEFEFE" />
+                      <Icon name="close" family="MaterialSymbols" size={16} color={colors.surface} />
                     </TouchableOpacity>
                   )}
                 </TouchableOpacity>
@@ -331,7 +332,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
                       style={styles.chipCloseButton}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Icon name="close" family="MaterialSymbols" size={16} color="#FEFEFE" />
+                      <Icon name="close" family="MaterialSymbols" size={16} color={colors.surface} />
                     </TouchableOpacity>
                   )}
                 </TouchableOpacity>
@@ -408,7 +409,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 4,
   },
   radioGroup: {
@@ -434,12 +435,12 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
   },
   radioLabel: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 16,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   chipRow: {
     flexDirection: 'row',
@@ -451,7 +452,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   chip: {
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
     borderRadius: 32,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -462,11 +463,11 @@ const styles = StyleSheet.create({
   chipText: {
     fontFamily: 'Montserrat_500Medium',
     fontSize: 12,
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   chipOutline: {
     borderWidth: 1,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     borderRadius: 32,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -477,13 +478,13 @@ const styles = StyleSheet.create({
   chipTextOutline: {
     fontFamily: 'Montserrat_500Medium',
     fontSize: 12,
-    color: '#000E3D',
+    color: colors.brand,
   },
   chipActive: {
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
   },
   chipTextActive: {
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   chipCloseButton: {
     marginLeft: 4,
@@ -493,7 +494,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chipCloseIcon: {
-    color: '#FEFEFE',
+    color: colors.surface,
     fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
     lineHeight: 22,
@@ -504,11 +505,11 @@ const styles = StyleSheet.create({
   errorText: {
     marginTop: 16,
     alignSelf: 'center',
-    color: '#E5102E',
+    color: colors.accent,
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
   },
   actions: {
     paddingBottom: 32,
   },
-});
+}); 

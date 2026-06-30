@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, StyleProp, TextStyle } from 'react-native';
+import { colors } from '../../lib/theme';
 
 export interface MaterialSymbolIconProps {
   name: string;
@@ -11,7 +12,7 @@ export interface MaterialSymbolIconProps {
 export const MaterialSymbolIcon: React.FC<MaterialSymbolIconProps> = ({
   name,
   size = 24,
-  color = '#000E3D',
+  color = colors.brand,
   style,
 }) => {
   return (

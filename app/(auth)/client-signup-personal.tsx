@@ -16,6 +16,7 @@ import { validateEmail, validatePassword } from '../../lib/validations';
 import { useSafeGoBack } from '../../lib/router-utils';
 import { logger } from '../../lib/logger';
 import { suggestEmailCorrection } from '../../lib/emailUtils';
+import { colors } from '../../lib/theme';
 
 const ClientSignupPersonalScreen: React.FC = () => {
   const router = useRouter();
@@ -261,7 +262,7 @@ const ClientSignupPersonalScreen: React.FC = () => {
   return (
     <ScreenContainer
       scroll
-      backgroundColor="#FEFEFE"
+      backgroundColor={colors.surface}
       contentContainerStyle={{ flexGrow: 1, paddingTop: 0, paddingBottom: 16 }}
       header={
         <SignupHeaderClient
@@ -382,7 +383,7 @@ const styles = StyleSheet.create({
   errorText: {
     marginTop: 12,
     alignSelf: 'center',
-    color: '#E5102E',
+    color: colors.accent,
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
   },

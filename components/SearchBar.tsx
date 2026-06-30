@@ -10,6 +10,7 @@ import {
   StyleProp,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { colors } from '../lib/theme';
 
 type SearchBarVariant = 'grey' | 'primary';
 type IconMode = 'search' | 'close' | 'auto';
@@ -34,11 +35,11 @@ type Props = {
 
 const VARIANT_STYLES: Record<SearchBarVariant, ViewStyle> = {
   grey: {
-    borderColor: '#474747', // border/grey
+    borderColor: colors.textSecondary, // border/grey
     borderWidth: 1,
   },
   primary: {
-    borderColor: '#000E3D', // border/primary
+    borderColor: colors.brand, // border/primary
     borderWidth: 2,
   },
 };
@@ -109,7 +110,7 @@ const SearchBar: React.FC<Props> = ({
           <MaterialIcons
             name={showClose ? 'close' : 'search'}
             size={20}
-            color="#0F0F0F"
+            color={colors.textPrimary}
           />
         </TouchableOpacity>
       </View>
@@ -141,7 +142,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
@@ -150,7 +151,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     marginRight: 8,
     paddingVertical: 0,
   },
@@ -159,10 +160,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#E5102E',
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 5,

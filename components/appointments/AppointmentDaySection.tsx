@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { colors } from '../../lib/theme';
 
 export type AppointmentDaySectionProps = {
   dateLabel: string;
@@ -56,7 +57,7 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 18,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   todayChip: {
     paddingHorizontal: 10,
@@ -70,13 +71,13 @@ const styles = StyleSheet.create({
   statusLabel: {
     fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   cardsWrapper: {
     gap: 12,
   },
   emptyStateContainer: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#DBDBDB',
@@ -86,7 +87,7 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     lineHeight: 24,
   },
 });

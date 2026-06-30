@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconForkSpoon } from '../../lib/icons';
+import { colors } from '../../lib/theme';
 
 interface TimeSlotCardProps {
   time: string;
@@ -34,7 +35,7 @@ export const TimeSlotCard: React.FC<TimeSlotCardProps> = ({
     >
       {showLunchIcon && (
         <View style={styles.lunchIcon}>
-          <IconForkSpoon size={24} color="#0F0F0F" />
+          <IconForkSpoon size={24} color={colors.textPrimary} />
         </View>
       )}
       <View style={styles.content}>
@@ -65,7 +66,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 16,
     gap: 16,
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   cardSelected: {
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     backgroundColor: '#D6E0FF',
   },
   cardDisabled: {
@@ -99,23 +100,23 @@ const styles = StyleSheet.create({
   time: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   timeSelected: {
-    color: '#000E3D',
+    color: colors.brand,
   },
   timeDisabled: {
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   status: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   statusSelected: {
-    color: '#000E3D',
+    color: colors.brand,
   },
   statusDisabled: {
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
 });

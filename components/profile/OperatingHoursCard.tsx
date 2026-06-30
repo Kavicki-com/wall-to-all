@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
 import SurfaceCard from '../ui/SurfaceCard';
+import { colors } from '../../lib/theme';
 
 interface OperatingHoursCardProps {
   /**
@@ -37,12 +38,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 12,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   text: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
 });
 

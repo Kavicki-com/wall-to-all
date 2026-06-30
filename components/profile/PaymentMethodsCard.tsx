@@ -5,6 +5,7 @@ import IconLabel from '../ui/IconLabel';
 // Import icons from the library. The relative path assumes this file
 // resides in components/profile and the icons are in lib/icons.
 import { IconPix, IconCreditCard, IconCash } from '../../lib/icons';
+import { colors } from '../../lib/theme';
 
 interface PaymentMethods {
   pix?: boolean;
@@ -32,13 +33,13 @@ const PaymentMethodsCard: React.FC<PaymentMethodsCardProps> = ({ methods }) => {
         {methods.pix && <IconLabel icon={<IconPix width={24} height={24} />} label="PIX" />}
         {methods.card && (
           <IconLabel
-            icon={<IconCreditCard width={24} height={24} color="#000E3D" />}
+            icon={<IconCreditCard width={24} height={24} color={colors.brand} />}
             label="Cartão"
           />
         )}
         {methods.cash && (
           <IconLabel
-            icon={<IconCash width={24} height={24} color="#000E3D" />}
+            icon={<IconCash width={24} height={24} color={colors.brand} />}
             label="Dinheiro"
           />
         )}
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 12,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   iconsRow: {
     flexDirection: 'row',

@@ -19,50 +19,11 @@ import AppointmentDaySection from '../../../components/appointments/AppointmentD
 import AppointmentCard from '../../../components/appointments/AppointmentCard';
 import { CustomButton } from '../../../components/CustomButton';
 import { applyAcceptedReschedules } from '../../../lib/utils';
+import { ClientAppointmentListItem, NormalizedClientAppointmentListItem } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
-type AppointmentService = {
-  id: number;
-  name: string;
-  price: number;
-  photos: string[] | string | null;
-};
-
-type AppointmentBusiness = {
-  id: number;
-  business_name: string;
-  logo_url: string | null;
-};
-
-type RawAppointment = {
-  id: number;
-  start_time: string;
-  end_time: string;
-  status: string;
-  payment_method: string;
-  service: AppointmentService | AppointmentService[];
-  business: AppointmentBusiness | AppointmentBusiness[];
-  hasPendingReschedule?: boolean;
-};
-
-type Appointment = {
-  id: number;
-  start_time: string;
-  end_time: string;
-  status: string;
-  payment_method: string;
-  service: {
-    id: number;
-    name: string;
-    price: number;
-    photos: string[] | string | null;
-  };
-  business: {
-    id: number;
-    business_name: string;
-    logo_url: string | null;
-  };
-  hasPendingReschedule?: boolean;
-};
+type RawAppointment = ClientAppointmentListItem;
+type Appointment = NormalizedClientAppointmentListItem;
 
 const normalizeAppointment = (appointment: RawAppointment): Appointment => ({
   ...appointment,
@@ -341,7 +302,7 @@ const ClientAppointmentsScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -350,7 +311,7 @@ const ClientAppointmentsScreen: React.FC = () => {
     <ScreenContainer
       scroll={true}
       hasHeader={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       contentContainerStyle={styles.scrollContent}
       header={
         <AppHeader
@@ -371,7 +332,7 @@ const ClientAppointmentsScreen: React.FC = () => {
             style={{
               borderRadius: 30,
               borderWidth: 1.5,
-              backgroundColor: '#FAFAFA',
+              backgroundColor: colors.background,
               height: undefined,
               paddingVertical: 14,
               shadowColor: '#000',
@@ -452,7 +413,7 @@ const ClientAppointmentsScreen: React.FC = () => {
             disabled={loadingMore}
           >
             {loadingMore ? (
-              <ActivityIndicator size="small" color="#000E3D" />
+              <ActivityIndicator size="small" color={colors.brand} />
             ) : (
               <Text style={styles.loadMoreText}>Carregar mais agendamentos</Text>
             )}
@@ -473,7 +434,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -483,12 +444,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     marginBottom: 16,
     paddingHorizontal: 24,
   },
   footerContainer: {
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     paddingTop: 10,
     paddingHorizontal: 0,
     paddingBottom: 20,
@@ -503,8 +464,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#000E3D',
-    backgroundColor: '#FEFEFE',
+    borderColor: colors.brand,
+    backgroundColor: colors.surface,
     minWidth: 200,
     alignItems: 'center',
     justifyContent: 'center',
@@ -512,6 +473,6 @@ const styles = StyleSheet.create({
   loadMoreText: {
     fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
 });

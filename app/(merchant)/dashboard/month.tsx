@@ -20,21 +20,10 @@ import MonthCalendar from '../../../components/calendar/MonthCalendar';
 import AppointmentDaySection from '../../../components/appointments/AppointmentDaySection';
 import AppointmentCard from '../../../components/appointments/AppointmentCard';
 import { logger } from '../../../lib/logger';
+import { MerchantMonthAppointment } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
-type Appointment = {
-  id: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  service: {
-    id: string;
-    name: string;
-  };
-  client: {
-    id: string;
-    full_name: string | null;
-  };
-};
+type Appointment = MerchantMonthAppointment;
 
 type DayAppointments = {
   date: Date;
@@ -103,7 +92,7 @@ const MerchantMonthDashboardScreen: React.FC = () => {
       const monthEnd = endOfMonth(currentMonth);
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
-      
+
       // Buscar um range maior (2 meses antes e depois) para capturar reagendamentos
       const extendedStart = new Date(monthStart);
       extendedStart.setMonth(extendedStart.getMonth() - 2);
@@ -131,14 +120,14 @@ const MerchantMonthDashboardScreen: React.FC = () => {
       } else if (appointmentsData) {
         // Aplicar reagendamentos aceitos aos agendamentos PRIMEIRO
         const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
-        
+
         // Filtrar por data DEPOIS de aplicar reagendamentos
         const filteredAppointments = appointmentsWithReschedules.filter((apt) => {
           const aptDate = new Date(apt.start_time);
           const aptDateString = format(aptDate, 'yyyy-MM-dd');
           return aptDateString >= startDate && aptDateString <= endDate;
         });
-        
+
         // Converter id de number para string para corresponder ao tipo Appointment
         const normalizedAppointments: Appointment[] = filteredAppointments.map((apt) => ({
           ...apt,
@@ -152,7 +141,7 @@ const MerchantMonthDashboardScreen: React.FC = () => {
             full_name: apt.client.full_name,
           },
         }));
-        
+
         setAppointments(normalizedAppointments);
       }
     } catch (error) {
@@ -224,34 +213,34 @@ const MerchantMonthDashboardScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor={colors.background}
         hasHeader={true}
         hasTabBar={false}
         header={
-          <AppHeader 
+          <AppHeader
             showBackButton={true}
             onPressBack={() => safeGoBack('/(merchant)/dashboard')}
           />
         }
       >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       contentContainerStyle={styles.scrollContent}
       header={
-        <AppHeader 
+        <AppHeader
           showBackButton={true}
           onPressBack={() => safeGoBack('/(merchant)/dashboard')}
         />
@@ -261,94 +250,94 @@ const MerchantMonthDashboardScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => safeGoBack('/(merchant)/dashboard')}>
-          <IconBack size={24} color="#000E3D" />
+          <IconBack size={24} color={colors.brand} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Agenda Mensal</Text>
         </View>
       </View>
-        {/* Calendar */}
-        <MonthCalendar
-          key={calendarResetKey}
-          currentMonth={currentMonth}
-          onMonthChange={handleMonthChange}
-          selectedDate={selectedDate}
-          onSelectDate={handleDateSelect}
-          markedDates={appointments.map((apt) => format(new Date(apt.start_time), 'yyyy-MM-dd'))}
-        />
+      {/* Calendar */}
+      <MonthCalendar
+        key={calendarResetKey}
+        currentMonth={currentMonth}
+        onMonthChange={handleMonthChange}
+        selectedDate={selectedDate}
+        onSelectDate={handleDateSelect}
+        markedDates={appointments.map((apt) => format(new Date(apt.start_time), 'yyyy-MM-dd'))}
+      />
 
-        {/* Appointments List */}
-        {selectedDate ? (
-          <AppointmentDaySection
-            dateLabel={formatDayLabel(selectedDate)}
-            isToday={isSameDay(selectedDate, new Date())}
-            hasAppointments={getAppointmentsForDate(selectedDate).length > 0}
-          >
-            {getAppointmentsForDate(selectedDate).map((apt) => {
-              const appointmentDate = new Date(apt.start_time);
-              const time = format(appointmentDate, 'HH:mm');
-              const dateLabel = `Data ${format(appointmentDate, 'dd/MM/yy')}`;
+      {/* Appointments List */}
+      {selectedDate ? (
+        <AppointmentDaySection
+          dateLabel={formatDayLabel(selectedDate)}
+          isToday={isSameDay(selectedDate, new Date())}
+          hasAppointments={getAppointmentsForDate(selectedDate).length > 0}
+        >
+          {getAppointmentsForDate(selectedDate).map((apt) => {
+            const appointmentDate = new Date(apt.start_time);
+            const time = format(appointmentDate, 'HH:mm');
+            const dateLabel = `Data ${format(appointmentDate, 'dd/MM/yy')}`;
+
+            return (
+              <AppointmentCard
+                key={apt.id}
+                time={time}
+                dateLabel={dateLabel}
+                serviceName={apt.service.name}
+                showShopName={false}
+                onPress={() => router.push(`/(merchant)/dashboard/appointment/${apt.id}`)}
+              />
+            );
+          })}
+        </AppointmentDaySection>
+      ) : (
+        <View style={styles.allAppointmentsSection}>
+          <Text style={styles.sectionTitle}>Todos os agendamentos do mês</Text>
+          {groupedAppointments.length === 0 ? (
+            <AppointmentDaySection
+              dateLabel={formatDayLabel(currentMonth)}
+              isToday={isSameDay(currentMonth, new Date())}
+              hasAppointments={false}
+            >
+              {null}
+            </AppointmentDaySection>
+          ) : (
+            groupedAppointments.map((dayGroup) => {
+              const hasReschedulePending = dayGroup.appointments.some(
+                (apt) => apt.status?.toLowerCase() === 'rescheduled'
+              );
 
               return (
-                <AppointmentCard
-                  key={apt.id}
-                  time={time}
-                  dateLabel={dateLabel}
-                  serviceName={apt.service.name}
-                  showShopName={false}
-                  onPress={() => router.push(`/(merchant)/dashboard/appointment/${apt.id}`)}
-                />
+                <AppointmentDaySection
+                  key={format(dayGroup.date, 'yyyy-MM-dd')}
+                  dateLabel={formatDayLabel(dayGroup.date)}
+                  isToday={isSameDay(dayGroup.date, new Date())}
+                  statusLabel={hasReschedulePending ? 'Reagendado - Pendente' : undefined}
+                  hasAppointments={dayGroup.appointments.length > 0}
+                  containerStyle={styles.dayGroup}
+                >
+                  {dayGroup.appointments.map((apt) => {
+                    const appointmentDate = new Date(apt.start_time);
+                    const time = format(appointmentDate, 'HH:mm');
+                    const dateLabel = `Data ${format(appointmentDate, 'dd/MM/yy')}`;
+
+                    return (
+                      <AppointmentCard
+                        key={apt.id}
+                        time={time}
+                        dateLabel={dateLabel}
+                        serviceName={apt.service.name}
+                        showShopName={false}
+                        onPress={() => router.push(`/(merchant)/dashboard/appointment/${apt.id}`)}
+                      />
+                    );
+                  })}
+                </AppointmentDaySection>
               );
-            })}
-          </AppointmentDaySection>
-        ) : (
-          <View style={styles.allAppointmentsSection}>
-            <Text style={styles.sectionTitle}>Todos os agendamentos do mês</Text>
-            {groupedAppointments.length === 0 ? (
-              <AppointmentDaySection
-                dateLabel={formatDayLabel(currentMonth)}
-                isToday={isSameDay(currentMonth, new Date())}
-                hasAppointments={false}
-              >
-                {null}
-              </AppointmentDaySection>
-            ) : (
-              groupedAppointments.map((dayGroup) => {
-                const hasReschedulePending = dayGroup.appointments.some(
-                  (apt) => apt.status?.toLowerCase() === 'rescheduled'
-                );
-
-                return (
-                  <AppointmentDaySection
-                    key={format(dayGroup.date, 'yyyy-MM-dd')}
-                    dateLabel={formatDayLabel(dayGroup.date)}
-                    isToday={isSameDay(dayGroup.date, new Date())}
-                    statusLabel={hasReschedulePending ? 'Reagendado - Pendente' : undefined}
-                    hasAppointments={dayGroup.appointments.length > 0}
-                    containerStyle={styles.dayGroup}
-                  >
-                    {dayGroup.appointments.map((apt) => {
-                      const appointmentDate = new Date(apt.start_time);
-                      const time = format(appointmentDate, 'HH:mm');
-                      const dateLabel = `Data ${format(appointmentDate, 'dd/MM/yy')}`;
-
-                      return (
-                        <AppointmentCard
-                          key={apt.id}
-                          time={time}
-                          dateLabel={dateLabel}
-                          serviceName={apt.service.name}
-                          showShopName={false}
-                          onPress={() => router.push(`/(merchant)/dashboard/appointment/${apt.id}`)}
-                        />
-                      );
-                    })}
-                  </AppointmentDaySection>
-                );
-              })
-            )}
-          </View>
-        )}
+            })
+          )}
+        </View>
+      )}
     </ScreenContainer>
   );
 };
@@ -363,14 +352,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 16,
     paddingBottom: 16,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5E5',
   },
@@ -387,7 +376,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   scrollContent: {
     flexGrow: 1,
@@ -401,7 +390,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 16,
   },
   dayGroup: {

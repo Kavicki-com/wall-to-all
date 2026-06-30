@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { IconBack, IconChevronDown } from '../../lib/icons';
+import { colors } from '../../lib/theme';
 
 export type MonthCalendarProps = {
   currentMonth: Date;
@@ -99,13 +100,13 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
       {showFullCalendar && (
         <View style={styles.calendarHeader}>
           <TouchableOpacity onPress={() => onMonthChange('prev')}>
-            <IconBack size={20} color="#000E3D" />
+            <IconBack size={20} color={colors.brand} />
           </TouchableOpacity>
           <Text style={styles.monthYearText}>
             {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
           </Text>
           <TouchableOpacity onPress={() => onMonthChange('next')}>
-            <IconBack size={20} color="#000E3D" style={{ transform: [{ rotate: '180deg' }] }} />
+            <IconBack size={20} color={colors.brand} style={{ transform: [{ rotate: '180deg' }] }} />
           </TouchableOpacity>
         </View>
       )}
@@ -167,7 +168,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
         </Text>
         <IconChevronDown
           size={16}
-          color="#000E3D"
+          color={colors.brand}
           style={showFullCalendar ? { transform: [{ rotate: '180deg' }] } : undefined}
         />
       </TouchableOpacity>
@@ -193,7 +194,7 @@ const styles = StyleSheet.create({
   monthYearText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     textTransform: 'capitalize',
     textAlign: 'center',
     flex: 1,
@@ -207,7 +208,7 @@ const styles = StyleSheet.create({
   dayOfWeekText: {
     fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     flex: 1,
     textAlign: 'center',
   },
@@ -229,13 +230,13 @@ const styles = StyleSheet.create({
   calendarDayText: {
     fontSize: 16,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   calendarDayTextInactive: {
     color: '#919191',
   },
   calendarDayTextSelected: {
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   dayInner: {
     width: 32,
@@ -250,10 +251,10 @@ const styles = StyleSheet.create({
   },
   dayInnerHasAppointments: {
     borderWidth: 1,
-    borderColor: '#E5102E',
+    borderColor: colors.accent,
   },
   dayInnerSelected: {
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
     borderRadius: 16,
   },
   toggleCalendarButton: {
@@ -267,7 +268,7 @@ const styles = StyleSheet.create({
   toggleCalendarButtonText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginRight: 8,
   },
 });

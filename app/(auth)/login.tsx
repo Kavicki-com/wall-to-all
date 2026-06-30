@@ -27,6 +27,7 @@ import { IconAccountCircle } from '../../lib/icons';
 import { CustomInput } from '../../components/ui/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { useRateLimit } from '../../lib/hooks/useRateLimit';
+import { colors } from '../../lib/theme';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -295,7 +296,7 @@ const LoginScreen: React.FC = () => {
                 />
 
                 <CustomButton
-                  title="Continue with Google"
+                  title="Continuar com Google"
                   onPress={handleGooglePress}
                   leftIcon={<GoogleLogo width={24} height={24} />}
                   variant="outline"
@@ -319,7 +320,7 @@ export default LoginScreen;
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
   },
   gradient: {
     flex: 1,
@@ -347,9 +348,9 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 88,
     height: 109.64,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderWidth: 2.7,
-    borderColor: '#FEFEFE',
+    borderColor: colors.surface,
     borderRadius: 4.5,
     padding: 2,
     flexDirection: 'column',
@@ -373,7 +374,7 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   messageContainer: {
     width: '100%',
@@ -382,7 +383,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   errorText: {
-    color: '#E5102E',
+    color: colors.accent,
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
     textAlign: 'center',
@@ -397,8 +398,8 @@ const styles = StyleSheet.create({
     marginVertical: 0,
   },
   googleButtonOverride: {
-    backgroundColor: '#FEFEFE',
-    borderColor: '#FEFEFE',
+    backgroundColor: colors.surface,
+    borderColor: colors.surface,
     borderRadius: 8,
   },
   googleButtonText: {

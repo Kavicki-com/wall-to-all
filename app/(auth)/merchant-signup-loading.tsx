@@ -7,9 +7,14 @@ import type { User, Session } from '@supabase/supabase-js';
 import { LogoWallToAll } from '../../lib/assets';
 import { supabase } from '../../lib/supabase';
 import { logger } from '../../lib/logger';
+import { useToast } from '../../components/ui/ToastProvider';
+import { colors } from '../../lib/theme';
+import { useAuth } from '../../context/AuthContext';
 
 const MerchantSignupLoadingScreen: React.FC = () => {
   const router = useRouter();
+  const { showError } = useToast();
+  const { refreshUserRole } = useAuth();
 
   // Função auxiliar para fazer upload de banner
   const uploadBanner = async (userId: string, imageUri: string): Promise<string | null> => {
@@ -141,14 +146,14 @@ const MerchantSignupLoadingScreen: React.FC = () => {
   useEffect(() => {
     const completeSignup = async () => {
       const draftKey = 'merchant_signup_draft';
-      
+
       try {
         // Buscar dados salvos no AsyncStorage
         const stored = await AsyncStorage.getItem(draftKey);
-        
+
         if (!stored) {
           logger.error('[MerchantSignupLoading] Dados do cadastro não encontrados');
-          Alert.alert('Erro', 'Dados do cadastro não encontrados. Por favor, tente novamente.');
+          showError('Dados do cadastro não encontrados. Por favor, tente novamente.');
           router.replace('/(auth)/login');
           return;
         }
@@ -160,14 +165,14 @@ const MerchantSignupLoadingScreen: React.FC = () => {
           logger.error('[MerchantSignupLoading] Erro ao fazer parse do draft:', parseError);
           // Limpar draft corrompido
           await AsyncStorage.removeItem(draftKey);
-          Alert.alert('Erro', 'Dados do cadastro corrompidos. Por favor, tente novamente.');
+          showError('Dados do cadastro corrompidos. Por favor, tente novamente.');
           router.replace('/(auth)/login');
           return;
         }
 
         // Verificar se é OAuth
         const isOAuth = draftData.is_oauth === true;
-        
+
         // Tentar criar usuário no Supabase Auth (apenas se NÃO for OAuth)
         let user: User | null = null;
         let session: Session | null = null;
@@ -177,18 +182,18 @@ const MerchantSignupLoadingScreen: React.FC = () => {
           if (__DEV__) {
             logger.debug('[MerchantSignupLoading] OAuth detectado, usando sessão existente');
           }
-          
+
           const { data: sessionData } = await supabase.auth.getSession();
           if (sessionData?.session?.user) {
             user = sessionData.session.user;
             session = sessionData.session;
-            
+
             if (__DEV__) {
               logger.debug('[MerchantSignupLoading] Sessão OAuth recuperada:', user.email);
             }
           } else {
             // Sem sessão, algo deu errado
-            Alert.alert('Erro', 'Sessão não encontrada. Por favor, tente fazer login novamente.');
+            showError('Sessão não encontrada. Por favor, tente fazer login novamente.');
             await AsyncStorage.removeItem(draftKey);
             await AsyncStorage.removeItem('oauth_google_signup');
             await AsyncStorage.removeItem('oauth_google_data');
@@ -231,13 +236,13 @@ const MerchantSignupLoadingScreen: React.FC = () => {
             session = signInData.session;
           } else if (signUpError) {
             logger.error('[MerchantSignupLoading] Erro ao criar usuário:', signUpError);
-            Alert.alert('Erro', 'Não foi possível criar a conta. Tente novamente.');
+            showError('Não foi possível criar a conta. Tente novamente.');
             router.replace('/(auth)/login');
             await AsyncStorage.removeItem(draftKey);
             return;
           } else if (!signUpData?.user) {
             logger.error('[MerchantSignupLoading] Usuário não foi criado');
-            Alert.alert('Erro', 'Não foi possível criar a conta. Tente novamente.');
+            showError('Não foi possível criar a conta. Tente novamente.');
             router.replace('/(auth)/login');
             await AsyncStorage.removeItem(draftKey);
             return;
@@ -250,7 +255,7 @@ const MerchantSignupLoadingScreen: React.FC = () => {
                 email: draftData.email,
                 password: draftData.password,
               });
-              
+
               if (signInError || !signInData?.session) {
                 Alert.alert(
                   'Confirme seu e-mail',
@@ -391,6 +396,12 @@ const MerchantSignupLoadingScreen: React.FC = () => {
           return;
         }
 
+        const refreshedRole = await refreshUserRole(user.id);
+
+        if (__DEV__ && refreshedRole !== 'merchant') {
+          logger.warn('[MerchantSignupLoading] refreshUserRole retornou role inesperada:', refreshedRole);
+        }
+
         // Notificar sobre erros de upload se houver
         if (uploadErrors.length > 0) {
           Alert.alert(
@@ -405,7 +416,7 @@ const MerchantSignupLoadingScreen: React.FC = () => {
 
       } catch (error) {
         logger.error('[MerchantSignupLoading] Erro ao completar cadastro:', error);
-        Alert.alert('Erro', 'Ocorreu um erro ao completar o cadastro. Tente novamente.');
+        showError('Ocorreu um erro ao completar o cadastro. Tente novamente.');
         router.replace('/(auth)/login');
       }
     };
@@ -417,7 +428,7 @@ const MerchantSignupLoadingScreen: React.FC = () => {
     }, 1500);
 
     return () => clearTimeout(timeout);
-  }, [router]);
+  }, [refreshUserRole, router]);
 
   return (
     <View style={styles.background}>
@@ -451,7 +462,7 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: 'Montserrat_500Medium',
     fontSize: 16,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
 });

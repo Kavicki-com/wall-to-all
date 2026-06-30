@@ -45,8 +45,9 @@ export type BusinessCardProps = {
  * 5 cifrões ($$$$$): acima de R$ 300,00
  */
 import { getPriceLevel } from '../lib/utils';
+import { colors } from '../lib/theme';
 
-export const BusinessCard: React.FC<BusinessCardProps> = ({
+export const BusinessCard: React.FC<BusinessCardProps> = React.memo(({
   id,
   business_name,
   logo_url,
@@ -65,7 +66,11 @@ export const BusinessCard: React.FC<BusinessCardProps> = ({
   const businessServices = services || [];
 
   // Calcula o nível de preço (1 a 5) e garante que seja válido
-  const priceLevel = Math.max(1, Math.min(5, getPriceLevel(businessServices)));
+  const priceLevel = React.useMemo(() =>
+    Math.max(1, Math.min(5, getPriceLevel(businessServices))),
+    [businessServices]
+  );
+
   const fullPriceString = "$$$$$";
 
   const handlePress = () => {
@@ -77,10 +82,13 @@ export const BusinessCard: React.FC<BusinessCardProps> = ({
   };
 
   // Garantir que business_name sempre seja uma string válida
-  const safeBusinessName = String(business_name || '');
+  const safeBusinessName = React.useMemo(() => String(business_name || ''), [business_name]);
 
   // Prioridade de descrição: Descrição do banco > Nome da Categoria > Texto padrão
-  const displaySubtitle = String(description || categories?.name || category || 'Serviços especializados');
+  const displaySubtitle = React.useMemo(() =>
+    String(description || categories?.name || category || 'Serviços especializados'),
+    [description, categories, category]
+  );
 
   return (
     <View style={styles.cardWrapper}>
@@ -188,19 +196,19 @@ export const BusinessCard: React.FC<BusinessCardProps> = ({
             <View style={styles.paymentMethodsRow}>
               {paymentMethods.pix && (
                 <View style={styles.paymentBadge}>
-                  <IconPix width={16} height={16} color="#000E3D" />
+                  <IconPix width={16} height={16} color={colors.brand} />
                   <Text style={styles.paymentText}>PIX</Text>
                 </View>
               )}
               {paymentMethods.card && (
                 <View style={styles.paymentBadge}>
-                  <IconCreditCard width={16} height={16} color="#000E3D" />
+                  <IconCreditCard width={16} height={16} color={colors.brand} />
                   <Text style={styles.paymentText}>Cartão</Text>
                 </View>
               )}
               {paymentMethods.cash && (
                 <View style={styles.paymentBadge}>
-                  <IconCash width={16} height={16} color="#000E3D" />
+                  <IconCash width={16} height={16} color={colors.brand} />
                   <Text style={styles.paymentText}>Dinheiro</Text>
                 </View>
               )}
@@ -211,7 +219,7 @@ export const BusinessCard: React.FC<BusinessCardProps> = ({
       </TouchableOpacity>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   cardWrapper: {
@@ -275,7 +283,7 @@ const styles = StyleSheet.create({
     height: responsiveWidth(56),
     borderRadius: responsiveWidth(28), // Circular
     borderWidth: 2,
-    borderColor: '#E5102E', // Cor da borda alterada para o vermelho/rosa do design
+    borderColor: colors.accent, // Cor da borda alterada para o vermelho/rosa do design
     backgroundColor: '#FFF',
     marginRight: responsiveWidth(8), // Espaçamento entre logo e texto (Figma: 8)
     justifyContent: 'center',
@@ -300,7 +308,7 @@ const styles = StyleSheet.create({
   businessName: {
     fontSize: responsiveFontSize(16),
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
     marginBottom: responsiveHeight(4),
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
@@ -309,7 +317,7 @@ const styles = StyleSheet.create({
   businessDescription: {
     fontSize: responsiveFontSize(8),
     fontFamily: 'Montserrat_500Medium',
-    color: '#FEFEFE',
+    color: colors.surface,
     opacity: 0.9,
   },
 
@@ -317,7 +325,7 @@ const styles = StyleSheet.create({
   cardBody: {
     padding: responsiveWidth(16), // Manter padding de 16px
     paddingTop: responsiveHeight(8), // Manter paddingTop reduzido
-    backgroundColor: '#FEFEFE', // Manter fundo branco do corpo
+    backgroundColor: colors.surface, // Manter fundo branco do corpo
     // REMOVER borderBottomLeftRadius e borderBottomRightRadius daqui
     // O borderRadius já está no businessCard
   },
@@ -332,7 +340,7 @@ const styles = StyleSheet.create({
   priceLabel: {
     fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   priceValueContainer: {
     flexDirection: 'row',
@@ -341,7 +349,7 @@ const styles = StyleSheet.create({
   priceActive: {
     fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     letterSpacing: 2,
   },
   priceInactive: {
@@ -361,7 +369,7 @@ const styles = StyleSheet.create({
   },
   servicePill: {
     borderWidth: 1,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     borderRadius: 32,
     paddingHorizontal: 8,
     paddingVertical: 8,
@@ -371,7 +379,7 @@ const styles = StyleSheet.create({
   servicePillText: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#000E3D',
+    color: colors.brand,
   },
 
   // Seções de Info
@@ -381,13 +389,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 12,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 8,
   },
   infoText: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
 
   // Pagamentos
@@ -407,6 +415,6 @@ const styles = StyleSheet.create({
   paymentText: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
 });

@@ -23,10 +23,13 @@ import {
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
 import { useProfile } from '../../../context/ProfileContext';
+import { useToast } from '../../../components/ui/ToastProvider';
+import { colors } from '../../../lib/theme';
 
 const SettingsScreen: React.FC = () => {
   const router = useRouter();
   const { profile, loading } = useProfile();
+  const { showError, showSuccess, showInfo } = useToast();
 
   const getClientSinceYear = () => {
     if (!profile?.created_at) return '2025';
@@ -64,7 +67,7 @@ const SettingsScreen: React.FC = () => {
               } = await supabase.auth.getUser();
 
               if (!user) {
-                Alert.alert('Erro', 'Usuário não autenticado.');
+                showError('Usuário não autenticado.');
                 return;
               }
 
@@ -76,7 +79,7 @@ const SettingsScreen: React.FC = () => {
 
               if (appointmentsError) {
                 logger.error('Erro ao deletar agendamentos:', appointmentsError);
-                Alert.alert('Erro', 'Não foi possível deletar seus agendamentos. Tente novamente.');
+                showError('Não foi possível deletar seus agendamentos. Tente novamente.');
                 return;
               }
 
@@ -88,7 +91,7 @@ const SettingsScreen: React.FC = () => {
 
               if (reviewsError) {
                 logger.error('Erro ao deletar avaliações:', reviewsError);
-                Alert.alert('Erro', 'Não foi possível deletar suas avaliações. Tente novamente.');
+                showError('Não foi possível deletar suas avaliações. Tente novamente.');
                 return;
               }
 
@@ -100,7 +103,7 @@ const SettingsScreen: React.FC = () => {
 
               if (profileError) {
                 logger.error('Erro ao deletar perfil:', profileError);
-                Alert.alert('Erro', 'Não foi possível deletar seu perfil. Tente novamente.');
+                showError('Não foi possível deletar seu perfil. Tente novamente.');
                 return;
               }
 
@@ -122,11 +125,11 @@ const SettingsScreen: React.FC = () => {
               // 5. Fazer logout
               await supabase.auth.signOut();
 
-              Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');
+              showSuccess('Sua conta foi excluída com sucesso.');
               router.replace('/(auth)/login');
             } catch (error) {
               console.error('Erro ao excluir conta:', error);
-              Alert.alert('Erro', 'Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
+              showError('Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
             }
           },
         },
@@ -136,12 +139,9 @@ const SettingsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer
-        scroll={false}
-        backgroundColor="#FAFAFA"
-      >
+      <ScreenContainer scroll={false} backgroundColor={colors.background}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -150,115 +150,130 @@ const SettingsScreen: React.FC = () => {
   return (
     <ScreenContainer
       scroll={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
+      footer={
+        <CustomButton
+          title="Sair"
+          variant="ghost"
+          onPress={handleLogout}
+          style={styles.logoutButton}
+        />
+      }
     >
-      {/* Profile Container */}
-      <View style={styles.profileContainer}>
-        <View style={styles.profileAvatarContainer}>
-          {profile?.avatar_url ? (
-            <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.placeholderAvatar]} />
-          )}
+      <View style={styles.contentColumn}>
+        {/* Profile Container */}
+        <View style={styles.profileContainer}>
+          <View style={styles.profileAvatarContainer}>
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.placeholderAvatar]} />
+            )}
+          </View>
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{profile?.full_name || 'Usuário'}</Text>
+            <Text style={styles.profileSince}>Cliente desde {getClientSinceYear()}</Text>
+          </View>
         </View>
-        <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>{profile?.full_name || 'Usuário'}</Text>
-          <Text style={styles.profileSince}>Cliente desde {getClientSinceYear()}</Text>
+
+        {/* Options List */}
+        <View style={styles.optionsContainer}>
+          <View style={styles.optionsList}>
+            {/* Editar Perfil */}
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => router.push('/(client)/profile/edit')}
+              activeOpacity={0.7}
+            >
+              <IconAccount size={24} color={colors.brand} />
+              <Text style={styles.optionText}>Editar Perfil</Text>
+              <View style={styles.chevronContainer}>
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Alterar Senha */}
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => router.push('/(client)/profile/password')}
+              activeOpacity={0.7}
+            >
+              <IconLock size={24} color={colors.brand} />
+              <Text style={styles.optionText}>Alterar Senha</Text>
+              <View style={styles.chevronContainer}>
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Excluir Conta */}
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={handleDeleteAccount}
+              activeOpacity={0.7}
+            >
+              <IconDelete size={24} color={colors.brand} />
+              <Text style={styles.optionText}>Excluir Conta</Text>
+              <View style={styles.chevronContainer}>
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Suporte */}
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => {
+                showInfo('Entre em contato pelo e-mail: suporte@walltoall.com');
+              }}
+              activeOpacity={0.7}
+            >
+              <IconSupport size={24} color={colors.brand} />
+              <Text style={styles.optionText}>Suporte</Text>
+              <View style={styles.chevronContainer}>
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Termos de uso */}
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => router.push('/(client)/settings/terms')}
+              activeOpacity={0.7}
+            >
+              <IconDocs size={24} color={colors.brand} />
+              <Text style={styles.optionText}>Termos de uso</Text>
+              <View style={styles.chevronContainer}>
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Política de Privacidade */}
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => router.push('/(client)/settings/privacy')}
+              activeOpacity={0.7}
+            >
+              <IconDocs size={24} color={colors.brand} />
+              <Text style={styles.optionText}>Política de Privacidade</Text>
+              <View style={styles.chevronContainer}>
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
+              </View>
+            </TouchableOpacity>
+
+            {/* FAQ */}
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => router.push('/(client)/settings/faq')}
+              activeOpacity={0.7}
+            >
+              <IconHelp size={24} color={colors.brand} />
+              <Text style={styles.optionText}>FAQ</Text>
+              <View style={styles.chevronContainer}>
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-
-      {/* Options List */}
-      <View style={styles.optionsContainer}>
-        <View style={styles.optionsList}>
-          {/* Editar Perfil */}
-          <TouchableOpacity
-            style={styles.optionItem}
-            onPress={() => router.push('/(client)/profile/edit')}
-            activeOpacity={0.7}
-          >
-            <IconAccount size={24} color="#000E3D" />
-            <Text style={styles.optionText}>Editar Perfil</Text>
-            <View style={styles.chevronContainer}>
-              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Alterar Senha */}
-          <TouchableOpacity
-            style={styles.optionItem}
-            onPress={() => router.push('/(client)/profile/password')}
-            activeOpacity={0.7}
-          >
-            <IconLock size={24} color="#000E3D" />
-            <Text style={styles.optionText}>Alterar Senha</Text>
-            <View style={styles.chevronContainer}>
-              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Excluir Conta */}
-          <TouchableOpacity
-            style={styles.optionItem}
-            onPress={handleDeleteAccount}
-            activeOpacity={0.7}
-          >
-            <IconDelete size={24} color="#000E3D" />
-            <Text style={styles.optionText}>Excluir Conta</Text>
-            <View style={styles.chevronContainer}>
-              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Suporte */}
-          <TouchableOpacity
-            style={styles.optionItem}
-            onPress={() => {
-              Alert.alert('Contato', 'Entre em contato pelo e-mail: suporte@walltoall.com');
-            }}
-            activeOpacity={0.7}
-          >
-            <IconSupport size={24} color="#000E3D" />
-            <Text style={styles.optionText}>Suporte</Text>
-            <View style={styles.chevronContainer}>
-              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Termos de uso */}
-          <TouchableOpacity
-            style={styles.optionItem}
-            onPress={() => router.push('/(client)/settings/terms')}
-            activeOpacity={0.7}
-          >
-            <IconDocs size={24} color="#000E3D" />
-            <Text style={styles.optionText}>Termos de uso</Text>
-            <View style={styles.chevronContainer}>
-              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-            </View>
-          </TouchableOpacity>
-
-          {/* FAQ */}
-          <TouchableOpacity
-            style={styles.optionItem}
-            onPress={() => router.push('/(client)/settings/faq')}
-            activeOpacity={0.7}
-          >
-            <IconHelp size={24} color="#000E3D" />
-            <Text style={styles.optionText}>FAQ</Text>
-            <View style={styles.chevronContainer}>
-              <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Logout Button */}
-      <CustomButton
-        title="Sair"
-        variant="ghost"
-        onPress={handleLogout}
-        style={{ borderRadius: 24, width: '90%', maxWidth: 342, alignSelf: 'center' }}
-      />
     </ScreenContainer>
   );
 };
@@ -270,7 +285,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
+  },
+  contentColumn: {
+    width: '100%',
+    maxWidth: 342,
+    alignSelf: 'center',
   },
   profileContainer: {
     alignItems: 'center',
@@ -295,19 +315,16 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   profileSince: {
     fontSize: 8,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   optionsContainer: {
-    width: '90%',
-    maxWidth: 342,
     marginBottom: 32,
-    alignSelf: 'center',
   },
   optionsList: {
     gap: 12,
@@ -315,7 +332,7 @@ const styles = StyleSheet.create({
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 16,
@@ -330,7 +347,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   chevronContainer: {
     width: 24,
@@ -338,5 +355,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingRight: 4,
+  },
+  logoutButton: {
+    width: '100%',
+    maxWidth: 342,
+    alignSelf: 'center',
+    borderRadius: 24,
+    marginBottom: 12,
   },
 });

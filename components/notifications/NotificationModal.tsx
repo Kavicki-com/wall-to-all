@@ -10,9 +10,10 @@ import {
   ActivityIndicator,
   Platform,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../../context/AuthContext';
@@ -23,6 +24,7 @@ import {
   clearAllNotifications,
   Notification,
 } from '../../lib/notifications';
+import { colors } from '../../lib/theme';
 
 interface NotificationModalProps {
   visible: boolean;
@@ -36,7 +38,13 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   onNotificationsUpdated,
 }) => {
   const router = useRouter();
-  const { session, userRole } = useAuth();
+  const segments = useSegments();
+  const { session, userRole: contextUserRole } = useAuth();
+
+  // Fallback: se o context não tiver o role, tenta deduzir dos segmentos da URL
+  const currentSegment = segments[0];
+  const userRole = contextUserRole || (currentSegment === '(merchant)' ? 'merchant' : currentSegment === '(client)' ? 'client' : null);
+
   const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,9 +69,10 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
     try {
       setLoading(true);
-      if (__DEV__) { logger.debug('Carregando notificações para usuário:', session.user.id);
+      if (__DEV__) {
+        logger.debug('Carregando notificações para usuário:', session.user.id);
       }
-      
+
       // Buscar todas as notificações relevantes (solicitações e respostas)
       const data = await fetchNotifications(session.user.id, {
         types: [
@@ -76,8 +85,9 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
           'appointment_cancelled',
         ],
       });
-      
-      if (__DEV__) { logger.debug('Notificações carregadas:', data.length);
+
+      if (__DEV__) {
+        logger.debug('Notificações carregadas:', data.length);
         if (data.length > 0) {
           logger.debug('Primeira notificação:', JSON.stringify(data[0], null, 2));
         }
@@ -94,7 +104,14 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   };
 
   const handleNotificationPress = async (notification: Notification) => {
-    if (!notification.related_appointment_id) return;
+    // Tentar usar o related_appointment_id, se não existir, tentar o related_id (legado)
+    const rawAppointmentId = notification.related_appointment_id || notification.related_id;
+
+    if (!rawAppointmentId) return;
+
+    if (!userRole && __DEV__) {
+      logger.warn('NotificationModal: Role não detectada!', { contextUserRole, segments });
+    }
 
     // Marcar como lida
     if (notification.id && !notification.read) {
@@ -109,13 +126,26 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
     }
 
     // Navegar para o agendamento
-    const appointmentId = notification.related_appointment_id?.toString();
-    if (!appointmentId) return;
+    const appointmentId = rawAppointmentId.toString();
 
     if (userRole === 'merchant') {
-      router.push(`/(merchant)/dashboard/appointment/${appointmentId}`);
+      try {
+        router.push({
+          pathname: '/(merchant)/dashboard/appointment/[id]',
+          params: { id: appointmentId }
+        });
+      } catch (error) {
+        logger.error('Erro ao navegar para agendamento (merchant):', error);
+      }
     } else if (userRole === 'client') {
-      router.push(`/(client)/appointments/${appointmentId}`);
+      try {
+        router.push({
+          pathname: '/(client)/appointments/[id]',
+          params: { id: appointmentId }
+        });
+      } catch (error) {
+        logger.error('Erro ao navegar para agendamento (client):', error);
+      }
     }
 
     onClose();
@@ -164,82 +194,82 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         </TouchableWithoutFeedback>
         <TouchableWithoutFeedback>
           <View style={styles.modalContainer}>
-              {/* Handle Indicator */}
-              <View style={styles.handleContainer}>
-                <View style={styles.handle} />
-              </View>
+            {/* Handle Indicator */}
+            <View style={styles.handleContainer}>
+              <View style={styles.handle} />
+            </View>
 
-              {/* Header - Fixo no topo */}
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>Notificações</Text>
-                {hasUnreadNotifications && (
-                  <TouchableOpacity
-                    onPress={handleClearAll}
-                    disabled={clearing}
-                    style={styles.clearButton}
-                  >
-                    {clearing ? (
-                      <ActivityIndicator size="small" color="#5C9EFF" />
-                    ) : (
-                      <Text style={styles.clearButtonText}>Limpar todas</Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Lista de Notificações - Scrollável */}
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#5C9EFF" />
-                </View>
-              ) : notifications.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>Nenhuma notificação</Text>
-                </View>
-              ) : (
-                <ScrollView
-                  style={styles.scrollView}
-                  contentContainerStyle={[
-                    styles.scrollContent,
-                    { paddingBottom: 24 + insets.bottom },
-                  ]}
-                  showsVerticalScrollIndicator={true}
-                  bounces={true}
-                  nestedScrollEnabled={true}
+            {/* Header - Fixo no topo */}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Notificações</Text>
+              {hasUnreadNotifications && (
+                <TouchableOpacity
+                  onPress={handleClearAll}
+                  disabled={clearing}
+                  style={styles.clearButton}
                 >
-                  {notifications.map((notification, index) => (
-                    <View key={notification.id}>
-                      <TouchableOpacity
-                        style={styles.notificationItem}
-                        onPress={() => handleNotificationPress(notification)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.notificationContent}>
-                          <View style={styles.notificationHeader}>
-                            {!notification.read && (
-                              <View style={styles.unreadBullet} />
-                            )}
-                            <Text style={styles.notificationMessage}>
-                              {notification.message}
-                            </Text>
-                          </View>
-                          <View style={styles.notificationFooter}>
-                            {!notification.read && (
-                              <Text style={styles.unreadLabel}>Recebida</Text>
-                            )}
-                            <Text style={styles.notificationDate}>
-                              {formatNotificationDate(notification.created_at)}
-                            </Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                      {index < notifications.length - 1 && (
-                        <View style={styles.divider} />
-                      )}
-                    </View>
-                  ))}
-                </ScrollView>
+                  {clearing ? (
+                    <ActivityIndicator size="small" color="#5C9EFF" />
+                  ) : (
+                    <Text style={styles.clearButtonText}>Limpar todas</Text>
+                  )}
+                </TouchableOpacity>
               )}
+            </View>
+
+            {/* Lista de Notificações - Scrollável */}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#5C9EFF" />
+              </View>
+            ) : notifications.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Nenhuma notificação</Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  { paddingBottom: 24 + insets.bottom },
+                ]}
+                showsVerticalScrollIndicator={true}
+                bounces={true}
+                nestedScrollEnabled={true}
+              >
+                {notifications.map((notification, index) => (
+                  <View key={notification.id}>
+                    <TouchableOpacity
+                      style={styles.notificationItem}
+                      onPress={() => handleNotificationPress(notification)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.notificationContent}>
+                        <View style={styles.notificationHeader}>
+                          {!notification.read && (
+                            <View style={styles.unreadBullet} />
+                          )}
+                          <Text style={styles.notificationMessage}>
+                            {notification.message}
+                          </Text>
+                        </View>
+                        <View style={styles.notificationFooter}>
+                          {!notification.read && (
+                            <Text style={styles.unreadLabel}>Recebida</Text>
+                          )}
+                          <Text style={styles.notificationDate}>
+                            {formatNotificationDate(notification.created_at)}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                    {index < notifications.length - 1 && (
+                      <View style={styles.divider} />
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
           </View>
         </TouchableWithoutFeedback>
       </View>
@@ -259,7 +289,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   modalContainer: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     width: '100%',
     height: SCREEN_HEIGHT * 0.8, // 80% da altura da tela
     borderTopLeftRadius: 24,
@@ -351,12 +381,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
   },
   notificationMessage: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     flex: 1,
   },
   notificationFooter: {

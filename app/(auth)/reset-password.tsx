@@ -23,6 +23,7 @@ import { CustomInput } from '../../components/ui/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { validatePassword } from '../../lib/validations';
 import { logger } from '../../lib/logger';
+import { colors } from '../../lib/theme';
 
 const ResetPasswordScreen: React.FC = () => {
   const router = useRouter();
@@ -784,7 +785,7 @@ export default ResetPasswordScreen;
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
   },
   gradient: {
     flex: 1,
@@ -806,16 +807,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: '#FEFEFE',
+    color: colors.surface,
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
   },
   logoContainer: {
     width: 88,
     height: 109.64,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderWidth: 2.7,
-    borderColor: '#FEFEFE',
+    borderColor: colors.surface,
     borderRadius: 4.5,
     padding: 2,
     flexDirection: 'column',
@@ -831,7 +832,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
     textAlign: 'center',
   },
   subtitle: {
@@ -856,7 +857,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   errorText: {
-    color: '#E5102E',
+    color: colors.accent,
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
     textAlign: 'center',

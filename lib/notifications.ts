@@ -35,7 +35,7 @@ export const getUnreadCount = async (userId: string): Promise<number> => {
   }
 };
 
-export type NotificationType = 
+export type NotificationType =
   | 'reschedule_accepted'
   | 'reschedule_rejected'
   | 'reschedule_requested'
@@ -75,8 +75,8 @@ export const sendNotification = async (
   relatedAppointmentId?: number | null,
   relatedRescheduleId?: number | null
 ): Promise<{ success: boolean; error?: unknown }> => {
-try {
-// Usar função RPC insert_notification diretamente pois a política RLS só permite criar para si mesmo
+  try {
+    // Usar função RPC insert_notification diretamente pois a política RLS só permite criar para si mesmo
     // A função RPC tem SECURITY DEFINER e pode criar notificações para qualquer usuário
     const { data: rpcData, error: rpcError } = await supabase.rpc('insert_notification', {
       p_user_id: userId,
@@ -86,13 +86,26 @@ try {
       p_related_appointment_id: relatedAppointmentId || undefined,
       p_related_reschedule_id: relatedRescheduleId || undefined,
     });
-if (rpcError) {
+    if (rpcError) {
       logger.error('Erro ao chamar função RPC insert_notification:', rpcError);
       return { success: false, error: rpcError };
     }
 
     if (rpcData && typeof rpcData === 'object' && 'success' in rpcData) {
       if (rpcData.success) {
+        // Enviar sinal para Edge Function disparar o Push Notification
+        // Ignoramos aguardar explicitamente para não travar a UI e prosseguir independente de falha.
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            user_id: userId,
+            type,
+            title,
+            message,
+            related_appointment_id: relatedAppointmentId || null,
+            related_reschedule_id: relatedRescheduleId || null
+          }
+        }).catch(err => logger.warn('[Push] Falha ao invocar edge function:', err));
+
         return { success: true };
       }
       // Se chegou aqui, a função retornou mas com success: false
@@ -123,7 +136,7 @@ export const notifyRescheduleAccepted = async (
   newStartTime: string,
   businessName: string
 ): Promise<void> => {
-try {
+  try {
     const date = new Date(newStartTime);
     const formattedDate = date.toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -134,7 +147,7 @@ try {
       hour: '2-digit',
       minute: '2-digit',
     });
-// Passar ambos os IDs: appointment_id e reschedule_id
+    // Passar ambos os IDs: appointment_id e reschedule_id
     const result = await sendNotification(
       clientId,
       'reschedule_accepted',
@@ -143,8 +156,8 @@ try {
       appointmentId,
       rescheduleId
     );
-} catch (error) {
-logger.warn('Erro ao enviar notificação de reagendamento aceito (ignorado)');
+  } catch (error) {
+    logger.warn('Erro ao enviar notificação de reagendamento aceito (ignorado)');
   }
 };
 
@@ -197,7 +210,7 @@ export const notifyRescheduleRequested = async (
   clientName: string,
   newStartTime: string
 ): Promise<void> => {
-try {
+  try {
     const date = new Date(newStartTime);
     const formattedDate = date.toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -208,7 +221,7 @@ try {
       hour: '2-digit',
       minute: '2-digit',
     });
-// Passar ambos os IDs: appointment_id e reschedule_id
+    // Passar ambos os IDs: appointment_id e reschedule_id
     const result = await sendNotification(
       merchantId,
       'reschedule_requested',
@@ -217,8 +230,8 @@ try {
       appointmentId,
       rescheduleId
     );
-} catch (error) {
-logger.warn('Erro ao enviar notificação de reagendamento solicitado (ignorado)');
+  } catch (error) {
+    logger.warn('Erro ao enviar notificação de reagendamento solicitado (ignorado)');
   }
 };
 
@@ -237,7 +250,7 @@ export const notifyRescheduleSuggested = async (
   newStartTime: string,
   businessName: string
 ): Promise<void> => {
-try {
+  try {
     const date = new Date(newStartTime);
     const formattedDate = date.toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -248,7 +261,7 @@ try {
       hour: '2-digit',
       minute: '2-digit',
     });
-// Passar ambos os IDs: appointment_id e reschedule_id
+    // Passar ambos os IDs: appointment_id e reschedule_id
     const result = await sendNotification(
       clientId,
       'reschedule_suggested',
@@ -257,8 +270,8 @@ try {
       appointmentId,
       rescheduleId
     );
-} catch (error) {
-logger.warn('Erro ao enviar notificação de reagendamento sugerido (ignorado)');
+  } catch (error) {
+    logger.warn('Erro ao enviar notificação de reagendamento sugerido (ignorado)');
   }
 };
 
@@ -298,6 +311,45 @@ export const notifyAppointmentRequested = async (
     );
   } catch {
     logger.warn('Erro ao enviar notificação de agendamento solicitado (ignorado)');
+  }
+};
+
+/**
+ * Envia notificação quando um agendamento é confirmado pelo merchant
+ * @param clientId - ID do cliente
+ * @param appointmentId - ID do agendamento
+ * @param serviceName - Nome do serviço
+ * @param startTime - Horário de início do agendamento
+ * @param businessName - Nome do negócio
+ */
+export const notifyAppointmentConfirmed = async (
+  clientId: string,
+  appointmentId: number,
+  serviceName: string,
+  startTime: string,
+  businessName: string
+): Promise<void> => {
+  try {
+    const date = new Date(startTime);
+    const formattedDate = date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    const formattedTime = date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    await sendNotification(
+      clientId,
+      'appointment_confirmed',
+      'Agendamento Confirmado',
+      `Seu agendamento para ${serviceName} foi confirmado! ${businessName} te espera no dia ${formattedDate} às ${formattedTime}.`,
+      appointmentId
+    );
+  } catch {
+    logger.warn('Erro ao enviar notificação de agendamento confirmado (ignorado)');
   }
 };
 

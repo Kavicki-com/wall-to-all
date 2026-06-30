@@ -10,7 +10,7 @@ interface BricksBackgroundProps {
   useStoreBackground?: boolean;
 }
 
-const BricksBackground: React.FC<BricksBackgroundProps> = ({
+const BricksBackground: React.FC<BricksBackgroundProps> = React.memo(({
   top = 0,
   height = 390,
   opacity = 1,
@@ -24,6 +24,7 @@ const BricksBackground: React.FC<BricksBackgroundProps> = ({
   return (
     <View
       pointerEvents="none"
+      renderToHardwareTextureAndroid={true} // Otimização para Android: renderiza como textura na GPU
       style={[
         styles.container,
         {
@@ -41,7 +42,7 @@ const BricksBackground: React.FC<BricksBackgroundProps> = ({
       />
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

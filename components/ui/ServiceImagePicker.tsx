@@ -13,8 +13,10 @@ import {
 
 import * as ImagePicker from 'expo-image-picker';
 import { logger } from '../../lib/logger';
+import { useToast } from './ToastProvider';
 
-import { Icon } from './Icon'; 
+import { Icon } from './Icon';
+import { colors } from '../../lib/theme';
 
 interface ServiceImagePickerProps {
   images: string[];
@@ -29,9 +31,11 @@ export default function ServiceImagePicker({
   uploading = false,
   maxImages = 4,
 }: ServiceImagePickerProps) {
+  const { showError, showWarning } = useToast();
+
   const handlePickImage = async () => {
     if (images.length >= maxImages) {
-      Alert.alert('Limite atingido', `Você pode adicionar no máximo ${maxImages} fotos.`);
+      showWarning(`Você pode adicionar no máximo ${maxImages} fotos.`);
       return;
     }
 
@@ -39,7 +43,7 @@ export default function ServiceImagePicker({
       if (Platform.OS !== 'web') {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos!');
+          showWarning('Precisamos de permissão para acessar suas fotos!');
           return;
         }
       }
@@ -57,7 +61,7 @@ export default function ServiceImagePicker({
       }
     } catch (err) {
       logger.error('Erro ao selecionar imagem:', err);
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
+      showError('Não foi possível selecionar a imagem.');
     }
   };
 
@@ -69,11 +73,11 @@ export default function ServiceImagePicker({
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Adicione fotos do seu serviço</Text>
-      
+
       <View style={styles.photoRow}>
         {Array.from({ length: maxImages }).map((_, index) => {
           const imageUri = images[index];
-          
+
           if (imageUri) {
             return (
               <View key={index} style={styles.photoBoxContainer}>
@@ -105,7 +109,7 @@ export default function ServiceImagePicker({
               disabled={uploading || images.length >= maxImages}
             >
               {uploading ? (
-                <ActivityIndicator color="#474747" />
+                <ActivityIndicator color={colors.textSecondary} />
               ) : (
                 <View style={styles.circleButton}>
                   <Icon name="add" size={24} color="#FFFFFF" />
@@ -127,7 +131,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 12,
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 4,
   },
   photoRow: {
@@ -173,12 +177,12 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   removePhotoText: {
-    color: '#FEFEFE',
+    color: colors.surface,
     fontSize: 16,
     fontWeight: 'bold',
     lineHeight: 20,

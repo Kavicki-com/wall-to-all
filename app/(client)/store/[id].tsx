@@ -29,12 +29,8 @@ import SectionTitle from '../../../components/ui/SectionTitle';
 import { logger } from '../../../lib/logger';
 import ReviewModal from '../../../components/reviews/ReviewModal';
 import { useAuth } from '../../../context/AuthContext';
-import { BusinessProfile, Service } from '../../../lib/types';
-
-type ReviewStats = {
-  average_rating: number;
-  total_reviews: number;
-};
+import { BusinessProfile, Service, ReviewStats } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
 const StoreProfileScreen: React.FC = () => {
   const router = useRouter();
@@ -42,14 +38,14 @@ const StoreProfileScreen: React.FC = () => {
   const businessId = Number(params.id);
   const { session } = useAuth();
   const clientId = session?.user?.id || null;
-const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [reviewStats, setReviewStats] = useState<ReviewStats>({ average_rating: 0, total_reviews: 0 });
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
 
   useEffect(() => {
-if (businessId) {
+    if (businessId) {
       loadBusinessData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -57,11 +53,11 @@ if (businessId) {
   }, [businessId]);
 
   const loadBusinessData = async () => {
-if (!businessId) return;
+    if (!businessId) return;
 
     try {
       setLoading(true);
-const { data: businessData, error: businessError } = await supabase
+      const { data: businessData, error: businessError } = await supabase
         .from('business_profiles')
         .select(`
           *,
@@ -74,7 +70,7 @@ const { data: businessData, error: businessError } = await supabase
         .single();
 
       if (businessError) {
-logger.error('Erro ao buscar perfil do negócio:', businessError);
+        logger.error('Erro ao buscar perfil do negócio:', businessError);
         setLoading(false);
         return;
       }
@@ -194,14 +190,14 @@ logger.error('Erro ao buscar perfil do negócio:', businessError);
 
   if (loading) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor={colors.background}
         hasHeader={false}
         hasTabBar={false}
       >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -209,9 +205,9 @@ logger.error('Erro ao buscar perfil do negócio:', businessError);
 
   if (!businessProfile) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor={colors.background}
         hasHeader={false}
         hasTabBar={false}
       >
@@ -227,14 +223,14 @@ logger.error('Erro ao buscar perfil do negócio:', businessError);
 
   return (
     <View style={{ flex: 1 }}>
-      <ScreenContainer 
+      <ScreenContainer
         scroll={true}
         hasHeader={true}
         hasTabBar={false}
         backgroundColor="transparent"
         horizontalPadding={0}
         header={
-          <AppHeader 
+          <AppHeader
             showBackButton={true}
             onPressBack={() => safeGoBack('/(client)/home')}
           />
@@ -242,7 +238,7 @@ logger.error('Erro ao buscar perfil do negócio:', businessError);
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.backgroundContainer}>
-          <BricksBackground 
+          <BricksBackground
             fillScreen={true}
             useStoreBackground={true}
           />
@@ -293,7 +289,7 @@ logger.error('Erro ao buscar perfil do negócio:', businessError);
                 router.push(`/(client)/schedule/service?businessId=${businessId}`);
               }
             }}
-            rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#FEFEFE" />}
+            rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color={colors.surface} />}
             style={styles.primaryButton}
             width="100%"
           />
@@ -314,7 +310,7 @@ logger.error('Erro ao buscar perfil do negócio:', businessError);
               }
               setReviewModalVisible(true);
             }}
-            rightIcon={<Icon name="kid_star" family="MaterialSymbols" size={24} color="#000E3D" />}
+            rightIcon={<Icon name="kid_star" family="MaterialSymbols" size={24} color={colors.brand} />}
             style={styles.outlineButton}
             width="100%"
           />
@@ -345,7 +341,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -394,14 +390,14 @@ const styles = StyleSheet.create({
   emptyServicesText: {
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 16,
   },
   errorText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#E5102E',
+    color: colors.accent,
     textAlign: 'center',
     marginTop: 24,
   },

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { IconRatingStar } from '../lib/icons';
 import { responsiveHeight, responsiveWidth, responsiveFontSize } from '../lib/responsive';
+import { colors } from '../lib/theme';
 
 type Props = {
   id: number;
@@ -14,7 +15,7 @@ type Props = {
   onPress?: (id: number) => void;
 };
 
-const TopServiceCard: React.FC<Props> = ({
+const TopServiceCard: React.FC<Props> = React.memo(({
   id,
   name,
   price,
@@ -24,20 +25,21 @@ const TopServiceCard: React.FC<Props> = ({
   category,
   onPress,
 }) => {
-  let imagesArray: string[] = [];
-
-  if (photos) {
-    if (typeof photos === 'string') {
-      try {
-        const parsed = JSON.parse(photos);
-        imagesArray = Array.isArray(parsed) ? parsed : [photos];
-      } catch {
-        imagesArray = [photos];
+  const imagesArray = React.useMemo(() => {
+    if (photos) {
+      if (typeof photos === 'string') {
+        try {
+          const parsed = JSON.parse(photos);
+          return Array.isArray(parsed) ? parsed : [photos];
+        } catch {
+          return [photos];
+        }
+      } else if (Array.isArray(photos)) {
+        return photos;
       }
-    } else if (Array.isArray(photos)) {
-      imagesArray = photos;
     }
-  }
+    return [];
+  }, [photos]);
 
   const firstImage = imagesArray[0] || null;
   const ratingValue = rating?.toFixed(1) || '4.9';
@@ -83,7 +85,7 @@ const TopServiceCard: React.FC<Props> = ({
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 export default TopServiceCard;
 
@@ -91,7 +93,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     marginBottom: 0,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     borderRadius: responsiveWidth(12),
     overflow: 'hidden',
   },
@@ -114,7 +116,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: responsiveHeight(8),
     right: responsiveWidth(8),
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: responsiveWidth(12),
     paddingHorizontal: responsiveWidth(10),
     paddingVertical: responsiveHeight(4),
@@ -123,7 +125,7 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
-    color: '#000E3D',
+    color: colors.brand,
   },
 
   info: {
@@ -135,7 +137,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: responsiveFontSize(16),
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
 
   ratingRow: {
@@ -147,13 +149,13 @@ const styles = StyleSheet.create({
   ratingValue: {
     fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
 
   ratingCount: {
     fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
-    color: '#474747',
+    color: colors.textSecondary,
   },
 
   price: {

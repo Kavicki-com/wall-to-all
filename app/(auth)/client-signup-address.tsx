@@ -24,6 +24,7 @@ import {
   BRAZILIAN_STATES
 } from '../../lib/validations';
 import SelectDropdown from '../../components/ui/SelectDropdown';
+import { colors } from '../../lib/theme';
 
 const ClientSignupAddressScreen: React.FC = () => {
   const router = useRouter();
@@ -317,7 +318,7 @@ const ClientSignupAddressScreen: React.FC = () => {
   return (
     <ScreenContainer
       scroll
-      backgroundColor="#FEFEFE"
+      backgroundColor={colors.surface}
       contentContainerStyle={{ flexGrow: 1, paddingTop: 0, paddingBottom: 16 }}
       header={
         <SignupHeaderClient
@@ -462,17 +463,17 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
-    color: '#E5102E',
+    color: colors.accent,
     textAlign: 'center',
   },
   continueButton: {
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
     paddingVertical: 14,
   },
   selectLabel: {
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 4,
   },
 });

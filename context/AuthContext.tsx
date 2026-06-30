@@ -16,6 +16,7 @@ interface AuthContextType {
   isInitializing: boolean;
   profileError: string | null;
   validateSession: () => Promise<boolean>;
+  refreshUserRole: (userId?: string) => Promise<UserRole>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   isInitializing: true,
   profileError: null,
   validateSession: async () => false,
+  refreshUserRole: async () => null,
 });
 
 interface AuthProviderProps {
@@ -239,6 +241,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     fetchUserRoleRef.current = fetchPromise;
     return fetchPromise;
+  };
+
+  const refreshUserRole = async (userId?: string): Promise<UserRole> => {
+    const targetUserId = userId ?? session?.user?.id;
+
+    if (!targetUserId) {
+      setUserRole(null);
+      return null;
+    }
+
+    const role = await fetchUserRole(targetUserId);
+    setUserRole(role);
+    return role;
   };
 
   useEffect(() => {
@@ -554,6 +569,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isInitializing,
     profileError,
     validateSession,
+    refreshUserRole,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

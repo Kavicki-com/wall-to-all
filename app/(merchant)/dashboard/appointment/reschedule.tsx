@@ -22,24 +22,10 @@ import { logger } from '../../../../lib/logger';
 import { parseWorkDays } from '../../../../lib/typeGuards';
 import { useToast } from '../../../../components/ui/ToastProvider';
 import RescheduleConfirmModal from './reschedule-confirm';
+import { MerchantRescheduleAppointment } from '../../../../lib/types';
+import { colors } from '../../../../lib/theme';
 
-type Appointment = {
-  id: string;
-  business_id: string;
-  service_id: string;
-  start_time: string;
-  end_time: string;
-  business: {
-    id: string;
-    business_name: string;
-    work_days: Record<string, { start: string; end: string; active?: boolean }>;
-  };
-  service: {
-    id: string;
-    name: string;
-    duration_minutes: number;
-  };
-};
+type Appointment = MerchantRescheduleAppointment;
 
 type TimeSlot = {
   time: string;
@@ -668,9 +654,9 @@ const MerchantRescheduleScreen: React.FC = () => {
 
   if (loading && !appointment) {
     return (
-      <ScreenContainer scroll={false} backgroundColor="#FAFAFA" hasTabBar={false}>
+      <ScreenContainer scroll={false} backgroundColor={colors.background} hasTabBar={false}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#000E3D" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       </ScreenContainer>
     );
@@ -686,7 +672,7 @@ const MerchantRescheduleScreen: React.FC = () => {
       hasHeader={true}
       hasTabBar={false}
       safeAreaEdges={['left', 'right']}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       contentContainerStyle={styles.scrollContent}
       header={
         <AppHeader
@@ -703,7 +689,7 @@ const MerchantRescheduleScreen: React.FC = () => {
           {/* Date Selection */}
           <View style={styles.section}>
             <ScheduleSectionHeader
-              icon={<IconDateRange size={24} color="#E5102E" />}
+              icon={<IconDateRange size={24} color={colors.accent} />}
               title="Escolha uma data"
             />
 
@@ -739,14 +725,14 @@ const MerchantRescheduleScreen: React.FC = () => {
           {/* Time Selection */}
           <View style={styles.section}>
             <ScheduleSectionHeader
-              icon={<IconTimer size={24} color="#E5102E" />}
+              icon={<IconTimer size={24} color={colors.accent} />}
               title="Escolha um horário"
             />
 
             {!selectedDate ? (
               <Text style={styles.emptyMessage}>Selecione uma data primeiro</Text>
             ) : loadingTimes ? (
-              <ActivityIndicator size="small" color="#000E3D" style={styles.loader} />
+              <ActivityIndicator size="small" color={colors.brand} style={styles.loader} />
             ) : timeSlots.length === 0 ? (
               <Text style={styles.emptyMessage}>Nenhum horário disponível para esta data</Text>
             ) : (
@@ -763,7 +749,7 @@ const MerchantRescheduleScreen: React.FC = () => {
         <View style={styles.buttonContainer}>
           <PrimaryActionButton
             title="Sugerir novo horário"
-            rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#FEFEFE" />}
+            rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color={colors.surface} />}
             disabled={!selectedDate || !selectedTime}
             onPress={handleSuggestNewTime}
           />
@@ -798,7 +784,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -816,12 +802,12 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     width: '100%',
   },
   section: {
     gap: 16,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     paddingVertical: 8,
   },
   loader: {
@@ -830,7 +816,7 @@ const styles = StyleSheet.create({
   emptyMessage: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
     paddingVertical: 16,
   },

@@ -14,6 +14,7 @@ import Svg, {
   Rect,
 } from 'react-native-svg';
 import { Icon } from '../ui/Icon';
+import { colors } from '../../lib/theme';
 
 type SignupHeaderProps = {
   title: string;
@@ -68,7 +69,7 @@ const SignupHeader: React.FC<SignupHeaderProps> = ({
                 gradientUnits="objectBoundingBox"
               >
                 <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
-                <Stop offset="100%" stopColor="#000E3D" stopOpacity={1} />
+                <Stop offset="100%" stopColor={colors.brand} stopOpacity={1} />
               </SvgRadialGradient>
             </Defs>
             <Rect
@@ -93,7 +94,7 @@ const SignupHeader: React.FC<SignupHeaderProps> = ({
                   name="chevron_backward"
                   family="MaterialSymbols"
                   size={24}
-                  color="#FEFEFE"
+                  color={colors.surface}
                   style={styles.chevronIcon}
                 />
               </TouchableOpacity>
@@ -152,7 +153,7 @@ const styles = StyleSheet.create({
   },
   gradientContainer: {
     overflow: 'hidden',
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
     height: 129,
   },
   cardGradientContainer: {
@@ -207,14 +208,14 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 20,
-    color: '#FEFEFE',
+    color: colors.surface,
     lineHeight: 24,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
-    color: '#FEFEFE',
+    color: colors.surface,
     lineHeight: 20,
     opacity: 0.9,
   },
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   stepPillActive: {
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
   },
   stepLabel: {
     fontFamily: 'Montserrat_400Regular',

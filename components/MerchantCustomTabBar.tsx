@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Icon, IconFamily } from './ui/Icon';
+import { colors } from '../lib/theme';
 
 type TabBarProps = BottomTabBarProps;
 
@@ -64,7 +65,7 @@ export const MerchantCustomTabBar: React.FC<TabBarProps> = (props) => {
           }
         };
 
-        const iconColor = isFocused ? '#FEFEFE' : '#000E3D';
+        const iconColor = isFocused ? colors.surface : colors.brand;
 
         return (
           <TouchableOpacity
@@ -99,7 +100,7 @@ const styles = StyleSheet.create({
   tabBarContainer: {
     flexDirection: 'row',
     paddingHorizontal: 24,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     borderTopWidth: 1,
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   tabButtonActive: {
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
     shadowColor: '#1D1D1D',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.16,

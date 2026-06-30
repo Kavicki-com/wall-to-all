@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, View, StyleSheet, ViewStyle, Platform } from 'react-native';
+import { colors } from '../../lib/theme';
 
 export interface SelectableCardProps {
   children?: React.ReactNode;
@@ -74,7 +75,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   unselectedState: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     ...Platform.select({
       ios: {
         shadowColor: '#1D1D1D',
@@ -90,7 +91,7 @@ const styles = StyleSheet.create({
   selectedState: {
     backgroundColor: '#D6E0FF',
     borderWidth: 2,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     padding: 14,
     shadowOpacity: 0,
     elevation: 0,

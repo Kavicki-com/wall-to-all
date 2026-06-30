@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
+import { colors } from '../../../lib/theme';
 
 type FAQItem = {
   id: string;
@@ -106,7 +107,7 @@ const FAQScreen: React.FC = () => {
     <ScreenContainer 
       scroll={true}
       hasTabBar={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       contentContainerStyle={styles.scrollContent}
     >
         <View style={styles.optionsContainer}>
@@ -125,7 +126,7 @@ const FAQScreen: React.FC = () => {
                     <MaterialIcons
                       name={isExpanded ? 'keyboard-arrow-down' : 'keyboard-arrow-right'}
                       size={24}
-                      color="#000E3D"
+                      color={colors.brand}
                     />
                   </TouchableOpacity>
                   {isExpanded && (
@@ -167,7 +168,7 @@ const styles = StyleSheet.create({
   topBarTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
     flex: 1,
     textAlign: 'center',
   },
@@ -188,7 +189,7 @@ const styles = StyleSheet.create({
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 16,
@@ -203,10 +204,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#000E3D',
+    color: colors.brand,
   },
   answerContainer: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     paddingHorizontal: 8,
     paddingVertical: 16,
     borderTopWidth: 1,
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
   answerText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#000E3D',
+    color: colors.brand,
     lineHeight: 24,
   },
 });

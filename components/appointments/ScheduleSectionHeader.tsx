@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { colors } from '../../lib/theme';
 
 interface ScheduleSectionHeaderProps {
   icon: ReactNode;
@@ -29,6 +30,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
 });

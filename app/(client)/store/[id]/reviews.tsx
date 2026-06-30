@@ -15,19 +15,10 @@ import { safeGoBack } from '../../../../lib/router-utils';
 import ReviewCard from '../../../../components/reviews/ReviewCard';
 import SectionTitle from '../../../../components/ui/SectionTitle';
 import { logger } from '../../../../lib/logger';
+import { ReviewListItem } from '../../../../lib/types';
+import { colors } from '../../../../lib/theme';
 
-type Review = {
-  id: number;
-  rating: number;
-  comment: string | null;
-  created_at: string | null;
-  client: {
-    full_name: string | null;
-  } | null;
-  service: {
-    name: string;
-  } | null;
-};
+type Review = ReviewListItem;
 
 const ReviewsScreen: React.FC = () => {
   const router = useRouter();
@@ -130,7 +121,7 @@ const ReviewsScreen: React.FC = () => {
     return (
       <ScreenContainer
         scroll={false}
-        backgroundColor="#FAFAFA"
+        backgroundColor={colors.background}
         hasHeader={true}
         hasTabBar={false}
         header={
@@ -141,7 +132,7 @@ const ReviewsScreen: React.FC = () => {
         }
       >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -150,7 +141,7 @@ const ReviewsScreen: React.FC = () => {
   return (
     <ScreenContainer
       scroll={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       hasHeader={true}
       hasTabBar={false}
       header={
@@ -210,7 +201,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
 });

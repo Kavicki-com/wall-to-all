@@ -20,9 +20,11 @@ import Svg, {
 import { Icon } from '../ui/Icon';
 import { safeGoBack } from '../../lib/router-utils';
 import { useAuth } from '../../context/AuthContext';
-import { getUnreadCount } from '../../lib/notifications';
+import { useNotifications } from '../../context/NotificationContext';
+// import { getUnreadCount } from '../../lib/notifications'; // Removido, usado no context
 import NotificationModal from '../notifications/NotificationModal';
 import { logger } from '../../lib/logger';
+import { colors } from '../../lib/theme';
 
 type AppHeaderProps = {
   title?: string;
@@ -42,26 +44,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   containerStyle,
 }) => {
   const { session } = useAuth();
+  const { unreadCount, refreshNotifications } = useNotifications();
   const [showNotificationModal, setShowNotificationModal] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    if (session?.user?.id) {
-      loadUnreadCount();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // loadUnreadCount é estável (useCallback), não precisa estar nas dependências
-  }, [session?.user?.id]);
-
-  const loadUnreadCount = async () => {
-    if (!session?.user?.id) return;
-    try {
-      const count = await getUnreadCount(session.user.id);
-      setUnreadCount(count);
-    } catch (error) {
-      logger.error('Erro ao carregar contagem de notificações:', error);
-    }
-  };
+  // Removido useEffect e loadUnreadCount locais pois agora são gerenciados pelo context
 
   const handleNotificationPress = () => {
     if (onPressNotification) {
@@ -74,11 +60,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   const handleCloseModal = () => {
     setShowNotificationModal(false);
     // Recarregar contagem quando modal fecha
-    loadUnreadCount();
+    refreshNotifications();
   };
 
   const handleNotificationsUpdated = () => {
-    loadUnreadCount();
+    refreshNotifications();
   };
 
   return (
@@ -109,7 +95,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                   />
                   <Stop
                     offset="100%"
-                    stopColor="#000E3D"
+                    stopColor={colors.brand}
                     stopOpacity={1}
                   />
                 </SvgRadialGradient>
@@ -207,7 +193,7 @@ const styles = StyleSheet.create({
   },
   gradientContainer: {
     height: 56,
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
     overflow: 'hidden',
   },
   gradientBackground: {
@@ -259,7 +245,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
     borderRadius: 10,
     minWidth: 20,
     height: 20,

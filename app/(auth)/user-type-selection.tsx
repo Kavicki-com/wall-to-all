@@ -11,6 +11,7 @@ import SignupHeader from '../../components/auth/SignupHeader';
 import { CustomButton } from '../../components/CustomButton';
 import { SelectableCard } from '../../components/ui/SelectableCard';
 import { useSafeGoBack } from '../../lib/router-utils';
+import { colors } from '../../lib/theme';
 
 type UserType = 'merchant' | 'client';
 
@@ -36,13 +37,13 @@ const UserTypeSelectionScreen: React.FC = () => {
   };
 
   const getColor = (type: UserType) => {
-    return selectedType === type ? '#000E3D' : '#0F0F0F';
+    return selectedType === type ? colors.brand : colors.textPrimary;
   };
 
   return (
     <ScreenContainer
       scroll
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       hasTabBar={false}
       horizontalPadding={0}
       contentContainerStyle={{ flexGrow: 1 }}
@@ -154,13 +155,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 16,
-    color: '#E5102E',
+    color: colors.accent,
     textAlign: 'left',
   },
   sectionBody: {
     fontFamily: 'Montserrat_500Medium',
     fontSize: 16,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     textAlign: 'left',
     lineHeight: 24,
   },

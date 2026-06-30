@@ -21,6 +21,8 @@ import {
 import { CustomInput } from '../../components/ui/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { IconAccountCircle } from '../../lib/icons';
+import { colors } from '../../lib/theme';
+import { validateEmail } from '../../lib/validations';
 
 const ForgotPasswordScreen: React.FC = () => {
   const router = useRouter();
@@ -43,8 +45,7 @@ const ForgotPasswordScreen: React.FC = () => {
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!validateEmail(email)) {
       setError('E-mail inválido. Verifique o formato.');
       showError('E-mail inválido. Verifique o formato.');
       return;
@@ -183,7 +184,7 @@ export default ForgotPasswordScreen;
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
   },
   gradient: {
     flex: 1,
@@ -211,9 +212,9 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 88,
     height: 109.64,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderWidth: 2.7,
-    borderColor: '#FEFEFE',
+    borderColor: colors.surface,
     borderRadius: 4.5,
     padding: 2,
     flexDirection: 'column',
@@ -228,7 +229,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
     textAlign: 'center',
   },
   subtitle: {
@@ -254,7 +255,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   errorText: {
-    color: '#E5102E',
+    color: colors.accent,
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
     textAlign: 'center',

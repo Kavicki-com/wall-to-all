@@ -1,5 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -14,11 +22,14 @@ import {
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
 import { useBusinessProfile } from '../../../context/BusinessProfileContext';
+import { useToast } from '../../../components/ui/ToastProvider';
 import { logger } from '../../../lib/logger';
+import { colors } from '../../../lib/theme';
 
 const SettingsScreen: React.FC = () => {
   const router = useRouter();
   const { businessProfile, loading } = useBusinessProfile();
+  const { showError, showSuccess, showInfo } = useToast();
 
   const handleLogout = () => {
     Alert.alert('Sair', 'Tem certeza que deseja sair?', [
@@ -50,7 +61,7 @@ const SettingsScreen: React.FC = () => {
               } = await supabase.auth.getUser();
 
               if (!user) {
-                Alert.alert('Erro', 'Usuário não autenticado.');
+                showError('Usuário não autenticado.');
                 return;
               }
 
@@ -85,11 +96,11 @@ const SettingsScreen: React.FC = () => {
               // Por enquanto, apenas fazemos logout
               await supabase.auth.signOut();
 
-              Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');
+              showSuccess('Sua conta foi excluída com sucesso.');
               router.replace('/(auth)/login');
             } catch (error) {
               logger.error('Erro ao excluir conta:', error);
-              Alert.alert('Erro', 'Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
+              showError('Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
             }
           },
         },
@@ -99,23 +110,29 @@ const SettingsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
-      >
+      <ScreenContainer scroll={false} backgroundColor={colors.background}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
   }
 
   return (
-    <ScreenContainer 
-      scroll={false} 
-      backgroundColor="#FAFAFA" 
+    <ScreenContainer
+      scroll={true}
+      backgroundColor={colors.background}
+      footer={
+        <CustomButton
+          title="Sair"
+          variant="ghost"
+          onPress={handleLogout}
+          style={styles.logoutButton}
+        />
+      }
     >
-      {/* Profile Container */}
+      <View style={styles.contentColumn}>
+        {/* Profile Container */}
         {/* Profile Avatar */}
         <View style={styles.profileContainer}>
           <View style={styles.avatarContainer}>
@@ -144,10 +161,10 @@ const SettingsScreen: React.FC = () => {
               onPress={() => router.push('/(merchant)/profile/edit')}
               activeOpacity={0.7}
             >
-              <IconAccountCircle size={24} color="#000E3D" />
+              <IconAccountCircle size={24} color={colors.brand} />
               <Text style={styles.optionText}>Editar Perfil</Text>
               <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
               </View>
             </TouchableOpacity>
 
@@ -157,10 +174,10 @@ const SettingsScreen: React.FC = () => {
               onPress={() => router.push('/(merchant)/profile/password')}
               activeOpacity={0.7}
             >
-              <IconLock size={24} color="#000E3D" />
+              <IconLock size={24} color={colors.brand} />
               <Text style={styles.optionText}>Alterar Senha</Text>
               <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
               </View>
             </TouchableOpacity>
 
@@ -170,23 +187,23 @@ const SettingsScreen: React.FC = () => {
               onPress={handleDeleteAccount}
               activeOpacity={0.7}
             >
-              <IconDelete size={24} color="#000E3D" />
+              <IconDelete size={24} color={colors.brand} />
               <Text style={styles.optionText}>Excluir Conta</Text>
               <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
               </View>
             </TouchableOpacity>
 
             {/* Suporte */}
             <TouchableOpacity
               style={styles.optionItem}
-              onPress={() => Alert.alert('Suporte', 'Entre em contato pelo e-mail: suporte@walltoall.com')}
+              onPress={() => showInfo('Entre em contato pelo e-mail: suporte@walltoall.com')}
               activeOpacity={0.7}
             >
-              <IconSupport size={24} color="#000E3D" />
+              <IconSupport size={24} color={colors.brand} />
               <Text style={styles.optionText}>Suporte</Text>
               <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
               </View>
             </TouchableOpacity>
 
@@ -196,10 +213,23 @@ const SettingsScreen: React.FC = () => {
               onPress={() => router.push('/(merchant)/settings/terms')}
               activeOpacity={0.7}
             >
-              <IconDocs size={24} color="#000E3D" />
+              <IconDocs size={24} color={colors.brand} />
               <Text style={styles.optionText}>Termos de uso</Text>
               <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Política de Privacidade */}
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => router.push('/(merchant)/settings/privacy')}
+              activeOpacity={0.7}
+            >
+              <IconDocs size={24} color={colors.brand} />
+              <Text style={styles.optionText}>Política de Privacidade</Text>
+              <View style={styles.chevronContainer}>
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
               </View>
             </TouchableOpacity>
 
@@ -209,23 +239,15 @@ const SettingsScreen: React.FC = () => {
               onPress={() => router.push('/(merchant)/settings/faq')}
               activeOpacity={0.7}
             >
-              <IconHelp size={24} color="#000E3D" />
+              <IconHelp size={24} color={colors.brand} />
               <Text style={styles.optionText}>FAQ</Text>
               <View style={styles.chevronContainer}>
-                <MaterialIcons name="chevron-right" size={18} color="#000E3D" />
+                <MaterialIcons name="chevron-right" size={18} color={colors.brand} />
               </View>
             </TouchableOpacity>
           </View>
         </View>
-        {/* Logout Button */}
-        <View style={styles.logoutContainer}>
-          <CustomButton
-            title="Sair"
-            variant="ghost"
-            onPress={handleLogout}
-            style={{ borderRadius: 24, width: '90%', maxWidth: 342, alignSelf: 'center' }}
-          />
-        </View>
+      </View>
     </ScreenContainer>
   );
 };
@@ -233,18 +255,16 @@ const SettingsScreen: React.FC = () => {
 export default SettingsScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
-  scrollContent: {
-    paddingTop: 16,
-    paddingBottom: 24,
+  contentColumn: {
+    width: '100%',
+    maxWidth: 342,
+    alignSelf: 'center',
   },
   profileContainer: {
     alignItems: 'center',
@@ -269,13 +289,13 @@ const styles = StyleSheet.create({
   businessName: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   businessCategory: {
     fontSize: 8,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   optionsContainer: {
@@ -287,7 +307,7 @@ const styles = StyleSheet.create({
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 16,
@@ -302,7 +322,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   chevronContainer: {
     width: 24,
@@ -310,8 +330,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logoutContainer: {
-    paddingBottom: 24,
-    alignItems: 'center',
+  logoutButton: {
+    width: '100%',
+    maxWidth: 342,
+    alignSelf: 'center',
+    borderRadius: 24,
+    marginBottom: 12,
   },
 });

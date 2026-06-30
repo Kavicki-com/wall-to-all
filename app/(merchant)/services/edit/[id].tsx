@@ -22,6 +22,7 @@ import { CustomButton } from '../../../../components/CustomButton';
 import { RadioGroup } from '../../../../components/ui/RadioGroup';
 import { Chip } from '../../../../components/ui/Chip';
 import { logger } from '../../../../lib/logger';
+import { colors } from '../../../../lib/theme';
 
 type AvailabilityOption = {
   value: 'available' | 'unavailable';
@@ -47,7 +48,7 @@ const AVAILABILITY_OPTIONS: AvailabilityOption[] = [
 
 const EditServiceScreen: React.FC = () => {
   const router = useRouter();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const params = useLocalSearchParams<{ id: string }>();
 
   const [loading, setLoading] = useState(true);
@@ -154,7 +155,7 @@ const EditServiceScreen: React.FC = () => {
         .single();
 
       if (businessError || !businessData) {
-        Alert.alert('Erro', 'Negócio não encontrado.');
+        showError('Negócio não encontrado.');
         safeGoBack('/(merchant)/services');
         return;
       }
@@ -169,7 +170,7 @@ const EditServiceScreen: React.FC = () => {
         .single();
 
       if (serviceError || !serviceData) {
-        Alert.alert('Erro', 'Serviço não encontrado.');
+        showError('Serviço não encontrado.');
         safeGoBack('/(merchant)/services');
         return;
       }
@@ -350,9 +351,8 @@ const EditServiceScreen: React.FC = () => {
         return;
       }
 
-      Alert.alert('Sucesso', 'Serviço atualizado com sucesso!', [
-        { text: 'OK', onPress: () => safeGoBack('/(merchant)/services') },
-      ]);
+      showSuccess('Serviço atualizado com sucesso!');
+      safeGoBack('/(merchant)/services');
     } catch (err: unknown) {
       const processed = handleError(err, 'service');
       setError(processed.userMessage);
@@ -383,16 +383,15 @@ const EditServiceScreen: React.FC = () => {
 
               if (deleteError) {
                 logger.error('Erro ao excluir serviço:', deleteError);
-                Alert.alert('Erro', 'Não foi possível excluir o serviço.');
+                showError('Não foi possível excluir o serviço.');
                 return;
               }
 
-              Alert.alert('Sucesso', 'Serviço excluído com sucesso!', [
-                { text: 'OK', onPress: () => safeGoBack('/(merchant)/services') },
-              ]);
+              showSuccess('Serviço excluído com sucesso!');
+              safeGoBack('/(merchant)/services');
             } catch (err) {
               logger.error('Erro ao excluir serviço:', err);
-              Alert.alert('Erro', 'Ocorreu um erro ao excluir o serviço.');
+              showError('Ocorreu um erro ao excluir o serviço.');
             } finally {
               setSaving(false);
             }
@@ -404,9 +403,9 @@ const EditServiceScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer scroll={false} backgroundColor="#FAFAFA" hasTabBar={false}>
+      <ScreenContainer scroll={false} backgroundColor={colors.background} hasTabBar={false}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -416,7 +415,7 @@ const EditServiceScreen: React.FC = () => {
     return (
       <ScreenContainer
         scroll={false}
-        backgroundColor="#FAFAFA"
+        backgroundColor={colors.background}
         hasHeader={true}
         hasTabBar={false}
         header={
@@ -439,7 +438,7 @@ const EditServiceScreen: React.FC = () => {
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       header={
         <AppHeader
           title="Editar serviço"
@@ -575,7 +574,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   header: {
     height: headerHeight,
@@ -607,13 +606,13 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 20,
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   welcomeSubtitle: {
     marginTop: 4,
     fontFamily: 'Montserrat_400Regular',
     fontSize: 16,
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   stepBar: {
     flexDirection: 'row',
@@ -631,7 +630,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#DBDBDB',
   },
   stepSegmentComplete: {
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
   },
   stepSegmentActive: {
     backgroundColor: '#DBDBDB',
@@ -650,7 +649,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 12,
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 4,
   },
   radioGroup: {
@@ -668,7 +667,7 @@ const styles = StyleSheet.create({
   },
   textarea: {
     borderWidth: 1,
-    borderColor: '#474747',
+    borderColor: colors.textSecondary,
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 16,
@@ -678,7 +677,7 @@ const styles = StyleSheet.create({
   errorText: {
     marginTop: 16,
     alignSelf: 'center',
-    color: '#E5102E',
+    color: colors.accent,
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
   },
@@ -695,7 +694,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
 });

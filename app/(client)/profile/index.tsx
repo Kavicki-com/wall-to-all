@@ -19,6 +19,7 @@ import ServiceCategoryCard from '../../../components/ServiceCategoryCard';
 import { applyAcceptedReschedules } from '../../../lib/utils';
 import { logger } from '../../../lib/logger';
 import { Service, BusinessProfile as Business, Appointment } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
 const ClientProfileScreen: React.FC = () => {
   const router = useRouter();
@@ -92,7 +93,7 @@ const ClientProfileScreen: React.FC = () => {
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select(`
-          id, name, price, photos, category_id,
+          id, name, price, photos, category_id, business_id,
           categories:category_id (
             id,
             name
@@ -214,11 +215,11 @@ const ClientProfileScreen: React.FC = () => {
   if (loading || profileLoading) {
     return (
       <ScreenContainer
-        style={{ backgroundColor: '#FAFAFA' }}
+        style={{ backgroundColor: colors.background }}
         hasHeader={false}
       >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -228,7 +229,7 @@ const ClientProfileScreen: React.FC = () => {
     <ScreenContainer
       scroll={true}
       hasHeader={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       contentContainerStyle={styles.scrollContent}
     >
       <View style={styles.defaultPadding}>
@@ -348,7 +349,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -382,16 +383,16 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   profileSince: {
     fontSize: 8,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   ratingsCard: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 4,
     padding: 16,
     marginBottom: 16,
@@ -413,12 +414,12 @@ const styles = StyleSheet.create({
   ratingLabel: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   ratingValue: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#474747',
+    color: colors.textSecondary,
   },
   ratingStarsContainer: {
     flexDirection: 'row',
@@ -426,7 +427,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   paymentMethodsCard: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 4,
     padding: 12,
     marginBottom: 16,
@@ -445,7 +446,7 @@ const styles = StyleSheet.create({
   paymentMethodsTitle: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     flex: 1,
     minWidth: 0,
   },
@@ -461,7 +462,7 @@ const styles = StyleSheet.create({
   paymentMethodText: {
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   servicesSection: {
     width: '100%',
@@ -471,7 +472,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     marginBottom: 0,
     paddingHorizontal: 24,
   },

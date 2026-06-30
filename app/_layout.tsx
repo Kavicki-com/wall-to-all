@@ -16,6 +16,8 @@ import { useAuthRouting } from '../lib/hooks/useAuthRouting';
 import { useDeepLinkHandler } from '../lib/hooks/useDeepLinkHandler';
 import { useSignupCheck } from '../lib/hooks/useSignupCheck';
 import { useAuth } from '../context/AuthContext';
+import { NotificationProvider } from '../context/NotificationContext';
+import { NetworkProvider } from '../context/NetworkContext';
 import { ActivityIndicator } from 'react-native';
 
 
@@ -106,9 +108,13 @@ const RootLayout: React.FC = () => {
         <StatusBar style="dark" translucent backgroundColor="transparent" />
 
         <ToastProvider>
-          <AuthProvider>
-            <MainLayout />
-          </AuthProvider>
+          <NetworkProvider>
+            <AuthProvider>
+              <NotificationProvider>
+                <MainLayout />
+              </NotificationProvider>
+            </AuthProvider>
+          </NetworkProvider>
         </ToastProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

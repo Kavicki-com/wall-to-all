@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { colors } from '../../lib/theme';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -90,7 +91,7 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => {
       case 'success':
         return '#17723F';
       case 'error':
-        return '#E5102E';
+        return colors.accent;
       case 'warning':
         return '#FF9800';
       case 'info':

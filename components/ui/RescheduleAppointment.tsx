@@ -14,6 +14,7 @@ import {
 } from '../../lib/icons';
 import { CustomButton } from '../CustomButton';
 import { CustomInput } from './CustomInput';
+import { colors } from '../../lib/theme';
 
 export type PaymentMethod = 'pix' | 'card' | 'cash';
 
@@ -92,12 +93,12 @@ const RescheduleAppointment: React.FC<RescheduleAppointmentProps> = ({
   const renderPaymentIcon = () => {
     switch (paymentMethod) {
       case 'card':
-        return <IconCreditCard size={24} color="#000E3D" />;
+        return <IconCreditCard size={24} color={colors.brand} />;
       case 'cash':
-        return <IconCash size={24} color="#000E3D" />;
+        return <IconCash size={24} color={colors.brand} />;
       case 'pix':
       default:
-        return <IconPix size={24} color="#000E3D" />;
+        return <IconPix size={24} color={colors.brand} />;
     }
   };
 
@@ -184,7 +185,7 @@ const RescheduleAppointment: React.FC<RescheduleAppointmentProps> = ({
                 style={{ borderRadius: 24 }}
               width="100%"
               />
-              <IconCheckCircle size={20} color="#000E3D" style={styles.checkIcon} />
+              <IconCheckCircle size={20} color={colors.brand} style={styles.checkIcon} />
             </View>
           ) : null}
           {linkLabel && onLinkPress ? (
@@ -202,7 +203,7 @@ export default RescheduleAppointment;
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     borderBottomLeftRadius: 24,
@@ -219,17 +220,17 @@ const styles = StyleSheet.create({
   dateTime: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   service: {
     fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   label: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     marginTop: 16,
   },
   businessSection: {
@@ -253,10 +254,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   addressCard: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 4,
     padding: 16,
     shadowColor: '#1D1D1D',
@@ -268,12 +269,12 @@ const styles = StyleSheet.create({
   address: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   paymentCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 16,
     gap: 16,
@@ -291,7 +292,7 @@ const styles = StyleSheet.create({
   paymentMethod: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   paymentAmount: {
     fontSize: 16,
@@ -305,12 +306,12 @@ const styles = StyleSheet.create({
   noteLabel: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   noteText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   justificationSection: {
     marginTop: 16,
@@ -318,7 +319,7 @@ const styles = StyleSheet.create({
   linkButton: {
     marginTop: 24,
     borderWidth: 1,
-    borderColor: '#E5102E',
+    borderColor: colors.accent,
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -327,7 +328,7 @@ const styles = StyleSheet.create({
   linkText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     textAlign: 'center',
   },
   confirmButtonContainer: {

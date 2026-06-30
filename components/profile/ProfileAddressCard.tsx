@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
 import SurfaceCard from '../ui/SurfaceCard';
+import { colors } from '../../lib/theme';
 
 interface ProfileAddressCardProps {
   /**
@@ -30,7 +31,7 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
 });
 

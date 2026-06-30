@@ -24,21 +24,10 @@ import { Icon } from '../../../components/ui/Icon';
 import { CustomButton } from '../../../components/CustomButton';
 import { getPriceRange } from '../../../lib/utils';
 import { logger } from '../../../lib/logger';
+import { ServiceListItem, ReviewStats } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
-type Service = {
-  id: number;
-  name: string;
-  description: string | null;
-  price: number;
-  photos: string[] | string | null;
-  rating?: number;
-  review_count?: number;
-};
-
-type ReviewStats = {
-  average_rating: number;
-  total_reviews: number;
-};
+type Service = ServiceListItem;
 
 const MerchantProfileScreen: React.FC = () => {
   const router = useRouter();
@@ -141,9 +130,9 @@ const MerchantProfileScreen: React.FC = () => {
 
   if (loading || profileLoading) {
     return (
-      <ScreenContainer scroll={false} backgroundColor="#FAFAFA">
+      <ScreenContainer scroll={false} backgroundColor={colors.background}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -151,7 +140,7 @@ const MerchantProfileScreen: React.FC = () => {
 
   if (!businessProfile) {
     return (
-      <ScreenContainer scroll={false} backgroundColor="#FAFAFA">
+      <ScreenContainer scroll={false} backgroundColor={colors.background}>
         <View style={styles.container}>
           <Text style={styles.errorText}>Perfil do negócio não encontrado</Text>
         </View>
@@ -164,7 +153,7 @@ const MerchantProfileScreen: React.FC = () => {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScreenContainer 
+      <ScreenContainer
         scroll={true}
         hasHeader={false}
         hasTabBar={false}
@@ -191,11 +180,11 @@ const MerchantProfileScreen: React.FC = () => {
 
         {businessProfile.address && <ProfileAddressCard address={businessProfile.address} />}
         <OperatingHoursCard hours={formatWorkDays(businessProfile.work_days || null)} />
-        
+
         <PaymentMethodsCard methods={paymentMethods} />
 
-        <TouchableOpacity 
-          style={styles.editProfileLink} 
+        <TouchableOpacity
+          style={styles.editProfileLink}
           onPress={() => router.push('/(merchant)/profile/edit')}
         >
           <Text style={styles.editProfileText}>Editar Perfil</Text>
@@ -241,7 +230,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -268,7 +257,7 @@ const styles = StyleSheet.create({
   serviceCard: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#0F0F0F',
+    borderColor: colors.textPrimary,
   },
   editProfileLink: {
     alignItems: 'center',
@@ -279,7 +268,7 @@ const styles = StyleSheet.create({
   editProfileText: {
     fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     textDecorationLine: 'none',
   },
   bottomButtonContainer: {
@@ -291,14 +280,14 @@ const styles = StyleSheet.create({
   emptyServicesText: {
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 16,
   },
   errorText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#E5102E',
+    color: colors.accent,
     textAlign: 'center',
     marginTop: 24,
   },

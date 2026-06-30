@@ -8,6 +8,7 @@ import {
   PressableProps,
 } from 'react-native';
 import { MaterialSymbolIcon } from '../ui/MaterialSymbolIcon';
+import { colors } from '../../lib/theme';
 
 export type AppointmentCardProps = {
   time: string;
@@ -48,7 +49,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
       <View style={styles.contentRow}>
         <View style={styles.iconAndTexts}>
-          <MaterialSymbolIcon name="calendar_check" size={20} color="#000E3D" />
+          <MaterialSymbolIcon name="calendar_check" size={20} color={colors.brand} />
           <View style={styles.texts}>
             <Text style={styles.serviceName}>{serviceName}</Text>
             {showShopName && !!shopName && (
@@ -58,7 +59,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
         </View>
 
         <View style={styles.chevronColumn}>
-          <MaterialSymbolIcon name="chevron_right" size={20} color="#E5102E" />
+          <MaterialSymbolIcon name="chevron_right" size={20} color={colors.accent} />
         </View>
       </View>
     </Pressable>
@@ -91,12 +92,12 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   dateLabel: {
     fontSize: 13,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   contentRow: {
     flexDirection: 'row',
@@ -122,12 +123,12 @@ const styles = StyleSheet.create({
   serviceName: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   shopName: {
     fontSize: 13,
     fontFamily: 'Montserrat_500Medium',
-    color: '#474747',
+    color: colors.textSecondary,
   },
 });
 

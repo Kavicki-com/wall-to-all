@@ -25,6 +25,7 @@ import { CustomButton } from '../../../components/CustomButton';
 import { Chip } from '../../../components/ui/Chip';
 import { applyAcceptedReschedules } from '../../../lib/utils';
 import { Appointment, BusinessProfile, Service, Category } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
 const FEATURED_LIMIT = 10;
 const POPULAR_LIMIT = 10;
@@ -257,7 +258,7 @@ const ClientHomeScreen: React.FC = () => {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: '#FAFAFA',
+      backgroundColor: colors.background,
     },
     scrollContent: {
       paddingBottom: 24,
@@ -274,7 +275,7 @@ const ClientHomeScreen: React.FC = () => {
     sectionTitle: {
       fontSize: 16,
       fontFamily: 'Montserrat_700Bold',
-      color: '#E5102E',
+      color: colors.accent,
       marginBottom: 16,
     },
     appointmentsList: {
@@ -298,14 +299,14 @@ const ClientHomeScreen: React.FC = () => {
     emptyText: {
       fontSize: 14,
       fontFamily: 'Montserrat_400Regular',
-      color: '#474747',
+      color: colors.textSecondary,
       textAlign: 'center',
       marginTop: 16,
     },
     headerArea: {
       paddingTop: 10,
       paddingBottom: 10,
-      backgroundColor: '#FAFAFA',
+      backgroundColor: colors.background,
       width: '100%',
     },
     searchTouchArea: {
@@ -315,7 +316,7 @@ const ClientHomeScreen: React.FC = () => {
       width: '100%',
     },
     footerContainer: {
-      backgroundColor: '#FAFAFA',
+      backgroundColor: colors.background,
       paddingTop: 10,
       paddingHorizontal: 0,
       paddingBottom: 22,
@@ -325,7 +326,7 @@ const ClientHomeScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#E5102E" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -334,14 +335,14 @@ const ClientHomeScreen: React.FC = () => {
     <ScreenContainer
       scroll={true}
       hasHeader={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={handleRefresh}
-          colors={['#E5102E']}
-          tintColor="#E5102E"
+          colors={[colors.accent]}
+          tintColor={colors.accent}
         />
       }
       header={<AppHeader showBackButton={false} />}
@@ -355,7 +356,7 @@ const ClientHomeScreen: React.FC = () => {
             style={{
               borderRadius: 30,
               borderWidth: 1.5,
-              backgroundColor: '#FAFAFA',
+              backgroundColor: colors.background,
               height: undefined,
               paddingVertical: 14,
               shadowColor: '#000',

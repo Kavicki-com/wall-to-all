@@ -23,35 +23,10 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { notifyRescheduleSuggested } from '../../../../lib/notifications';
 import { logger } from '../../../../lib/logger';
+import { MerchantDetailAppointment } from '../../../../lib/types';
+import { colors } from '../../../../lib/theme';
 
-type Appointment = {
-  id: number | string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  payment_method: string;
-  client_notes: string | null;
-  service: {
-    id: string | number;
-    name: string;
-    price: number;
-    price_type: string;
-    duration_minutes: number;
-    photos: string[] | string | null;
-  };
-  client: {
-    id: string;
-    full_name: string | null;
-    avatar_url: string | null;
-    email: string | null;
-  };
-  business: {
-    id: string | number;
-    business_name: string;
-    address: string | null;
-  };
-  business_id?: string | number;
-};
+type Appointment = MerchantDetailAppointment;
 
 interface RescheduleConfirmModalProps {
   visible: boolean;
@@ -149,7 +124,22 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
         return;
       }
 
-      setAppointment(appointmentData as Appointment);
+      const normalized: Appointment = {
+        ...appointmentData,
+        id: String(appointmentData.id),
+        service: {
+          ...(Array.isArray(appointmentData.service) ? appointmentData.service[0] : appointmentData.service),
+          id: String((Array.isArray(appointmentData.service) ? appointmentData.service[0] : appointmentData.service).id),
+        },
+        client: Array.isArray(appointmentData.client) ? appointmentData.client[0] : appointmentData.client,
+        business: {
+          ...(Array.isArray(appointmentData.business) ? appointmentData.business[0] : appointmentData.business),
+          id: String((Array.isArray(appointmentData.business) ? appointmentData.business[0] : appointmentData.business).id),
+        },
+        business_id: appointmentData.business_id,
+        created_at: appointmentData.created_at,
+      } as Appointment;
+      setAppointment(normalized);
     } catch (error) {
       logger.error('Erro ao carregar dados:', error);
 
@@ -372,12 +362,12 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
     if (!appointment) return null;
     const method = appointment.payment_method.toLowerCase();
     if (method === 'card' || method === 'credit_card' || method === 'debit_card') {
-      return <Icon name="credit-card" size={24} color="#000E3D" />;
+      return <Icon name="credit-card" size={24} color={colors.brand} />;
     }
     if (method === 'cash' || method === 'dinheiro') {
-      return <Icon name="payments" size={24} color="#000E3D" />;
+      return <Icon name="payments" size={24} color={colors.brand} />;
     }
-    return <Icon family="FontAwesome6" name="pix" size={24} color="#000E3D" />;
+    return <Icon family="FontAwesome6" name="pix" size={24} color={colors.brand} />;
   };
 
   const getPaymentMethodLabel = () => {
@@ -424,7 +414,7 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
 
             {loading || !appointment ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#000E3D" />
+                <ActivityIndicator size="large" color={colors.brand} />
               </View>
             ) : (
               <>
@@ -451,7 +441,7 @@ const RescheduleConfirmModal: React.FC<RescheduleConfirmModalProps> = ({
 
                     {/* New Appointment Card */}
                     <View style={styles.newAppointmentCard}>
-                      <Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#000E3D" />
+                      <Icon name="calendar_clock" family="MaterialSymbols" size={24} color={colors.brand} />
                       <View style={styles.newAppointmentContent}>
                         <Text style={styles.newAppointmentDate}>
                           {formatDateLong && newDate ? formatDateLong(newDate) : ''}
@@ -557,7 +547,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   modalContainer: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     width: '100%',
     height: SCREEN_HEIGHT * 0.85,
     borderTopLeftRadius: 24,
@@ -602,7 +592,7 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
   detailsCard: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     padding: 20,
     paddingBottom: 20,
     paddingTop: 20,
@@ -617,12 +607,12 @@ const styles = StyleSheet.create({
   rescheduleLabel: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   serviceNameHeader: {
     fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   newAppointmentCard: {
     flexDirection: 'row',
@@ -630,7 +620,7 @@ const styles = StyleSheet.create({
     gap: 16,
     backgroundColor: '#EBEFFF',
     borderWidth: 2,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     borderRadius: 24,
     padding: 16,
   },
@@ -641,12 +631,12 @@ const styles = StyleSheet.create({
   newAppointmentDate: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   newAppointmentTime: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   section: {
     gap: 6,
@@ -654,7 +644,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   clientInfo: {
     flexDirection: 'row',
@@ -673,13 +663,13 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   paymentMethodCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 16,
     shadowColor: '#1D1D1D',
@@ -695,7 +685,7 @@ const styles = StyleSheet.create({
   paymentMethodLabel: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   paymentMethodPrice: {
     fontSize: 16,
@@ -706,7 +696,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Montserrat_500Medium',
     fontWeight: '500',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     lineHeight: 24,
     flexWrap: 'wrap',
   },
@@ -716,12 +706,12 @@ const styles = StyleSheet.create({
   justificationLabel: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   justificationText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     lineHeight: 24,
     flexWrap: 'wrap',
   },

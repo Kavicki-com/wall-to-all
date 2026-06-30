@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, StyleProp, Platform } from 'react-native';
+import { colors } from '../../lib/theme';
 
 interface SurfaceCardProps {
   /**
@@ -24,7 +25,7 @@ const SurfaceCard: React.FC<SurfaceCardProps> = ({ children, style }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 4,
     padding: 16,
     ...Platform.select({

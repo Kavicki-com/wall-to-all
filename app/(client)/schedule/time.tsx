@@ -16,6 +16,7 @@ import MonthCalendar from '../../../components/calendar/MonthCalendar';
 import { CustomButton } from '../../../components/CustomButton';
 import { safeGoBack } from '../../../lib/router-utils';
 import { logger } from '../../../lib/logger';
+import { colors } from '../../../lib/theme';
 
 type TimeSlot = {
   time: string;
@@ -384,7 +385,7 @@ const ScheduleTimeScreen: React.FC = () => {
       scroll={true}
       hasHeader={true}
       hasTabBar={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       header={
         <AppHeader
           showBackButton={true}
@@ -429,7 +430,7 @@ const ScheduleTimeScreen: React.FC = () => {
       {/* Time slots list */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : timeSlots.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -462,7 +463,7 @@ const ScheduleTimeScreen: React.FC = () => {
               >
                 {slot.type === 'lunch' && (
                   <View style={styles.lunchIcon}>
-                    <IconForkSpoon size={24} color="#0F0F0F" />
+                    <IconForkSpoon size={24} color={colors.textPrimary} />
                   </View>
                 )}
                 <View style={styles.timeSlotContent}>
@@ -512,13 +513,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     marginBottom: 4,
   },
   serviceName: {
     fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
-    color: '#474747',
+    color: colors.textSecondary,
     marginBottom: 16,
   },
   dateHeader: {
@@ -530,12 +531,12 @@ const styles = StyleSheet.create({
   dateHeaderText: {
     fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   dateHeaderToday: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   timeSlotsList: {
     gap: 12,
@@ -543,7 +544,7 @@ const styles = StyleSheet.create({
   timeSlotCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 16,
     gap: 16,
@@ -556,7 +557,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   timeSlotCardSelected: {
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     backgroundColor: '#D6E0FF',
   },
   timeSlotCardDisabled: {
@@ -577,24 +578,24 @@ const styles = StyleSheet.create({
   timeSlotTime: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   timeSlotTimeSelected: {
-    color: '#000E3D',
+    color: colors.brand,
   },
   timeSlotTimeDisabled: {
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   timeSlotStatus: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   timeSlotStatusSelected: {
-    color: '#000E3D',
+    color: colors.brand,
   },
   timeSlotStatusDisabled: {
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   emptyContainer: {
     padding: 32,
@@ -604,7 +605,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   footerContainer: {

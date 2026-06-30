@@ -8,9 +8,12 @@ import ScreenContainer from '../../components/layout/ScreenContainer';
 import { supabase } from '../../lib/supabase';
 import { logger } from '../../lib/logger';
 import { CustomButton } from '../../components/CustomButton';
+import { colors } from '../../lib/theme';
+import { useAuth } from '../../context/AuthContext';
 
 const ClientSignupLoadingScreen: React.FC = () => {
   const router = useRouter();
+  const { refreshUserRole } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFatalError, setIsFatalError] = useState(false);
@@ -214,6 +217,12 @@ const ClientSignupLoadingScreen: React.FC = () => {
         return;
       }
 
+      const refreshedRole = await refreshUserRole(user.id);
+
+      if (__DEV__ && refreshedRole !== 'client') {
+        logger.warn('[ClientSignupLoading] refreshUserRole retornou role inesperada:', refreshedRole);
+      }
+
       // Redirecionar para home se tudo estiver OK
       router.replace('/(client)/home');
 
@@ -223,7 +232,7 @@ const ClientSignupLoadingScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [refreshUserRole, router]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -246,7 +255,7 @@ const ClientSignupLoadingScreen: React.FC = () => {
         
         {loading ? (
           <>
-            <ActivityIndicator size="large" color="#000E3D" style={{ marginBottom: 16 }} />
+            <ActivityIndicator size="large" color={colors.brand} style={{ marginBottom: 16 }} />
             <Text style={styles.text}>
               Aguarde, enquanto preparamos tudo para você
             </Text>
@@ -295,7 +304,7 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: 'Montserrat_500Medium',
     fontSize: 16,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   errorContainer: {
@@ -305,7 +314,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontFamily: 'Montserrat_500Medium',
     fontSize: 16,
-    color: '#E5102E',
+    color: colors.accent,
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 24,
