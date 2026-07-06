@@ -127,6 +127,43 @@ serve(async (req: Request) => {
             );
         }
 
+        // ===== Autorização do chamador =====
+        // Sem isto, qualquer um com a anon key (que vai embutida no APK) poderia
+        // enviar push arbitrário para qualquer user_id. Exigimos: chamada de
+        // service_role (servidor) OU um usuário autenticado que tenha relação
+        // (agendamento client<->merchant) com o alvo.
+        const authHeader = req.headers.get('Authorization') ?? '';
+        const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+        const isServiceRole = token.length > 0 && token === supabaseServiceKey;
+
+        if (!isServiceRole) {
+            if (!token) {
+                return new Response(
+                    JSON.stringify({ error: 'Unauthorized' }),
+                    { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+            }
+            const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
+            const callerId = userData?.user?.id;
+            if (userErr || !callerId) {
+                return new Response(
+                    JSON.stringify({ error: 'Unauthorized' }),
+                    { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+            }
+            const { data: allowed, error: relErr } = await supabaseAdmin.rpc('can_notify', {
+                p_caller: callerId,
+                p_target: user_id,
+            });
+            if (relErr || allowed !== true) {
+                return new Response(
+                    JSON.stringify({ error: 'Forbidden: not allowed to notify this user' }),
+                    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+            }
+        }
+        // ===== fim autorização =====
+
         // Buscar push tokens do usuário
         const { data: tokens, error: tokenError } = await supabaseAdmin
             .from('push_tokens')

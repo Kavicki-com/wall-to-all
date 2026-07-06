@@ -14,8 +14,7 @@ const MAX_REQUESTS = 10; // 10 requisições por minuto
 // Funções CORS Helper
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-rate-limit-key',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 // @ts-expect-error - Deno is available in Edge Runtime
@@ -28,12 +27,13 @@ Deno.serve(async (req: Request) => {
   try {
     console.log('[RateLimit] Starting request check');
 
-    // Obter IP do cliente
-    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-
-    // Obter identificador único
-    const identifier = req.headers.get('x-rate-limit-key') || ip;
-    console.log('[RateLimit] Identifier:', identifier);
+    // Identificador derivado do SERVIDOR (IP). Não confiar em header controlado
+    // pelo cliente (x-rate-limit-key) — permitiria burlar o próprio limite ou
+    // esgotar a cota de uma vítima escolhendo a chave dela.
+    const forwardedFor =
+      req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const identifier = forwardedFor.split(',')[0].trim() || 'unknown';
+    console.log('[RateLimit] Identifier (ip):', identifier);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -106,19 +106,19 @@ Deno.serve(async (req: Request) => {
       },
     );
   } catch (error) {
-    // Em caso de erro, permitir a requisição (fail open)
-    // Mas logar o erro para investigação
+    // FAIL CLOSED: em erro, NEGAR em vez de liberar. Um fail-open faria o rate
+    // limit sumir sob falha/carga, permitindo brute force ilimitado.
     console.error('[RateLimit] Erro:', error);
 
     return new Response(
       JSON.stringify({
-        success: true,
-        error: 'Rate limit check failed, allowing request',
-        remaining: MAX_REQUESTS,
+        success: false,
+        error: 'rate_limit_unavailable',
+        message: 'Serviço de verificação temporariamente indisponível. Tente novamente.',
       }),
       {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
     );
   }
