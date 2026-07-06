@@ -16,6 +16,7 @@ import ScreenContainer from '../../../components/layout/ScreenContainer';
 import SearchBar from '../../../components/SearchBar';
 import { logger } from '../../../lib/logger';
 import { Category } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
 type SimpleServiceItem = {
   id: number;
@@ -160,7 +161,7 @@ const SearchingScreen: React.FC = () => {
       scroll={false}
       hasHeader={true}
       hasTabBar={false}
-      backgroundColor="#FEFEFE"
+      backgroundColor={colors.surface}
       header={<AppHeader showBackButton onPressBack={handleBack} />}
     >
       {/* NENHUM card aqui, só um container "cru" */}
@@ -239,7 +240,7 @@ export default SearchingScreen;
 const styles = StyleSheet.create({
   content: {
     flex: 1,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     paddingTop: 16,
   },
 
@@ -252,11 +253,11 @@ const styles = StyleSheet.create({
   dropdownContainer: {
     marginTop: 8,
     borderWidth: 1,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     maxHeight: 260,
   },
   dropdownItem: {
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
   dropdownText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   dropdownSeparator: {
     height: 1,
@@ -285,8 +286,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 32,
     borderWidth: 1,
-    borderColor: '#000E3D',
-    backgroundColor: '#FEFEFE',
+    borderColor: colors.brand,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
@@ -294,6 +295,6 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#000E3D',
+    color: colors.brand,
   },
 });

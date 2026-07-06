@@ -20,15 +20,16 @@ import RatingCountSvg from '../assets/Rating Count.svg';
 import LoadingSvg from '../assets/loading.svg';
 import { Icon } from '../components/ui/Icon';
 import { StyleProp, TextStyle } from 'react-native';
+import { colors } from '../lib/theme';
 
 // IconCheckboxPayment agora usa MaterialIcons ao invés de SVG
 export const IconCheckboxPayment = ({ width, height, size, color, style }: { width?: number; height?: number; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
-  <Icon name="check-box" size={size || width || height || 24} color={color || '#000E3D'} style={style} />
+  <Icon name="check-box" size={size || width || height || 24} color={color || colors.brand} style={style} />
 );
 
 // IconHandshake agora usa MaterialIcons (handshake não existe, usando people como equivalente)
 export const IconHandshake = ({ width, height, size, color, style }: { width?: number; height?: number; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
-  <Icon name="people" size={size || width || height || 24} color={color || '#000E3D'} style={style} />
+  <Icon name="people" size={size || width || height || 24} color={color || colors.brand} style={style} />
 );
 
 // SVGs que ainda existem
@@ -37,15 +38,15 @@ export const IconLoading = LoadingSvg;
 
 // Ícones que não existem mais - usando MaterialIcons como fallback
 export const IconGreyElipse = ({ width, height, size, color, style }: { width?: number; height?: number; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
-  <Icon name="circle" size={size || width || height || 24} color={color || '#474747'} style={style} />
+  <Icon name="circle" size={size || width || height || 24} color={color || colors.textSecondary} style={style} />
 );
 
 export const IconRemovePhoto = ({ width, height, size, color, style }: { width?: number; height?: number; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
-  <Icon name="remove-circle" size={size || width || height || 24} color={color || '#E5102E'} style={style} />
+  <Icon name="remove-circle" size={size || width || height || 24} color={color || colors.accent} style={style} />
 );
 
 export const IconTrash = ({ width, height, size, color, style }: { width?: number; height?: number; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
-  <Icon name="delete" size={size || width || height || 24} color={color || '#000E3D'} style={style} />
+  <Icon name="delete" size={size || width || height || 24} color={color || colors.brand} style={style} />
 );
 
 export const IconGreenMark = ({ width, height, size, color, style }: { width?: number; height?: number; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
@@ -53,5 +54,5 @@ export const IconGreenMark = ({ width, height, size, color, style }: { width?: n
 );
 
 export const IconProfileTabBar = ({ width, height, size, color, style }: { width?: number; height?: number; size?: number; color?: string; style?: StyleProp<TextStyle> }) => (
-  <Icon name="perm-identity" size={size || width || height || 24} color={color || '#000E3D'} style={style} />
+  <Icon name="perm-identity" size={size || width || height || 24} color={color || colors.brand} style={style} />
 );

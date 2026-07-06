@@ -15,6 +15,8 @@ import { CustomButton } from '../../../components/CustomButton';
 import { safeGoBack } from '../../../lib/router-utils';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { handleError } from '../../../lib/errorHandler';
+import { colors } from '../../../lib/theme';
+import { validatePassword } from '../../../lib/validations';
 
 const ChangePasswordScreen: React.FC = () => {
   const { showError, showSuccess } = useToast();
@@ -43,8 +45,9 @@ const ChangePasswordScreen: React.FC = () => {
       return;
     }
 
-    if (newPassword.length < 6) {
-      showError('A senha deve ter pelo menos 6 caracteres.');
+    const passwordResult = validatePassword(newPassword);
+    if (!passwordResult.isValid) {
+      showError(passwordResult.errors[0]);
       return;
     }
 
@@ -78,7 +81,7 @@ const ChangePasswordScreen: React.FC = () => {
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       footer={
         <View style={styles.footerContainer}>
           <CustomButton
@@ -167,7 +170,7 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   form: {
     width: '90%',
@@ -182,11 +185,11 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   footerContainer: {
     paddingTop: 16,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
     alignItems: 'center',
@@ -199,7 +202,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalContent: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 16,
     width: '100%',

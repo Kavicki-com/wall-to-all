@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { IconRatingStar, IconKidStar } from '../../lib/icons';
 import SurfaceCard from '../ui/SurfaceCard';
 import { formatReviewDate } from '../../lib/utils/reviewUtils';
+import { colors } from '../../lib/theme';
 
 interface ReviewCardProps {
   rating: number;
@@ -77,18 +78,18 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 14,
     fontFamily: 'Montserrat_600SemiBold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   serviceName: {
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     marginLeft: 4,
   },
   date: {
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
   comment: {
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     lineHeight: 20,
     marginTop: 4,
   },

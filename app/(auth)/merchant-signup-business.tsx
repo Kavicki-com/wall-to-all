@@ -31,6 +31,8 @@ import ScreenContainer from '../../components/layout/ScreenContainer';
 import SignupHeaderMerchant from '../../components/auth/SignupHeaderMerchant';
 import { CustomButton } from '../../components/CustomButton';
 import { logger } from '../../lib/logger';
+import { useToast } from '../../components/ui/ToastProvider';
+import { colors } from '../../lib/theme';
 
 type BusinessTimeOption = {
   value: string;
@@ -81,6 +83,7 @@ type WorkDaysState = {
 const MerchantSignupBusinessScreen: React.FC = () => {
   const router = useRouter();
   const safeGoBack = useSafeGoBack('/(auth)/merchant-signup-address');
+  const { showError, showWarning } = useToast();
 
   const [businessName, setBusinessName] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
@@ -98,7 +101,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
   const [bannerUploading, setBannerUploading] = useState(false);
   const [logoImage, setLogoImage] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
-  
+
   useEffect(() => {
     loadCategories();
   }, []);
@@ -112,7 +115,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       setCategories([]);
     }
   };
-  
+
   const [workDays, setWorkDays] = useState<WorkDaysState>({
     monday: { active: false, start: '07:00', end: '18:00' },
     tuesday: { active: false, start: '07:00', end: '18:00' },
@@ -197,7 +200,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       // Buscar dados salvos anteriormente
       const draftKey = 'merchant_signup_draft';
       const stored = await AsyncStorage.getItem(draftKey);
-      
+
       if (!stored) {
         setError('Dados do cadastro não encontrados. Por favor, volte e preencha novamente.');
         return;
@@ -257,8 +260,8 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         pathname: '/(auth)/merchant-signup-services',
       });
     } catch (e: unknown) {
-      const errorMessage = e && typeof e === 'object' && 'message' in e && typeof e.message === 'string' 
-        ? e.message 
+      const errorMessage = e && typeof e === 'object' && 'message' in e && typeof e.message === 'string'
+        ? e.message
         : 'Erro ao salvar dados do negócio.';
       setError(errorMessage);
     } finally {
@@ -276,15 +279,12 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         try {
           const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert(
-              'Permissão necessária',
-              'Precisamos da permissão para acessar suas fotos!'
-            );
+            showWarning('Precisamos da permissão para acessar suas fotos!');
             return;
           }
         } catch (permissionError) {
           handleError(permissionError, 'general');
-          Alert.alert('Erro', 'Não foi possível solicitar permissão para acessar suas fotos.');
+          showError('Não foi possível solicitar permissão para acessar suas fotos.');
           return;
         }
       }
@@ -298,15 +298,12 @@ const MerchantSignupBusinessScreen: React.FC = () => {
 
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
-        
+
         // Validar formato da imagem
         const fileExt = imageUri.split('.').pop()?.toLowerCase() || '';
         const allowedFormats = ['jpg', 'jpeg', 'png', 'webp'];
         if (!allowedFormats.includes(fileExt)) {
-          Alert.alert(
-            'Formato não suportado',
-            'Por favor, selecione uma imagem nos formatos JPG, PNG ou WEBP.'
-          );
+          showWarning('Por favor, selecione uma imagem nos formatos JPG, PNG ou WEBP.');
           return;
         }
 
@@ -316,10 +313,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
           if (fileInfo.exists && 'size' in fileInfo) {
             const fileSizeMB = fileInfo.size / (1024 * 1024);
             if (fileSizeMB > 5) {
-              Alert.alert(
-                'Imagem muito grande',
-                'A imagem deve ter no máximo 5MB. Por favor, selecione uma imagem menor.'
-              );
+              showWarning('A imagem deve ter no máximo 5MB. Por favor, selecione uma imagem menor.');
               return;
             }
           }
@@ -332,7 +326,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       }
     } catch (error) {
       handleError(error, 'general');
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
+      showError('Não foi possível selecionar a imagem.');
     }
   };
 
@@ -343,15 +337,12 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         try {
           const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert(
-              'Permissão necessária',
-              'Precisamos da permissão para acessar suas fotos!'
-            );
+            showWarning('Precisamos da permissão para acessar suas fotos!');
             return;
           }
         } catch (permissionError) {
           handleError(permissionError, 'general');
-          Alert.alert('Erro', 'Não foi possível solicitar permissão para acessar suas fotos.');
+          showError('Não foi possível solicitar permissão para acessar suas fotos.');
           return;
         }
       }
@@ -365,15 +356,12 @@ const MerchantSignupBusinessScreen: React.FC = () => {
 
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
-        
+
         // Validar formato da imagem
         const fileExt = imageUri.split('.').pop()?.toLowerCase() || '';
         const allowedFormats = ['jpg', 'jpeg', 'png', 'webp'];
         if (!allowedFormats.includes(fileExt)) {
-          Alert.alert(
-            'Formato não suportado',
-            'Por favor, selecione uma imagem nos formatos JPG, PNG ou WEBP.'
-          );
+          showWarning('Por favor, selecione uma imagem nos formatos JPG, PNG ou WEBP.');
           return;
         }
 
@@ -383,10 +371,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
           if (fileInfo.exists && 'size' in fileInfo) {
             const fileSizeMB = fileInfo.size / (1024 * 1024);
             if (fileSizeMB > 5) {
-              Alert.alert(
-                'Imagem muito grande',
-                'A imagem deve ter no máximo 5MB. Por favor, selecione uma imagem menor.'
-              );
+              showWarning('A imagem deve ter no máximo 5MB. Por favor, selecione uma imagem menor.');
               return;
             }
           }
@@ -399,7 +384,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       }
     } catch (error) {
       handleError(error, 'general');
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
+      showError('Não foi possível selecionar a imagem.');
     }
   };
 
@@ -446,7 +431,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
   return (
     <ScreenContainer
       scroll
-      backgroundColor="#FEFEFE"
+      backgroundColor={colors.surface}
       contentContainerStyle={{ flexGrow: 1, paddingTop: 0, paddingBottom: 16 }}
       header={
         <SignupHeaderMerchant
@@ -465,291 +450,291 @@ const MerchantSignupBusinessScreen: React.FC = () => {
         keyboardVerticalOffset={0}
       >
 
-          {/* Form */}
-          <View style={styles.form}>
-              {/* Nome do negócio */}
-              <CustomInput
-                label="Nome do seu negócio"
-                placeholder="Digite aqui o nome"
-                value={businessName}
-                onChangeText={setBusinessName}
-              />
+        {/* Form */}
+        <View style={styles.form}>
+          {/* Nome do negócio */}
+          <CustomInput
+            label="Nome do seu negócio"
+            placeholder="Digite aqui o nome"
+            value={businessName}
+            onChangeText={setBusinessName}
+          />
 
-              {/* Área de atuação */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Área de atuação</Text>
-                <SelectDropdown<Category>
-                  data={categories}
-                  labelKey="name"
-                  valueKey="id"
-                  onSelect={(category) => {
-                    setSelectedCategory(category);
-                  }}
-                  selectedValue={selectedCategory}
-                  placeholder="Selecione aqui"
-                  maxHeight={200}
-                />
-                <Text style={styles.categoryHelperText}>
-                  Escolha a categoria que melhor descreve o seu negócio principal
-                </Text>
-              </View>
-
-              {/* Tempo de negócio */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Tempo de negócio</Text>
-                <SelectDropdown<BusinessTimeOption>
-                  data={BUSINESS_TIME_OPTIONS}
-                  labelKey="label"
-                  valueKey="value"
-                  onSelect={(option) => setBusinessTime(option)}
-                  selectedValue={businessTime}
-                  placeholder="Selecione aqui"
-                />
-              </View>
-
-              {/* Checkbox Horário de almoço */}
-              <TouchableOpacity
-                style={styles.checkboxContainer}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setHasLunchBreak(!hasLunchBreak);
-                  if (hasLunchBreak) {
-                    setLunchTime(null);
-                  }
-                }}
-              >
-                {hasLunchBreak ? (
-                  <IconCheckbox width={18} height={18} />
-                ) : (
-                  <IconCheckboxOutline width={18} height={18} />
-                )}
-                <Text
-                  style={[
-                    styles.checkboxLabelText,
-                    hasLunchBreak && styles.checkboxLabelSelected,
-                  ]}
-                >
-                  Horário de almoço
-                </Text>
-              </TouchableOpacity>
-
-              {/* Campo de horário de almoço */}
-              {hasLunchBreak && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Horário de almoço</Text>
-                  <SelectDropdown<{ start: string; end: string; label: string }>
-                    data={[...LUNCH_TIME_OPTIONS]}
-                    labelKey="label"
-                    valueKey="label"
-                    onSelect={(interval) => setLunchTime(interval)}
-                    selectedValue={lunchTime}
-                    placeholder="Selecione aqui"
-                  />
-                </View>
-              )}
-
-              {/* Pagamentos aceitos */}
-              <View style={styles.paymentMethodsContainer}>
-                <Text style={styles.paymentMethodLabel}>Pagamentos aceitos</Text>
-                <View style={styles.paymentMethodsRow}>
-                  {/* PIX */}
-                  <TouchableOpacity
-                    style={styles.paymentMethod}
-                    activeOpacity={0.7}
-                    onPress={() => setPix((v) => !v)}
-                  >
-                    <View style={styles.paymentCheckbox}>
-                      {renderCheckbox(pix)}
-                    </View>
-                    <IconPix width={24} height={24} />
-                    <Text style={styles.paymentText}>PIX</Text>
-                  </TouchableOpacity>
-
-                  {/* Cartão */}
-                  <TouchableOpacity
-                    style={styles.paymentMethod}
-                    activeOpacity={0.7}
-                    onPress={() => setCard((v) => !v)}
-                  >
-                    <View style={styles.paymentCheckbox}>
-                      {renderCheckbox(card)}
-                    </View>
-                    <IconCreditCard width={24} height={24} />
-                    <Text style={styles.paymentText}>Cartão</Text>
-                  </TouchableOpacity>
-
-                  {/* Dinheiro */}
-                  <TouchableOpacity
-                    style={styles.paymentMethod}
-                    activeOpacity={0.7}
-                    onPress={() => setCash((v) => !v)}
-                  >
-                    <View style={styles.paymentCheckbox}>
-                      {renderCheckbox(cash)}
-                    </View>
-                    <IconCash width={24} height={24} />
-                    <Text style={styles.paymentText}>Dinheiro</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Dias de funcionamento */}
-              <View style={styles.workdaysSection}>
-                <Text style={styles.label}>Dias de funcionamento</Text>
-                
-                {WEEK_DAYS.map((day) => {
-                  const dayData = workDays[day.key as keyof WorkDaysState];
-                  return (
-                    <View key={day.key} style={styles.daySelector}>
-                      {/* Checkbox e Label do dia */}
-                      <TouchableOpacity
-                        style={styles.dayCheckboxRow}
-                        activeOpacity={0.7}
-                        onPress={() => toggleWorkDay(day.key as keyof WorkDaysState)}
-                      >
-                        <View style={styles.checkboxIconWrapper}>
-                          {renderCheckbox(dayData.active)}
-                        </View>
-                        <Text
-                          style={[
-                            styles.dayLabel,
-                            !dayData.active && styles.dayLabelInactive,
-                          ]}
-                        >
-                          {day.label}
-                        </Text>
-                      </TouchableOpacity>
-
-                      {/* Inputs de horário */}
-                      {dayData.active && (
-                        <View style={styles.dayTimeInputs}>
-                          {/* Hora de abertura */}
-                          <CustomInput
-                            label="Hora de abertura"
-                            placeholder="07:00"
-                            value={dayData.start}
-                            onChangeText={(text) => {
-                              const formatted = formatTime(text);
-                              updateWorkDayStart(
-                                day.key as keyof WorkDaysState,
-                                formatted,
-                              );
-                            }}
-                            keyboardType="numeric"
-                            maxLength={5}
-                            containerStyle={styles.timeInputGroup}
-                            labelStyle={styles.timeInputLabel}
-                          />
-
-                          {/* Hora de fechamento */}
-                          <CustomInput
-                            label="Hora de fechamento"
-                            placeholder="18:00"
-                            value={dayData.end}
-                            onChangeText={(text) => {
-                              const formatted = formatTime(text);
-                              updateWorkDayEnd(
-                                day.key as keyof WorkDaysState,
-                                formatted,
-                              );
-                            }}
-                            keyboardType="numeric"
-                            maxLength={5}
-                            containerStyle={styles.timeInputGroup}
-                            labelStyle={styles.timeInputLabel}
-                          />
-                        </View>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-
-              {/* Descrição geral */}
-              <CustomInput
-                label="O que você faz?"
-                placeholder="Descreva seu negócio de maneira geral"
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={4}
-                containerStyle={styles.textareaGroup}
-              />
-
-              {/* Upload de banner */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Adicione uma foto de capa
-                </Text>
-                <TouchableOpacity
-                  style={styles.addBannerBox}
-                  onPress={handlePickBannerImage}
-                  activeOpacity={0.8}
-                  disabled={bannerUploading}
-                >
-                  {bannerImage ? (
-                    <Image
-                      source={{ uri: bannerImage }}
-                      style={styles.bannerPreview}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.addPhotoContent}>
-                      <View style={styles.circleButton}>
-                        <Icon name="add" size={24} color="#FFFFFF" />
-                      </View>
-                      {bannerUploading ? (
-                        <ActivityIndicator
-                          size="small"
-                          color="#474747"
-                          style={styles.uploadIndicator}
-                        />
-                      ) : (
-                        <Text style={styles.addPhotoText}>Adicionar foto de capa</Text>
-                      )}
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* Upload de logo */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Adicione o logotipo do seu negócio
-                </Text>
-                <TouchableOpacity
-                  style={styles.addPhotoBox}
-                  onPress={handlePickImage}
-                  activeOpacity={0.8}
-                  disabled={logoUploading}
-                >
-                  {logoImage ? (
-                    <Image
-                      source={{ uri: logoImage }}
-                      style={styles.logoPreview}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.addPhotoContent}>
-                      <View style={styles.circleButton}>
-                        <Icon name="add" size={24} color="#FFFFFF" />
-                      </View>
-                      {logoUploading ? (
-                        <ActivityIndicator
-                          size="small"
-                          color="#474747"
-                          style={styles.uploadIndicator}
-                        />
-                      ) : (
-                        <Text style={styles.addPhotoText}>Adicionar logo</Text>
-                      )}
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </View>
+          {/* Área de atuação */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Área de atuação</Text>
+            <SelectDropdown<Category>
+              data={categories}
+              labelKey="name"
+              valueKey="id"
+              onSelect={(category) => {
+                setSelectedCategory(category);
+              }}
+              selectedValue={selectedCategory}
+              placeholder="Selecione aqui"
+              maxHeight={200}
+            />
+            <Text style={styles.categoryHelperText}>
+              Escolha a categoria que melhor descreve o seu negócio principal
+            </Text>
           </View>
 
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
+          {/* Tempo de negócio */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Tempo de negócio</Text>
+            <SelectDropdown<BusinessTimeOption>
+              data={BUSINESS_TIME_OPTIONS}
+              labelKey="label"
+              valueKey="value"
+              onSelect={(option) => setBusinessTime(option)}
+              selectedValue={businessTime}
+              placeholder="Selecione aqui"
+            />
+          </View>
+
+          {/* Checkbox Horário de almoço */}
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            activeOpacity={0.7}
+            onPress={() => {
+              setHasLunchBreak(!hasLunchBreak);
+              if (hasLunchBreak) {
+                setLunchTime(null);
+              }
+            }}
+          >
+            {hasLunchBreak ? (
+              <IconCheckbox width={18} height={18} />
+            ) : (
+              <IconCheckboxOutline width={18} height={18} />
+            )}
+            <Text
+              style={[
+                styles.checkboxLabelText,
+                hasLunchBreak && styles.checkboxLabelSelected,
+              ]}
+            >
+              Horário de almoço
+            </Text>
+          </TouchableOpacity>
+
+          {/* Campo de horário de almoço */}
+          {hasLunchBreak && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Horário de almoço</Text>
+              <SelectDropdown<{ start: string; end: string; label: string }>
+                data={[...LUNCH_TIME_OPTIONS]}
+                labelKey="label"
+                valueKey="label"
+                onSelect={(interval) => setLunchTime(interval)}
+                selectedValue={lunchTime}
+                placeholder="Selecione aqui"
+              />
+            </View>
+          )}
+
+          {/* Pagamentos aceitos */}
+          <View style={styles.paymentMethodsContainer}>
+            <Text style={styles.paymentMethodLabel}>Pagamentos aceitos</Text>
+            <View style={styles.paymentMethodsRow}>
+              {/* PIX */}
+              <TouchableOpacity
+                style={styles.paymentMethod}
+                activeOpacity={0.7}
+                onPress={() => setPix((v) => !v)}
+              >
+                <View style={styles.paymentCheckbox}>
+                  {renderCheckbox(pix)}
+                </View>
+                <IconPix width={24} height={24} />
+                <Text style={styles.paymentText}>PIX</Text>
+              </TouchableOpacity>
+
+              {/* Cartão */}
+              <TouchableOpacity
+                style={styles.paymentMethod}
+                activeOpacity={0.7}
+                onPress={() => setCard((v) => !v)}
+              >
+                <View style={styles.paymentCheckbox}>
+                  {renderCheckbox(card)}
+                </View>
+                <IconCreditCard width={24} height={24} />
+                <Text style={styles.paymentText}>Cartão</Text>
+              </TouchableOpacity>
+
+              {/* Dinheiro */}
+              <TouchableOpacity
+                style={styles.paymentMethod}
+                activeOpacity={0.7}
+                onPress={() => setCash((v) => !v)}
+              >
+                <View style={styles.paymentCheckbox}>
+                  {renderCheckbox(cash)}
+                </View>
+                <IconCash width={24} height={24} />
+                <Text style={styles.paymentText}>Dinheiro</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Dias de funcionamento */}
+          <View style={styles.workdaysSection}>
+            <Text style={styles.label}>Dias de funcionamento</Text>
+
+            {WEEK_DAYS.map((day) => {
+              const dayData = workDays[day.key as keyof WorkDaysState];
+              return (
+                <View key={day.key} style={styles.daySelector}>
+                  {/* Checkbox e Label do dia */}
+                  <TouchableOpacity
+                    style={styles.dayCheckboxRow}
+                    activeOpacity={0.7}
+                    onPress={() => toggleWorkDay(day.key as keyof WorkDaysState)}
+                  >
+                    <View style={styles.checkboxIconWrapper}>
+                      {renderCheckbox(dayData.active)}
+                    </View>
+                    <Text
+                      style={[
+                        styles.dayLabel,
+                        !dayData.active && styles.dayLabelInactive,
+                      ]}
+                    >
+                      {day.label}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Inputs de horário */}
+                  {dayData.active && (
+                    <View style={styles.dayTimeInputs}>
+                      {/* Hora de abertura */}
+                      <CustomInput
+                        label="Hora de abertura"
+                        placeholder="07:00"
+                        value={dayData.start}
+                        onChangeText={(text) => {
+                          const formatted = formatTime(text);
+                          updateWorkDayStart(
+                            day.key as keyof WorkDaysState,
+                            formatted,
+                          );
+                        }}
+                        keyboardType="numeric"
+                        maxLength={5}
+                        containerStyle={styles.timeInputGroup}
+                        labelStyle={styles.timeInputLabel}
+                      />
+
+                      {/* Hora de fechamento */}
+                      <CustomInput
+                        label="Hora de fechamento"
+                        placeholder="18:00"
+                        value={dayData.end}
+                        onChangeText={(text) => {
+                          const formatted = formatTime(text);
+                          updateWorkDayEnd(
+                            day.key as keyof WorkDaysState,
+                            formatted,
+                          );
+                        }}
+                        keyboardType="numeric"
+                        maxLength={5}
+                        containerStyle={styles.timeInputGroup}
+                        labelStyle={styles.timeInputLabel}
+                      />
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+
+          {/* Descrição geral */}
+          <CustomInput
+            label="O que você faz?"
+            placeholder="Descreva seu negócio de maneira geral"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={4}
+            containerStyle={styles.textareaGroup}
+          />
+
+          {/* Upload de banner */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Adicione uma foto de capa
+            </Text>
+            <TouchableOpacity
+              style={styles.addBannerBox}
+              onPress={handlePickBannerImage}
+              activeOpacity={0.8}
+              disabled={bannerUploading}
+            >
+              {bannerImage ? (
+                <Image
+                  source={{ uri: bannerImage }}
+                  style={styles.bannerPreview}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.addPhotoContent}>
+                  <View style={styles.circleButton}>
+                    <Icon name="add" size={24} color="#FFFFFF" />
+                  </View>
+                  {bannerUploading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.textSecondary}
+                      style={styles.uploadIndicator}
+                    />
+                  ) : (
+                    <Text style={styles.addPhotoText}>Adicionar foto de capa</Text>
+                  )}
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Upload de logo */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Adicione o logotipo do seu negócio
+            </Text>
+            <TouchableOpacity
+              style={styles.addPhotoBox}
+              onPress={handlePickImage}
+              activeOpacity={0.8}
+              disabled={logoUploading}
+            >
+              {logoImage ? (
+                <Image
+                  source={{ uri: logoImage }}
+                  style={styles.logoPreview}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.addPhotoContent}>
+                  <View style={styles.circleButton}>
+                    <Icon name="add" size={24} color="#FFFFFF" />
+                  </View>
+                  {logoUploading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.textSecondary}
+                      style={styles.uploadIndicator}
+                    />
+                  ) : (
+                    <Text style={styles.addPhotoText}>Adicionar logo</Text>
+                  )}
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {!!error && <Text style={styles.errorText}>{error}</Text>}
 
         {/* Botão Continuar */}
         <View style={styles.actions}>
@@ -785,12 +770,12 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 4,
   },
   selectInput: {
     borderWidth: 1,
-    borderColor: '#474747',
+    borderColor: colors.textSecondary,
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 16,
@@ -800,7 +785,7 @@ const styles = StyleSheet.create({
   },
   selectInputStrong: {
     borderWidth: 2,
-    borderColor: '#0F0F0F',
+    borderColor: colors.textPrimary,
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 16,
@@ -811,13 +796,13 @@ const styles = StyleSheet.create({
   selectText: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 16,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   selectPlaceholder: {
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   selectPlaceholderDark: {
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   paymentMethodsContainer: {
     gap: 16,
@@ -828,7 +813,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_500Medium',
     fontSize: 12,
     lineHeight: 12,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   paymentMethodsRow: {
     flexDirection: 'row',
@@ -850,7 +835,7 @@ const styles = StyleSheet.create({
   cardSection: {
     width: '100%',
     borderRadius: 4,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     shadowColor: '#1D1D1D',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -865,7 +850,7 @@ const styles = StyleSheet.create({
   smallTitle: {
     fontFamily: 'Montserrat_500Medium',
     fontSize: 12,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     width: '100%',
   },
   paymentRow: {
@@ -889,22 +874,22 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 16,
-    color: '#474747',
+    color: colors.textSecondary,
   },
   checkboxLabelText: {
     fontSize: 12,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 0,
   },
   checkboxLabelSelected: {
-    color: '#000E3D',
+    color: colors.brand,
   },
   paymentText: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 12,
     lineHeight: 12,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   workdaysSection: {
     marginTop: 16,
@@ -923,10 +908,10 @@ const styles = StyleSheet.create({
   dayLabel: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 16,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   dayLabelInactive: {
-    color: '#474747',
+    color: colors.textSecondary,
   },
   dayTimeInputs: {
     flexDirection: 'row',
@@ -940,18 +925,18 @@ const styles = StyleSheet.create({
   timeInputLabel: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 12,
-    color: '#000E3D',
+    color: colors.brand,
   },
   helperText: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 12,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     marginTop: 4,
   },
   categoryHelperText: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 12,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     marginTop: 4,
   },
   modalOverlay: {
@@ -960,7 +945,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '70%',
@@ -979,7 +964,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 18,
-    color: '#000E3D',
+    color: colors.brand,
   },
   modalCloseButton: {
     paddingVertical: 4,
@@ -988,7 +973,7 @@ const styles = StyleSheet.create({
   modalCloseText: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 16,
-    color: '#000E3D',
+    color: colors.brand,
   },
   modalList: {
     maxHeight: 350,
@@ -1008,17 +993,17 @@ const styles = StyleSheet.create({
   modalOptionText: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 16,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   modalOptionTextSelected: {
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   selectedIndicator: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
   },
   textareaGroup: {
     marginTop: 16,
@@ -1076,18 +1061,18 @@ const styles = StyleSheet.create({
   addPhotoText: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 14,
-    color: '#474747',
+    color: colors.textSecondary,
   },
   errorText: {
     marginTop: 16,
     alignSelf: 'center',
-    color: '#E5102E',
+    color: colors.accent,
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
   },
   actions: {
     paddingBottom: 32,
     paddingTop: 8,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
   },
 });

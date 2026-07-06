@@ -15,6 +15,7 @@ import ServiceCard from '../../../components/ServiceCard';
 import { safeGoBack } from '../../../lib/router-utils';
 import { logger } from '../../../lib/logger';
 import { Service } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
 const ScheduleServiceScreen: React.FC = () => {
   const router = useRouter();
@@ -109,10 +110,10 @@ const ScheduleServiceScreen: React.FC = () => {
     };
 
     if (isSelected) {
-      containerStyle.borderColor = '#E5102E';
+      containerStyle.borderColor = colors.accent;
       containerStyle.borderWidth = 2;
     } else {
-      containerStyle.borderColor = '#474747';
+      containerStyle.borderColor = colors.textSecondary;
       containerStyle.borderWidth = 1;
     }
 
@@ -136,9 +137,9 @@ const ScheduleServiceScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer style={{ backgroundColor: '#FAFAFA' }}>
+      <ScreenContainer style={{ backgroundColor: colors.background }}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -149,7 +150,7 @@ const ScheduleServiceScreen: React.FC = () => {
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       header={
         <AppHeader
           showBackButton={true}
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     marginBottom: 16,
   },
   servicesList: {
@@ -219,7 +220,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   footerContainer: {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, ViewStyle, StyleSheet } from 'react-native';
 import { responsiveWidth, responsiveHeight } from '../../lib/responsive';
+import { colors } from '../../lib/theme';
 
 export interface CardProps {
   children: React.ReactNode;
@@ -43,7 +44,7 @@ export const Card: React.FC<CardProps> = ({
 
 const styles = StyleSheet.create({
   cardPrimary: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: responsiveWidth(24),
     shadowColor: '#1D1D1D',
     shadowOffset: { width: 0, height: responsiveHeight(4) },
@@ -52,7 +53,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   cardSecondary: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: responsiveWidth(4),
     shadowColor: '#1D1D1D',
     shadowOffset: { width: 0, height: responsiveHeight(4) },

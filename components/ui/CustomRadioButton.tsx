@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, View, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { colors } from '../../lib/theme';
 
 export interface CustomRadioButtonProps {
   label: string;
@@ -51,7 +52,7 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
   },
   radioIconInnerDisabled: {
     backgroundColor: '#A0A0A0',
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
   radioText: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 16,
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   radioTextDisabled: {
     color: '#A0A0A0',

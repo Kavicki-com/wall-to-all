@@ -243,9 +243,9 @@ export const handleError = (
   // Erros inesperados usam console.error
   const errorCode = getErrorCodeSafe(error);
   const errorMessage = getErrorMessageSafe(error);
-  const isExpectedError = 
+  const isExpectedError =
     (isAuth && (
-      errorCode === 'invalid_credentials' || 
+      errorCode === 'invalid_credentials' ||
       errorCode === 'same_password' ||
       errorMessage.includes('Invalid login credentials') ||
       errorMessage.toLowerCase().includes('new password should be different')
@@ -264,7 +264,7 @@ export const handleError = (
       message: errorMessage,
     };
     logger.error(`[ErrorHandler] ${context}:`, errorInfo);
-    
+
     // Log do erro completo apenas em desenvolvimento para debug
     if (typeof __DEV__ !== 'undefined' && __DEV__ && isErrorLike(error) && error.stack) {
       logger.debug('Stack trace:', error.stack);
@@ -304,7 +304,7 @@ export const showErrorToast = (
   context: ErrorContext = 'general'
 ): void => {
   const processed = handleError(error, context);
-  
+
   // Tenta usar Toast se disponível (será injetado dinamicamente)
   // Por enquanto, usa Alert como fallback
   // O Toast será usado diretamente nos componentes via useToast hook
@@ -340,3 +340,45 @@ export const safeAsync = async <T>(
     return { data: null, error: processed };
   }
 };
+
+/**
+ * Executa uma função com retry e exponential backoff.
+ * Só tenta novamente para erros de rede ou timeout.
+ * @param fn - Função assíncrona a ser executada
+ * @param maxRetries - Número máximo de tentativas (padrão: 3)
+ * @param baseDelay - Delay base em ms (padrão: 1000)
+ * @returns O resultado da função ou lança o último erro
+ */
+export const retryWithBackoff = async <T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000,
+): Promise<T> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      // Só faz retry se for erro de rede ou timeout
+      if (!isNetworkError(error) && !isTimeoutError(error)) {
+        throw error;
+      }
+
+      // Não faz retry na última tentativa
+      if (attempt === maxRetries) {
+        break;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s...
+      const delay = baseDelay * Math.pow(2, attempt);
+      logger.debug(`[Retry] Tentativa ${attempt + 1}/${maxRetries} falhou. Retry em ${delay}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+};
+

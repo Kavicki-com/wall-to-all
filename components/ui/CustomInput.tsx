@@ -10,16 +10,17 @@ import {
   TextStyle,
 } from 'react-native';
 import { IconVisibility, IconVisibilityOff } from '../../lib/icons';
+import { colors } from '../../lib/theme';
 
 // Cores extraídas do Figma
 const COLORS = {
-  PRIMARY: '#000E3D',      // var(--content-primary)
-  DARK: '#0F0F0F',         // var(--content-dark)
-  GREY_BORDER: '#474747',  // var(--border-grey)
+  PRIMARY: colors.brand,      // var(--content-primary)
+  DARK: colors.textPrimary,         // var(--content-dark)
+  GREY_BORDER: colors.textSecondary,  // var(--border-grey)
   DISABLE: '#DBDBDB',      // var(--border-disable)
   DISABLE_LABEL: '#A8BDFF',// var(--content-primary-light)
-  ERROR: '#E5102E',
-  SURFACE: '#FEFEFE',
+  ERROR: colors.accent,
+  SURFACE: colors.surface,
 };
 
 export interface CustomInputProps extends TextInputProps {

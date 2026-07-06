@@ -24,25 +24,10 @@ import SectionTitle from '../../../components/ui/SectionTitle';
 import { getPriceRange } from '../../../lib/utils';
 import { CustomButton } from '../../../components/CustomButton';
 import { Icon } from '../../../components/ui/Icon';
+import { ServiceListItem, ReviewStats } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
-type Service = {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  photos: string[] | string | null;
-  rating?: number;
-  review_count?: number;
-  categories?: {
-    id: number;
-    name: string;
-  } | null;
-};
-
-type ReviewStats = {
-  average_rating: number;
-  total_reviews: number;
-};
+type Service = ServiceListItem;
 
 const ShareProfileScreen: React.FC = () => {
   const { businessProfile, loading: profileLoading } = useBusinessProfile();
@@ -184,14 +169,14 @@ const ShareProfileScreen: React.FC = () => {
 
   if (loading || profileLoading) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor={colors.background}
         hasHeader={false}
         hasTabBar={false}
       >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -199,9 +184,9 @@ const ShareProfileScreen: React.FC = () => {
 
   if (!businessProfile) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor={colors.background}
         hasHeader={false}
         hasTabBar={false}
       >
@@ -217,7 +202,7 @@ const ShareProfileScreen: React.FC = () => {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScreenContainer 
+      <ScreenContainer
         scroll={true}
         hasHeader={false}
         hasTabBar={false}
@@ -255,7 +240,7 @@ const ShareProfileScreen: React.FC = () => {
             <FlatList
               data={services}
               renderItem={renderServiceCard}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => String(item.id)}
               scrollEnabled={false}
               contentContainerStyle={{ gap: 16 }}
             />
@@ -269,7 +254,7 @@ const ShareProfileScreen: React.FC = () => {
             title="Compartilhar"
             variant="primary"
             onPress={handleShare}
-            rightIcon={<Icon name="ios_share" family="MaterialSymbols" size={24} color="#FEFEFE" />}
+            rightIcon={<Icon name="ios_share" family="MaterialSymbols" size={24} color={colors.surface} />}
             style={styles.primaryButton}
             width="100%"
           />
@@ -280,7 +265,7 @@ const ShareProfileScreen: React.FC = () => {
             onPress={() => {
               // Navegar para tela de avaliações quando implementada
             }}
-            rightIcon={<Icon name="kid_star" family="MaterialSymbols" size={24} color="#000E3D" />}
+            rightIcon={<Icon name="kid_star" family="MaterialSymbols" size={24} color={colors.brand} />}
             style={styles.outlineButton}
             width="100%"
           />
@@ -300,7 +285,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -349,14 +334,14 @@ const styles = StyleSheet.create({
   emptyServicesText: {
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 16,
   },
   errorText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#E5102E',
+    color: colors.accent,
     textAlign: 'center',
     marginTop: 24,
   },

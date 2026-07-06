@@ -18,6 +18,7 @@ import Svg, {
 } from 'react-native-svg';
 
 import { Icon } from '../ui/Icon';
+import { colors } from '../../lib/theme';
 
 type SignupHeaderMerchantProps = {
   title: string;
@@ -74,7 +75,7 @@ const SignupHeaderMerchant: React.FC<SignupHeaderMerchantProps> = ({
                 gradientUnits="objectBoundingBox"
               >
                 <Stop offset="0%" stopColor="rgba(50, 70, 140, 0.3)" />
-                <Stop offset="100%" stopColor="#000E3D" stopOpacity={1} />
+                <Stop offset="100%" stopColor={colors.brand} stopOpacity={1} />
               </SvgRadialGradient>
             </Defs>
             <Rect
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
   },
   gradientContainer: {
     overflow: 'hidden',
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
   },
   cardGradientContainer: {
     borderRadius: 16,
@@ -215,7 +216,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   stepPillActive: {
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
   },
   stepLabel: {
     fontSize: 12,

@@ -13,13 +13,16 @@ import { supabase } from '../../../lib/supabase';
 import AppHeader from '../../../components/layout/AppHeader';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import RescheduleAppointment from '../../../components/ui/RescheduleAppointment';
+import { AppointmentTimeline, type TimelineEvent } from '../../../components/appointments/AppointmentTimeline';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { checkAppointmentConflicts, applyAcceptedReschedules } from '../../../lib/utils';
 import { notifyRescheduleAccepted, notifyRescheduleRejected } from '../../../lib/notifications';
 import { safeGoBack } from '../../../lib/router-utils';
 import { logger } from '../../../lib/logger';
-import { Appointment } from '../../../lib/types';
+import { Appointment, AppointmentRescheduleItem } from '../../../lib/types';
+import { useToast } from '../../../components/ui/ToastProvider';
+import { colors } from '../../../lib/theme';
 
 // Função auxiliar para converter string ISO para Date local, evitando problemas de timezone
 const parseLocalDate = (isoString: string): Date => {
@@ -41,22 +44,7 @@ const parseLocalDate = (isoString: string): Date => {
   );
 };
 
-type AppointmentReschedule = {
-  id: number;
-  appointment_id: number;
-  requested_by: string;
-  requested_by_type: 'client' | 'merchant';
-  original_start_time: string;
-  original_end_time: string;
-  new_start_time: string;
-  new_end_time: string;
-  justification?: string | null;
-  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
-  created_at: string;
-  accepted_at?: string | null;
-  rejected_at?: string | null;
-  rejected_reason?: string | null;
-};
+type AppointmentReschedule = AppointmentRescheduleItem;
 
 type AppointmentExtended = Appointment & {
   service: {
@@ -74,7 +62,10 @@ type AppointmentExtended = Appointment & {
   client_pending_reschedules?: AppointmentReschedule[]; // Reagendamentos pendentes criados pelo cliente
   accepted_reschedules?: AppointmentReschedule[];
   rejected_reschedules?: AppointmentReschedule[]; // Reagendamentos rejeitados
+  created_at: string;
 };
+
+// TimelineEvent importado de AppointmentTimeline
 
 const AppointmentDetailScreen: React.FC = () => {
   const router = useRouter();
@@ -85,6 +76,7 @@ const AppointmentDetailScreen: React.FC = () => {
   const [showRescheduleForm, setShowRescheduleForm] = useState(false);
   const [rescheduleReason, setRescheduleReason] = useState('');
   const [updating, setUpdating] = useState(false);
+  const { showError, showSuccess, showWarning } = useToast();
 
   const loadAppointment = React.useCallback(async () => {
     try {
@@ -121,7 +113,7 @@ const AppointmentDetailScreen: React.FC = () => {
         // Aplicar reagendamentos aceitos ao agendamento (atualiza start_time e end_time se houver reagendamento aceito)
         const appointmentsWithReschedules = await applyAcceptedReschedules([appointmentData]);
         const appointmentWithAcceptedReschedule = appointmentsWithReschedules[0] || appointmentData;
-        
+
         // Buscar reagendamentos pendentes criados pelo MERCHANT (para o cliente aceitar/rejeitar)
         const { data: merchantPendingReschedules } = await supabase
           .from('appointment_reschedules')
@@ -148,8 +140,7 @@ const AppointmentDetailScreen: React.FC = () => {
           .select('*')
           .eq('appointment_id', appointmentData.id)
           .eq('status', 'accepted')
-          .order('accepted_at', { ascending: false })
-          .limit(1); // Pegar apenas o mais recente
+          .order('accepted_at', { ascending: false });
 
         // Buscar reagendamentos rejeitados (tanto do cliente quanto do merchant)
         const { data: rejectedReschedules } = await supabase
@@ -157,8 +148,7 @@ const AppointmentDetailScreen: React.FC = () => {
           .select('*')
           .eq('appointment_id', appointmentData.id)
           .eq('status', 'rejected')
-          .order('rejected_at', { ascending: false })
-          .limit(1); // Pegar apenas o mais recente
+          .order('rejected_at', { ascending: false });
 
         // Atualizar estado com os dados atualizados do agendamento
         // Isso garante que o card branco e as seções de reagendamento sejam atualizados
@@ -169,9 +159,9 @@ const AppointmentDetailScreen: React.FC = () => {
           accepted_reschedules: acceptedReschedules || [],
           rejected_reschedules: rejectedReschedules || [],
         } as AppointmentExtended;
-        
+
         setAppointment(updatedAppointment);
-        
+
         // Log para debug - remover em produção se necessário
         logger.debug('[AppointmentDetail] Dados atualizados:', {
           start_time: updatedAppointment.start_time,
@@ -190,6 +180,76 @@ const AppointmentDetailScreen: React.FC = () => {
   useEffect(() => {
     loadAppointment();
   }, [loadAppointment]);
+
+  const buildTimeline = (): TimelineEvent[] => {
+    if (!appointment) return [];
+
+    const events: TimelineEvent[] = [];
+
+    // 1. Criação do agendamento
+    events.push({
+      id: `creation-${appointment.id}`,
+      type: 'creation',
+      date: appointment.created_at,
+      title: 'Agendamento Criado',
+      description: 'Você criou este agendamento',
+      actor: 'client',
+    });
+
+    // 2. Confirmação do agendamento (se aplicável)
+    if (appointment.status === 'confirmed') {
+      const confirmedAt = (appointment as any).updated_at || appointment.created_at;
+      events.push({
+        id: `confirmed-${appointment.id}`,
+        type: 'confirmed',
+        date: confirmedAt,
+        title: 'Agendamento Aceito',
+        description: 'O estabelecimento confirmou seu agendamento',
+        actor: 'merchant',
+      });
+    }
+
+    // 2. Reagendamentos
+    const allReschedules = [
+      ...(appointment.pending_reschedules || []),
+      ...(appointment.client_pending_reschedules || []),
+      ...(appointment.accepted_reschedules || []),
+      ...(appointment.rejected_reschedules || []),
+    ];
+
+    allReschedules.forEach((reschedule) => {
+      events.push({
+        id: `req-${reschedule.id}`,
+        type: 'reschedule_request',
+        date: reschedule.created_at,
+        title: 'Solicitação de Reagendamento',
+        description: `Sugestão: ${format(parseLocalDate(reschedule.new_start_time), "dd/MM 'às' HH:mm")}`,
+        actor: reschedule.requested_by_type,
+      });
+
+      if (reschedule.status === 'accepted' && reschedule.accepted_at) {
+        events.push({
+          id: `acc-${reschedule.id}`,
+          type: 'reschedule_accepted',
+          date: reschedule.accepted_at,
+          title: 'Reagendamento Aceito',
+          description: `Novo horário confirmado`,
+          actor: reschedule.requested_by_type === 'client' ? 'merchant' : 'client',
+        });
+      } else if (reschedule.status === 'rejected' && reschedule.rejected_at) {
+        events.push({
+          id: `rej-${reschedule.id}`,
+          type: 'reschedule_rejected',
+          date: reschedule.rejected_at,
+          title: 'Reagendamento Recusado',
+          description: reschedule.rejected_reason ? `Motivo: ${reschedule.rejected_reason}` : undefined,
+          actor: reschedule.requested_by_type === 'client' ? 'merchant' : 'client',
+        });
+      }
+    });
+
+    return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  };
 
   // Resetar campos e recarregar dados quando a tela é focada (quando volta de outras telas)
   useFocusEffect(
@@ -212,7 +272,7 @@ const AppointmentDetailScreen: React.FC = () => {
 
   const handleContinueReschedule = () => {
     if (!appointment) return;
-    
+
     router.push({
       pathname: '/(client)/appointments/reschedule',
       params: {
@@ -238,7 +298,7 @@ const AppointmentDetailScreen: React.FC = () => {
         .single();
 
       if (fetchError || !rescheduleData) {
-        Alert.alert('Erro', 'Reagendamento não encontrado ou já processado.');
+        showError('Reagendamento não encontrado ou já processado.');
         return;
       }
 
@@ -252,15 +312,12 @@ const AppointmentDetailScreen: React.FC = () => {
 
       if (conflictError) {
         logger.error('Erro ao verificar conflitos:', conflictError);
-        Alert.alert('Erro', 'Não foi possível verificar disponibilidade do horário.');
+        showError('Não foi possível verificar disponibilidade do horário.');
         return;
       }
 
       if (hasConflict) {
-        Alert.alert(
-          'Horário Indisponível',
-          'Este horário já está ocupado. O reagendamento não pode ser aceito.'
-        );
+        showWarning('Este horário já está ocupado. O reagendamento não pode ser aceito.');
         return;
       }
 
@@ -276,7 +333,7 @@ const AppointmentDetailScreen: React.FC = () => {
 
       if (updateError) {
         logger.error('Erro ao atualizar agendamento:', updateError);
-        Alert.alert('Erro', 'Não foi possível aceitar o reagendamento.');
+        showError('Não foi possível aceitar o reagendamento.');
         return;
       }
 
@@ -291,7 +348,7 @@ const AppointmentDetailScreen: React.FC = () => {
 
       if (acceptError) {
         logger.error('Erro ao marcar reagendamento como aceito:', acceptError);
-        Alert.alert('Erro', 'Reagendamento atualizado, mas houve erro ao atualizar o status.');
+        showError('Reagendamento atualizado, mas houve erro ao atualizar o status.');
         return;
       }
 
@@ -326,16 +383,16 @@ const AppointmentDetailScreen: React.FC = () => {
       // Recarregar dados do agendamento para mostrar os novos horários
       // Forçar recarregamento completo para garantir que os dados atualizados sejam exibidos
       await loadAppointment();
-      
+
       // Forçar atualização do estado para garantir que a UI seja atualizada
       // Aguardar um pouco para garantir que o React atualizou o estado antes de mostrar o Alert
       // Isso permite que a UI seja atualizada com os novos horários no card e nas seções
       await new Promise(resolve => setTimeout(resolve, 300));
-      
-      Alert.alert('Sucesso', 'Reagendamento aceito com sucesso.');
+
+      showSuccess('Reagendamento aceito com sucesso.');
     } catch (error) {
       logger.error('Erro ao aceitar reagendamento:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao aceitar o reagendamento.');
+      showError('Ocorreu um erro ao aceitar o reagendamento.');
     } finally {
       setUpdating(false);
     }
@@ -368,7 +425,7 @@ const AppointmentDetailScreen: React.FC = () => {
 
       if (error) {
         logger.error('Erro ao rejeitar reagendamento:', error);
-        Alert.alert('Erro', 'Não foi possível rejeitar o reagendamento.');
+        showError('Não foi possível rejeitar o reagendamento.');
         return;
       }
 
@@ -408,10 +465,10 @@ const AppointmentDetailScreen: React.FC = () => {
       }
 
       loadAppointment();
-      Alert.alert('Sucesso', 'Reagendamento rejeitado.');
+      showSuccess('Reagendamento rejeitado.');
     } catch (error) {
       logger.error('Erro ao rejeitar reagendamento:', error);
-      Alert.alert('Erro', 'Ocorreu um erro ao rejeitar o reagendamento.');
+      showError('Ocorreu um erro ao rejeitar o reagendamento.');
     } finally {
       setUpdating(false);
     }
@@ -419,9 +476,9 @@ const AppointmentDetailScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer scroll={false} backgroundColor="#FAFAFA">
+      <ScreenContainer scroll={false} backgroundColor={colors.background}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -429,9 +486,9 @@ const AppointmentDetailScreen: React.FC = () => {
 
   if (!appointment) {
     return (
-      <ScreenContainer 
-        scroll={false} 
-        backgroundColor="#FAFAFA" 
+      <ScreenContainer
+        scroll={false}
+        backgroundColor={colors.background}
         hasHeader={true}
         header={
           <AppHeader
@@ -448,10 +505,10 @@ const AppointmentDetailScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer 
+    <ScreenContainer
       scroll={true}
       hasHeader={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       contentContainerStyle={styles.scrollContent}
       header={
         <AppHeader
@@ -481,27 +538,41 @@ const AppointmentDetailScreen: React.FC = () => {
         />
       </View>
 
-      {/* Accepted Reschedules - Mostrar reagendamento aceito apenas se NÃO houver reagendamento pendente criado pelo cliente */}
-      {appointment.accepted_reschedules && 
-       appointment.accepted_reschedules.length > 0 && 
-       (!appointment.client_pending_reschedules || appointment.client_pending_reschedules.length === 0) && (
-        <View style={styles.reschedulesSection}>
-          <Text style={styles.sectionTitle}>Reagendamento Aceito:</Text>
-          {appointment.accepted_reschedules.map((reschedule) => {
-            const originalDate = parseLocalDate(reschedule.original_start_time);
-            const newDate = parseLocalDate(reschedule.new_start_time);
-            const originalTime = format(originalDate, 'HH:mm');
-            const newTime = format(newDate, 'HH:mm');
-            const originalEndTime = format(parseLocalDate(reschedule.original_end_time), 'HH:mm');
-            const newEndTime = format(parseLocalDate(reschedule.new_end_time), 'HH:mm');
+      {/* Accepted Reschedules - Mostrar apenas o último reagendamento aceito */}
+      {appointment.accepted_reschedules &&
+        appointment.accepted_reschedules.length > 0 &&
+        (!appointment.client_pending_reschedules || appointment.client_pending_reschedules.length === 0) && (() => {
+          const reschedule = appointment.accepted_reschedules[0]; // Mais recente (já vem ordenado desc)
+          const originalDate = parseLocalDate(reschedule.original_start_time);
+          const newDate = parseLocalDate(reschedule.new_start_time);
+          const originalTime = format(originalDate, 'HH:mm');
+          const newTime = format(newDate, 'HH:mm');
+          const originalEndTime = format(parseLocalDate(reschedule.original_end_time), 'HH:mm');
+          const newEndTime = format(parseLocalDate(reschedule.new_end_time), 'HH:mm');
 
-            return (
-              <View key={reschedule.id} style={[styles.rescheduleCard, styles.acceptedRescheduleCard]}>
+          return (
+            <View style={styles.reschedulesSection}>
+              <Text style={styles.sectionTitle}>Último Reagendamento:</Text>
+              <View style={[styles.rescheduleCard, styles.acceptedRescheduleCard]}>
                 <View style={styles.rescheduleHeader}>
                   <Text style={styles.rescheduleTitle}>Reagendamento Aceito</Text>
                   <Text style={styles.rescheduleDate}>
                     Aceito em {format(parseLocalDate(reschedule.accepted_at || reschedule.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                   </Text>
+                </View>
+
+                {/* Actor Info */}
+                <View style={styles.actorInfoContainer}>
+                  <View style={styles.actorInfoItem}>
+                    <Text style={styles.actorInfoText}>
+                      Solicitado por: <Text style={styles.actorInfoHighlight}>{reschedule.requested_by_type === 'client' ? 'Você' : 'Profissional'}</Text>
+                    </Text>
+                  </View>
+                  <View style={styles.actorInfoItem}>
+                    <Text style={styles.actorInfoText}>
+                      Aceito por: <Text style={styles.actorInfoHighlight}>{reschedule.requested_by_type === 'client' ? 'Profissional' : 'Você'}</Text>
+                    </Text>
+                  </View>
                 </View>
 
                 <View style={styles.rescheduleTimes}>
@@ -521,15 +592,16 @@ const AppointmentDetailScreen: React.FC = () => {
 
                 {reschedule.justification && (
                   <View style={styles.rescheduleJustification}>
-                    <Text style={styles.rescheduleJustificationLabel}>Justificativa do profissional:</Text>
+                    <Text style={styles.rescheduleJustificationLabel}>
+                      {reschedule.requested_by_type === 'client' ? 'Sua justificativa:' : 'Justificativa do profissional:'}
+                    </Text>
                     <Text style={styles.rescheduleJustificationText}>{reschedule.justification}</Text>
                   </View>
                 )}
               </View>
-            );
-          })}
-        </View>
-      )}
+            </View>
+          );
+        })()}
 
       {/* Client Pending Reschedules - Aguardando resposta do merchant */}
       {appointment.client_pending_reschedules && appointment.client_pending_reschedules.length > 0 && (() => {
@@ -584,64 +656,64 @@ const AppointmentDetailScreen: React.FC = () => {
       })()}
 
       {/* Rejected Reschedules - Mostrar reagendamentos rejeitados */}
-      {appointment.rejected_reschedules && 
-       appointment.rejected_reschedules.length > 0 && 
-       (!appointment.pending_reschedules || appointment.pending_reschedules.length === 0) &&
-       (!appointment.client_pending_reschedules || appointment.client_pending_reschedules.length === 0) && (
-        <View style={styles.reschedulesSection}>
-          <Text style={styles.sectionTitle}>Reagendamento Rejeitado:</Text>
-          {appointment.rejected_reschedules.map((reschedule) => {
-            const originalDate = parseLocalDate(reschedule.original_start_time);
-            const newDate = parseLocalDate(reschedule.new_start_time);
-            const originalTime = format(originalDate, 'HH:mm');
-            const newTime = format(newDate, 'HH:mm');
-            const originalEndTime = format(parseLocalDate(reschedule.original_end_time), 'HH:mm');
-            const newEndTime = format(parseLocalDate(reschedule.new_end_time), 'HH:mm');
+      {appointment.rejected_reschedules &&
+        appointment.rejected_reschedules.length > 0 &&
+        (!appointment.pending_reschedules || appointment.pending_reschedules.length === 0) &&
+        (!appointment.client_pending_reschedules || appointment.client_pending_reschedules.length === 0) && (
+          <View style={styles.reschedulesSection}>
+            <Text style={styles.sectionTitle}>Reagendamento Rejeitado:</Text>
+            {appointment.rejected_reschedules.map((reschedule) => {
+              const originalDate = parseLocalDate(reschedule.original_start_time);
+              const newDate = parseLocalDate(reschedule.new_start_time);
+              const originalTime = format(originalDate, 'HH:mm');
+              const newTime = format(newDate, 'HH:mm');
+              const originalEndTime = format(parseLocalDate(reschedule.original_end_time), 'HH:mm');
+              const newEndTime = format(parseLocalDate(reschedule.new_end_time), 'HH:mm');
 
-            return (
-              <View key={reschedule.id} style={[styles.rescheduleCard, styles.rejectedRescheduleCard]}>
-                <View style={styles.rescheduleHeader}>
-                  <Text style={styles.rescheduleTitle}>Reagendamento Rejeitado</Text>
-                  <Text style={styles.rescheduleDate}>
-                    Rejeitado em {format(parseLocalDate(reschedule.rejected_at || reschedule.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                  </Text>
+              return (
+                <View key={reschedule.id} style={[styles.rescheduleCard, styles.rejectedRescheduleCard]}>
+                  <View style={styles.rescheduleHeader}>
+                    <Text style={styles.rescheduleTitle}>Reagendamento Rejeitado</Text>
+                    <Text style={styles.rescheduleDate}>
+                      Rejeitado em {format(parseLocalDate(reschedule.rejected_at || reschedule.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </Text>
+                  </View>
+
+                  <View style={styles.rescheduleTimes}>
+                    <View style={styles.rescheduleTimeItem}>
+                      <Text style={styles.rescheduleTimeLabel}>Horário anterior:</Text>
+                      <Text style={styles.rescheduleTimeValue}>
+                        {format(originalDate, 'dd/MM/yyyy', { locale: ptBR })} - {originalTime} às {originalEndTime}
+                      </Text>
+                    </View>
+                    <View style={styles.rescheduleTimeItem}>
+                      <Text style={styles.rescheduleTimeLabel}>Horário sugerido:</Text>
+                      <Text style={styles.rescheduleTimeValue}>
+                        {format(newDate, 'dd/MM/yyyy', { locale: ptBR })} - {newTime} às {newEndTime}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {reschedule.justification && (
+                    <View style={styles.rescheduleJustification}>
+                      <Text style={styles.rescheduleJustificationLabel}>
+                        {reschedule.requested_by_type === 'merchant' ? 'Justificativa do profissional:' : 'Sua justificativa:'}
+                      </Text>
+                      <Text style={styles.rescheduleJustificationText}>{reschedule.justification}</Text>
+                    </View>
+                  )}
+
+                  {reschedule.rejected_reason && (
+                    <View style={styles.rescheduleJustification}>
+                      <Text style={styles.rescheduleJustificationLabel}>Motivo da rejeição:</Text>
+                      <Text style={styles.rescheduleJustificationText}>{reschedule.rejected_reason}</Text>
+                    </View>
+                  )}
                 </View>
-
-                <View style={styles.rescheduleTimes}>
-                  <View style={styles.rescheduleTimeItem}>
-                    <Text style={styles.rescheduleTimeLabel}>Horário anterior:</Text>
-                    <Text style={styles.rescheduleTimeValue}>
-                      {format(originalDate, 'dd/MM/yyyy', { locale: ptBR })} - {originalTime} às {originalEndTime}
-                    </Text>
-                  </View>
-                  <View style={styles.rescheduleTimeItem}>
-                    <Text style={styles.rescheduleTimeLabel}>Horário sugerido:</Text>
-                    <Text style={styles.rescheduleTimeValue}>
-                      {format(newDate, 'dd/MM/yyyy', { locale: ptBR })} - {newTime} às {newEndTime}
-                    </Text>
-                  </View>
-                </View>
-
-                {reschedule.justification && (
-                  <View style={styles.rescheduleJustification}>
-                    <Text style={styles.rescheduleJustificationLabel}>
-                      {reschedule.requested_by_type === 'merchant' ? 'Justificativa do profissional:' : 'Sua justificativa:'}
-                    </Text>
-                    <Text style={styles.rescheduleJustificationText}>{reschedule.justification}</Text>
-                  </View>
-                )}
-
-                {reschedule.rejected_reason && (
-                  <View style={styles.rescheduleJustification}>
-                    <Text style={styles.rescheduleJustificationLabel}>Motivo da rejeição:</Text>
-                    <Text style={styles.rescheduleJustificationText}>{reschedule.rejected_reason}</Text>
-                  </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
-      )}
+              );
+            })}
+          </View>
+        )}
 
       {/* Pending Reschedules - Criados pelo merchant (para o cliente aceitar/rejeitar) */}
       {appointment.pending_reschedules && appointment.pending_reschedules.length > 0 && (
@@ -732,13 +804,116 @@ const AppointmentDetailScreen: React.FC = () => {
           })}
         </View>
       )}
-    </ScreenContainer>
+
+      {/* Timeline Section */}
+      <AppointmentTimeline
+        events={buildTimeline()}
+        merchantLabel="Profissional"
+        clientLabel="Você"
+      />
+
+    </ScreenContainer >
   );
 };
 
 export default AppointmentDetailScreen;
 
 const styles = StyleSheet.create({
+  actorInfoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 12,
+    marginVertical: 4,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+  },
+  actorInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  actorInfoText: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_500Medium',
+    color: '#666',
+  },
+  actorInfoHighlight: {
+    fontFamily: 'Montserrat_700Bold',
+    color: colors.textPrimary,
+  },
+  timelineContainer: {
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    marginBottom: 0,
+    minHeight: 80,
+  },
+  timelineLeftColumn: {
+    alignItems: 'center',
+    width: 24,
+    marginRight: 12,
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#999',
+    zIndex: 1,
+  },
+  timelineDotCreation: {
+    backgroundColor: '#2196F3',
+  },
+  timelineDotSuccess: {
+    backgroundColor: '#17723F',
+  },
+  timelineDotConfirmed: {
+    backgroundColor: '#17723F',
+  },
+  timelineDotError: {
+    backgroundColor: colors.accent,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 4,
+  },
+  timelineContent: {
+    flex: 1,
+    paddingBottom: 24,
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  timelineTitle: {
+    fontSize: 14,
+    fontFamily: 'Montserrat_700Bold',
+    color: '#333',
+  },
+  timelineDate: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_400Regular',
+    color: '#999',
+  },
+  timelineDescription: {
+    fontSize: 13,
+    fontFamily: 'Montserrat_400Regular',
+    color: '#666',
+    marginBottom: 4,
+  },
+  timelineActor: {
+    fontSize: 12,
+    fontFamily: 'Montserrat_500Medium',
+    color: '#666',
+    fontStyle: 'italic',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -753,7 +928,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   scrollContent: {
     flexGrow: 1,
@@ -773,10 +948,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   rescheduleCard: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginTop: 8,
@@ -790,7 +965,7 @@ const styles = StyleSheet.create({
   rescheduleTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   rescheduleStatus: {
     fontSize: 14,
@@ -816,7 +991,7 @@ const styles = StyleSheet.create({
   rescheduleTimeValue: {
     fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   rescheduleJustification: {
     gap: 4,
@@ -832,7 +1007,7 @@ const styles = StyleSheet.create({
   rescheduleJustificationText: {
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     lineHeight: 20,
   },
   rescheduleActions: {
@@ -856,15 +1031,15 @@ const styles = StyleSheet.create({
   acceptButtonText: {
     fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   rejectButton: {
-    backgroundColor: '#E5102E',
+    backgroundColor: colors.accent,
   },
   rejectButtonText: {
     fontSize: 14,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   acceptedRescheduleCard: {
     borderColor: '#17723F',
@@ -872,7 +1047,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F9F4',
   },
   rejectedRescheduleCard: {
-    borderColor: '#E5102E',
+    borderColor: colors.accent,
     borderWidth: 2,
     backgroundColor: '#FFF5F5',
   },

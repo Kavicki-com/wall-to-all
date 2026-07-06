@@ -21,9 +21,12 @@ import AppointmentCard from '../../../components/appointments/AppointmentCard';
 import { CustomButton } from '../../../components/CustomButton';
 import { logger } from '../../../lib/logger';
 import { Business, Service, Appointment } from '../../../lib/types';
+import { useToast } from '../../../components/ui/ToastProvider';
+import { colors } from '../../../lib/theme';
 
 const MerchantHomeScreen: React.FC = () => {
   const router = useRouter();
+  const { showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
@@ -156,11 +159,7 @@ const MerchantHomeScreen: React.FC = () => {
       }
     } catch (error) {
       logger.error('Erro ao carregar dados:', error);
-      Alert.alert(
-        'Erro ao carregar',
-        'Não foi possível carregar os dados. Verifique sua conexão e tente novamente.',
-        [{ text: 'OK' }]
-      );
+      showError('Não foi possível carregar os dados. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -201,9 +200,9 @@ const MerchantHomeScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer scroll={false} backgroundColor="#FAFAFA">
+      <ScreenContainer scroll={false} backgroundColor={colors.background}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Carregando...</Text>
         </View>
       </ScreenContainer>
@@ -214,7 +213,7 @@ const MerchantHomeScreen: React.FC = () => {
     <ScreenContainer
       scroll={true}
       hasHeader={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       header={<AppHeader showBackButton={false} />}
     >
@@ -283,7 +282,7 @@ const MerchantHomeScreen: React.FC = () => {
           title="Compartilhar perfil"
           variant="outline"
           onPress={handleShareProfile}
-          rightIcon={<IconShare size={24} color="#000E3D" />}
+          rightIcon={<IconShare size={24} color={colors.brand} />}
           style={{ borderRadius: 24 }}
           width="100%"
         />
@@ -335,7 +334,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#000E3D',
+    color: colors.brand,
   },
   avatarSection: {
     flexDirection: 'row',
@@ -358,7 +357,7 @@ const styles = StyleSheet.create({
   businessName: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   section: {
     marginBottom: 24,
@@ -367,7 +366,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   appointmentsList: {
     gap: 12,
@@ -376,7 +375,7 @@ const styles = StyleSheet.create({
     maxHeight: 360,
   },
   emptyStateCard: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: '#DBDBDB',
     borderStyle: 'dashed',
@@ -386,7 +385,7 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     textAlign: 'left',
   },
   servicesCarousel: {
@@ -395,7 +394,7 @@ const styles = StyleSheet.create({
   emptyServicesText: {
     fontSize: 14,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 16,
   },

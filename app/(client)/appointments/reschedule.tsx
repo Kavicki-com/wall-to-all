@@ -35,6 +35,7 @@ import { RESCHEDULE_DEFAULTS } from '../../../lib/constants';
 import { applyAcceptedReschedules, checkAppointmentConflicts } from '../../../lib/utils';
 import { logger } from '../../../lib/logger';
 import { Appointment, WorkDays } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
 // Usando tipo centralizado de lib/types.ts
 // Note: Appointment já tem business e service como nested objects
@@ -48,7 +49,7 @@ type TimeSlot = {
 const RescheduleAppointmentScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ appointmentId: string; reason?: string }>();
-  const { showError } = useToast();
+  const { showError, showWarning } = useToast();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [loadingTimes, setLoadingTimes] = useState(false);
@@ -521,7 +522,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
       }
 
       if (hasConflict) {
-        Alert.alert('Horário indisponível', 'Este horário já está ocupado. Selecione outro horário.');
+        showWarning('Este horário já está ocupado. Selecione outro horário.');
         return;
       }
 
@@ -580,7 +581,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
           .from('appointment_reschedules')
           .delete()
           .eq('id', rescheduleData.id);
-        Alert.alert('Erro', 'Não foi possível processar o reagendamento. Tente novamente.');
+        showError('Não foi possível processar o reagendamento. Tente novamente.');
         return;
       }
 
@@ -627,10 +628,10 @@ const RescheduleAppointmentScreen: React.FC = () => {
 
 
   // Converter datas disponíveis em PillItem[]
-  const datePillItems: PillItem[] = availableDates.map((date) => ({
+  const datePillItems: PillItem[] = React.useMemo(() => availableDates.map((date) => ({
     key: format(date, 'yyyy-MM-dd'),
     label: format(date, 'dd/MM'),
-  }));
+  })), [availableDates]);
 
   const maxDates = Math.min(RESCHEDULE_DEFAULTS.MAX_DATES, datePillItems.length);
   const displayedDates = datePillItems.slice(0, datesToShow);
@@ -648,12 +649,12 @@ const RescheduleAppointmentScreen: React.FC = () => {
 
   // Converter todos os horários (disponíveis e não disponíveis) em PillItem[]
   // Mostrar todos os horários do expediente em grid, incluindo ocupados e horário de almoço
-  const timePillItems: PillItem[] = timeSlots.map((slot) => ({
+  const timePillItems: PillItem[] = React.useMemo(() => timeSlots.map((slot) => ({
     key: slot.time,
     label: slot.time,
     disabled: !slot.available,
     showLunchIcon: slot.type === 'lunch',
-  }));
+  })), [timeSlots]);
 
   const displayedTimes = timePillItems.slice(0, timesToShow);
   const hasMoreTimes = timesToShow < timePillItems.length;
@@ -675,7 +676,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: '#FAFAFA',
+      backgroundColor: colors.background,
     },
     topBar: {
       position: 'relative',
@@ -719,7 +720,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
     topBarTitle: {
       fontSize: 16,
       fontFamily: 'Montserrat_700Bold',
-      color: '#FEFEFE',
+      color: colors.surface,
       flex: 1,
       textAlign: 'center',
     },
@@ -745,12 +746,12 @@ const RescheduleAppointmentScreen: React.FC = () => {
     serviceName: {
       fontSize: 14,
       fontFamily: 'Montserrat_700Bold',
-      color: '#474747',
+      color: colors.textSecondary,
       marginBottom: 0,
     },
     section: {
       gap: 16,
-      backgroundColor: '#FAFAFA',
+      backgroundColor: colors.background,
       paddingVertical: 8,
     },
     loader: {
@@ -759,7 +760,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
     emptyMessage: {
       fontSize: 16,
       fontFamily: 'Montserrat_400Regular',
-      color: '#474747',
+      color: colors.textSecondary,
       textAlign: 'center',
       paddingVertical: 16,
     },
@@ -771,7 +772,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
       zIndex: 1000,
     },
     modalContent: {
-      backgroundColor: '#FEFEFE',
+      backgroundColor: colors.surface,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       borderBottomLeftRadius: 0,
@@ -812,7 +813,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
       paddingBottom: 0,
     },
     confirmationModalContainer: {
-      backgroundColor: '#FEFEFE',
+      backgroundColor: colors.surface,
       borderRadius: 24,
       padding: 16,
       width: '100%',
@@ -856,9 +857,9 @@ const RescheduleAppointmentScreen: React.FC = () => {
 
   if (loading && !appointment) {
     return (
-      <ScreenContainer style={{ backgroundColor: '#FAFAFA' }}>
+      <ScreenContainer style={{ backgroundColor: colors.background }}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#000E3D" />
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       </ScreenContainer>
     );
@@ -872,7 +873,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
     <ScreenContainer
       scroll={true}
       hasHeader={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       header={
         <AppHeader
           title="Reagendamento"
@@ -890,7 +891,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
         {/* Date Selection */}
         <View style={styles.section}>
           <ScheduleSectionHeader
-            icon={<IconDateRange size={24} color="#E5102E" />}
+            icon={<IconDateRange size={24} color={colors.accent} />}
             title="Escolha uma data"
           />
 
@@ -926,14 +927,14 @@ const RescheduleAppointmentScreen: React.FC = () => {
         {/* Time Selection */}
         <View style={styles.section}>
           <ScheduleSectionHeader
-            icon={<IconTimer size={24} color="#E5102E" />}
+            icon={<IconTimer size={24} color={colors.accent} />}
             title="Escolha um horário"
           />
 
           {!selectedDate ? (
             <Text style={styles.emptyMessage}>Selecione uma data primeiro</Text>
           ) : loadingTimes ? (
-            <ActivityIndicator size="small" color="#000E3D" style={styles.loader} />
+            <ActivityIndicator size="small" color={colors.brand} style={styles.loader} />
           ) : timeSlots.length === 0 ? (
             <Text style={styles.emptyMessage}>Nenhum horário disponível para esta data</Text>
           ) : (
@@ -967,7 +968,7 @@ const RescheduleAppointmentScreen: React.FC = () => {
         {/* Suggest Button */}
         <PrimaryActionButton
           title="Sugerir novo horário"
-          rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#FEFEFE" />}
+          rightIcon={<Icon name="calendar_clock" family="MaterialSymbols" size={24} color={colors.surface} />}
           disabled={!selectedDate || !selectedTime}
           onPress={handleSuggestNewTime}
         />

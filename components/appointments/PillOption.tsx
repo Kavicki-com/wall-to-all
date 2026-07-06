@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, View } from 'react-native';
 import { Icon } from '../ui/Icon';
+import { colors } from '../../lib/theme';
 
 type Props = {
   label: string;
@@ -26,7 +27,7 @@ export const PillOption: React.FC<Props> = ({ label, selected, disabled, showLun
     >
       <View style={styles.content}>
         {showLunchIcon && (
-          <Icon name="restaurant" family="MaterialSymbols" size={18} color={selected ? '#FEFEFE' : '#0F0F0F'} />
+          <Icon name="restaurant" family="MaterialSymbols" size={18} color={selected ? colors.surface : colors.textPrimary} />
         )}
         <Text style={[styles.label, selected ? styles.labelSelected : styles.labelUnselected]}>
           {label}
@@ -48,7 +49,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E9EEFF',
   },
   selected: {
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
   },
   disabled: {
     opacity: 0.55,
@@ -65,9 +66,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   labelUnselected: {
-    color: '#000E3D',
+    color: colors.brand,
   },
   labelSelected: {
-    color: '#FEFEFE',
+    color: colors.surface,
   },
 });

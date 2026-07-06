@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { IconRatingStar } from '../lib/icons';
 import { useResponsiveWidth, responsiveHeight, responsiveFontSize } from '../lib/responsive';
+import { colors } from '../lib/theme';
 
 interface ServiceCardProps {
   name: string;
@@ -21,7 +22,7 @@ interface ServiceCardProps {
   onPress?: () => void;
 }
 
-const ServiceCard: React.FC<ServiceCardProps> = ({
+const ServiceCard: React.FC<ServiceCardProps> = React.memo(({
   name,
   price,
   photos,
@@ -36,18 +37,25 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
   const imageWidth = useResponsiveWidth(110);
 
   // Processamento inteligente de photos
-  let imagesArray: string[] = [];
-  if (photos) {
-    if (typeof photos === 'string') {
-      try {
-        imagesArray = JSON.parse(photos);
-      } catch {
-        imagesArray = [photos];
+  const imagesArray = React.useMemo(() => {
+    let result: string[] = [];
+    if (photos) {
+      /**
+       * Se vier string, tenta parsear. Se falhar, assume que a própria string é a URL.
+       * Exceção: se for um array JSON válido.
+       */
+      if (typeof photos === 'string') {
+        try {
+          result = JSON.parse(photos);
+        } catch {
+          result = [photos];
+        }
+      } else if (Array.isArray(photos)) {
+        result = photos;
       }
-    } else if (Array.isArray(photos)) {
-      imagesArray = photos;
     }
-  }
+    return result;
+  }, [photos]);
   const firstImage = imagesArray.length > 0 ? imagesArray[0] : null;
 
   // Formatação de preço: R$ X,XX
@@ -89,7 +97,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
       </View>
     </Container>
   );
-};
+});
 
 export default ServiceCard;
 
@@ -99,7 +107,7 @@ const styles = StyleSheet.create({
     width: '100%',
     // height aplicado via inline style (responsiveHeight(104))
     borderWidth: 1,
-    borderColor: '#0F0F0F',
+    borderColor: colors.textPrimary,
     borderRadius: responsiveHeight(12),
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
@@ -133,7 +141,7 @@ const styles = StyleSheet.create({
   serviceName: {
     fontSize: responsiveFontSize(15),
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   serviceRating: {
     flexDirection: 'row',
@@ -143,7 +151,7 @@ const styles = StyleSheet.create({
   serviceRatingValue: {
     fontSize: responsiveFontSize(13),
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   serviceRatingCount: {
     fontSize: responsiveFontSize(12),

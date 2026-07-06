@@ -2,147 +2,107 @@
  * Supabase Edge Function: Rate Limiting
  * 
  * Esta função implementa rate limiting no servidor para proteger contra abuso de API.
- * Complementa o rate limiting do cliente implementado em lib/hooks/useRateLimit.ts
- * 
- * Uso:
- *   - Chamar esta função antes de operações críticas (login, signup, etc)
- *   - A função retorna status 429 se o limite for excedido
- *   - A função retorna status 200 se a requisição pode prosseguir
- * 
- * Configuração:
- *   - RATE_LIMIT_WINDOW: Janela de tempo em milissegundos (padrão: 1 minuto)
- *   - MAX_REQUESTS: Número máximo de requisições por janela (padrão: 10)
+ * Complementa o rate limiting do cliente; agora roda no banco de dados para
+ * persistência entre workers.
  */
 
-// @ts-expect-error - Deno import from URL
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-// @ts-expect-error - Deno import from URL
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minuto
 const MAX_REQUESTS = 10; // 10 requisições por minuto
 
-interface RateLimitStore {
-  [key: string]: {
-    count: number;
-    resetAt: number;
-  };
-}
+// Funções CORS Helper
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-rate-limit-key',
+};
 
-// Store em memória (em produção, considere usar Redis ou banco de dados)
-const store: RateLimitStore = {};
+// @ts-ignore - Deno is available in Edge Runtime
+Deno.serve(async (req: Request) => {
+  // Tratamento de preflight CORS
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
 
-serve(async (req: Request) => {
   try {
+    console.log('[RateLimit] Starting request check');
+
     // Obter IP do cliente
-    const ip = req.headers.get('x-forwarded-for') || 
-               req.headers.get('x-real-ip') || 
-               'unknown';
-    
-    // Obter identificador único (pode ser IP, email, userId, etc)
+    const ip = req.headers.get('x-forwarded-for') ||
+      req.headers.get('x-real-ip') ||
+      'unknown';
+
+    // Obter identificador único
     const identifier = req.headers.get('x-rate-limit-key') || ip;
-    
-    const now = Date.now();
-    
-    // Limpar entradas expiradas (limpeza periódica)
-    Object.keys(store).forEach(key => {
-      if (store[key].resetAt < now) {
-        delete store[key];
-      }
+    console.log('[RateLimit] Identifier:', identifier);
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    console.log('[RateLimit] Configured Supabase URL:', supabaseUrl ? 'Set' : 'Missing');
+
+    const supabaseClient = createClient(
+      // @ts-ignore - Deno is available in the edge function environment
+      supabaseUrl,
+      // @ts-ignore - Deno is available in the edge function environment
+      supabaseKey
+    );
+
+    console.log('[RateLimit] Calling check_rate_limit RPC for identifier:', identifier);
+
+    // Chamar a RPC no banco de dados para checagem atômica
+    const { data, error } = await supabaseClient.rpc('check_rate_limit', {
+      p_identifier: identifier,
+      p_max_requests: MAX_REQUESTS,
+      p_window_ms: RATE_LIMIT_WINDOW
     });
-    
-    // Verificar rate limit
-    if (!store[identifier]) {
-      // Primeira requisição
-      store[identifier] = { 
-        count: 1, 
-        resetAt: now + RATE_LIMIT_WINDOW 
-      };
-      
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          remaining: MAX_REQUESTS - 1,
-          resetAt: store[identifier].resetAt
-        }), 
-        { 
-          status: 200,
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-RateLimit-Limit': String(MAX_REQUESTS),
-            'X-RateLimit-Remaining': String(MAX_REQUESTS - 1),
-            'X-RateLimit-Reset': String(store[identifier].resetAt),
-          }
-        }
-      );
+
+    console.log('[RateLimit] RPC returned:', { data, error });
+
+    if (error) {
+      console.error('[RateLimit] RPC Error:', error);
+      throw error;
     }
-    
-    const entry = store[identifier];
-    
-    // Se a janela expirou, resetar
-    if (now >= entry.resetAt) {
-      entry.count = 1;
-      entry.resetAt = now + RATE_LIMIT_WINDOW;
-      
+
+    // A RPC retorna json_build_object('success', boolean, 'remaining', int, 'resetAt', int, ['error', string])
+    // Precisamos checar se allowed
+    if (!data.success) {
+      const remainingMs = data.resetAt - Date.now();
+      const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          remaining: MAX_REQUESTS - 1,
-          resetAt: entry.resetAt
-        }), 
-        { 
-          status: 200,
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-RateLimit-Limit': String(MAX_REQUESTS),
-            'X-RateLimit-Remaining': String(MAX_REQUESTS - 1),
-            'X-RateLimit-Reset': String(entry.resetAt),
-          }
-        }
-      );
-    }
-    
-    // Verificar se excedeu o limite
-    if (entry.count >= MAX_REQUESTS) {
-      const remainingMs = entry.resetAt - now;
-      const remainingMinutes = Math.ceil(remainingMs / 60000);
-      
-      return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: false,
-          error: 'Rate limit exceeded',
+          error: data.error || 'Rate limit exceeded',
           message: `Muitas requisições. Aguarde ${remainingMinutes} minuto(s) antes de tentar novamente.`,
-          resetAt: entry.resetAt
-        }), 
-        { 
+          resetAt: data.resetAt
+        }),
+        {
           status: 429,
-          headers: { 
+          headers: {
+            ...corsHeaders,
             'Content-Type': 'application/json',
             'X-RateLimit-Limit': String(MAX_REQUESTS),
             'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': String(entry.resetAt),
+            'X-RateLimit-Reset': String(data.resetAt),
             'Retry-After': String(Math.ceil(remainingMs / 1000)),
           }
         }
       );
     }
-    
-    // Incrementar contador
-    entry.count++;
-    
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        remaining: MAX_REQUESTS - entry.count,
-        resetAt: entry.resetAt
-      }), 
-      { 
+      JSON.stringify({
+        success: true,
+        remaining: data.remaining,
+        resetAt: data.resetAt
+      }),
+      {
         status: 200,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'X-RateLimit-Limit': String(MAX_REQUESTS),
-          'X-RateLimit-Remaining': String(MAX_REQUESTS - entry.count),
-          'X-RateLimit-Reset': String(entry.resetAt),
+          'X-RateLimit-Remaining': String(data.remaining),
+          'X-RateLimit-Reset': String(data.resetAt),
         }
       }
     );
@@ -150,14 +110,14 @@ serve(async (req: Request) => {
     // Em caso de erro, permitir a requisição (fail open)
     // Mas logar o erro para investigação
     console.error('[RateLimit] Erro:', error);
-    
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         error: 'Rate limit check failed, allowing request',
         remaining: MAX_REQUESTS
-      }), 
-      { 
+      }),
+      {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       }

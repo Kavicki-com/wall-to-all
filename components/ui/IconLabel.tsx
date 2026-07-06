@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { colors } from '../../lib/theme';
 
 interface IconLabelProps {
   /**
@@ -35,7 +36,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
 });
 

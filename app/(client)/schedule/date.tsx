@@ -10,6 +10,7 @@ import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
 import MonthCalendar from '../../../components/calendar/MonthCalendar';
 import { safeGoBack } from '../../../lib/router-utils';
+import { colors } from '../../../lib/theme';
 
 const ScheduleDateScreen: React.FC = () => {
   const router = useRouter();
@@ -70,7 +71,7 @@ setSelectedDate(null);
       scroll={true}
       hasHeader={true}
       hasTabBar={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       header={
         <AppHeader
           showBackButton={true}
@@ -112,7 +113,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 16,
   },
   footerContainer: {

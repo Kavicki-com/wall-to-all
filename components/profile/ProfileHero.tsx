@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Image, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { colors } from '../../lib/theme';
 
 interface ProfileHeroProps {
   /**
@@ -117,12 +118,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   subtitle: {
     fontSize: 8,
     fontFamily: 'Montserrat_500Medium',
-    color: '#FEFEFE',
+    color: colors.surface,
     flexShrink: 1,
   },
 });

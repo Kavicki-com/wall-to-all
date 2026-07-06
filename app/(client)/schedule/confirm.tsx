@@ -19,25 +19,16 @@ import { safeGoBack } from '../../../lib/router-utils';
 import { checkAppointmentConflicts } from '../../../lib/utils';
 import { notifyAppointmentRequested } from '../../../lib/notifications';
 import { logger } from '../../../lib/logger';
+import { Service as FullService, BusinessProfile } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
-type Service = {
-  id: number;
-  name: string;
-  price: number;
-  description: string | null;
-  duration_minutes: number | null;
-};
+type Service = Pick<FullService, 'id' | 'name' | 'price' | 'description' | 'duration_minutes'>;
 
-type Business = {
-  id: number;
-  business_name: string;
-  address: string | null;
-  logo_url: string | null;
-};
+type Business = Pick<BusinessProfile, 'id' | 'business_name' | 'address' | 'logo_url'>;
 
 const ScheduleConfirmScreen: React.FC = () => {
   const router = useRouter();
-  const { showError } = useToast();
+  const { showError, showWarning } = useToast();
   const params = useLocalSearchParams<{
     businessId: string;
     serviceId: string;
@@ -145,33 +136,33 @@ const ScheduleConfirmScreen: React.FC = () => {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        Alert.alert('Erro', 'Usuário não autenticado');
+        showError('Usuário não autenticado');
         setSubmitting(false);
         return;
       }
 
       if (!params.businessId || !params.serviceId || !params.date || !params.time || !service) {
-        Alert.alert('Erro', 'Dados incompletos');
+        showError('Dados incompletos');
         setSubmitting(false);
         return;
       }
 
       // Validar formato de horário
       if (!validateTime(params.time)) {
-        Alert.alert('Horário inválido', 'O formato do horário é inválido. Use o formato HH:mm.');
+        showWarning('O formato do horário é inválido. Use o formato HH:mm.');
         setSubmitting(false);
         return;
       }
 
       // Validar data
       if (startDate && !validateDate(startDate, false)) {
-        Alert.alert('Data inválida', 'Selecione uma data futura para o agendamento.');
+        showWarning('Selecione uma data futura para o agendamento.');
         setSubmitting(false);
         return;
       }
 
       if (startDate && startDate.getTime() < now.getTime()) {
-        Alert.alert('Horário inválido', 'Selecione um horário futuro para o agendamento.');
+        showWarning('Selecione um horário futuro para o agendamento.');
         setSubmitting(false);
         return;
       }
@@ -184,7 +175,7 @@ const ScheduleConfirmScreen: React.FC = () => {
       const endTime = endDate.toISOString();
       const businessIdNum = parseInt(params.businessId, 10);
       if (isNaN(businessIdNum)) {
-        Alert.alert('Erro', 'ID do negócio inválido');
+        showError('ID do negócio inválido');
         setSubmitting(false);
         return;
       }
@@ -203,13 +194,13 @@ const ScheduleConfirmScreen: React.FC = () => {
       }
 
       if (hasConflict) {
-        Alert.alert('Horário indisponível', 'Selecione outro horário, este já está ocupado.');
+        showWarning('Selecione outro horário, este já está ocupado.');
         setSubmitting(false);
         return;
       }
       const serviceIdNum = parseInt(params.serviceId, 10);
       if (isNaN(serviceIdNum)) {
-        Alert.alert('Erro', 'ID do serviço inválido');
+        showError('ID do serviço inválido');
         setSubmitting(false);
         return;
       }
@@ -313,9 +304,9 @@ const ScheduleConfirmScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer style={{ backgroundColor: '#FAFAFA' }} hasTabBar={true}>
+      <ScreenContainer style={{ backgroundColor: colors.background }} hasTabBar={true}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -326,7 +317,7 @@ const ScheduleConfirmScreen: React.FC = () => {
       scroll={true}
       hasHeader={true}
       hasTabBar={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       horizontalPadding={0}
       contentContainerStyle={styles.scrollContent}
       header={
@@ -375,7 +366,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,

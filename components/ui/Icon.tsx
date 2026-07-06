@@ -2,6 +2,7 @@ import React from 'react';
 import { MaterialIcons, FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StyleProp, TextStyle } from 'react-native';
 import { MaterialSymbolIcon } from './MaterialSymbolIcon';
+import { colors } from '../../lib/theme';
 
 // Adicionamos MaterialCommunityIcons e MaterialSymbols à tipagem
 export type IconFamily = 'MaterialIcons' | 'FontAwesome6' | 'MaterialCommunityIcons' | 'MaterialSymbols';
@@ -18,7 +19,7 @@ export const Icon: React.FC<IconProps> = ({
   name, 
   family = 'MaterialIcons', 
   size = 24, 
-  color = '#000E3D', 
+  color = colors.brand, 
   style 
 }) => {
   if (family === 'FontAwesome6') {

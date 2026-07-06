@@ -5,6 +5,7 @@ import { CustomButton } from '../CustomButton';
 import { CustomRadioButton } from './CustomRadioButton';
 import { Card } from './Card';
 import { Icon } from './Icon';
+import { colors } from '../../lib/theme';
 
 interface ScheduleConfirmCardProps {
   serviceName: string;
@@ -80,21 +81,21 @@ const ScheduleConfirmCard: React.FC<ScheduleConfirmCardProps> = ({
               label="PIX"
               selected={paymentMethod === 'pix'}
               onPress={() => onChangePaymentMethod('pix')}
-              leftIcon={<IconPix size={24} color="#000E3D" />}
+              leftIcon={<IconPix size={24} color={colors.brand} />}
               value="pix"
             />
             <CustomRadioButton
               label="Cartão"
               selected={paymentMethod === 'card'}
               onPress={() => onChangePaymentMethod('card')}
-              leftIcon={<IconCreditCard size={24} color="#000E3D" />}
+              leftIcon={<IconCreditCard size={24} color={colors.brand} />}
               value="card"
             />
             <CustomRadioButton
               label="Dinheiro"
               selected={paymentMethod === 'cash'}
               onPress={() => onChangePaymentMethod('cash')}
-              leftIcon={<IconCash size={24} color="#000E3D" />}
+              leftIcon={<IconCash size={24} color={colors.brand} />}
               value="cash"
             />
           </View>
@@ -106,7 +107,7 @@ const ScheduleConfirmCard: React.FC<ScheduleConfirmCardProps> = ({
           <View style={[
             styles.textInputContainer,
             {
-              borderColor: isObservationsFocused ? '#000E3D' : '#474747',
+              borderColor: isObservationsFocused ? colors.brand : colors.textSecondary,
               borderWidth: isObservationsFocused ? 2 : 1,
             }
           ]}>
@@ -140,7 +141,7 @@ const ScheduleConfirmCard: React.FC<ScheduleConfirmCardProps> = ({
           variant="outline"
           style={{ borderRadius: 24, marginVertical: 0 }}
           width="100%"
-          rightIcon={<Icon name="check_circle" family="MaterialSymbols" size={24} color="#000E3D" />}
+          rightIcon={<Icon name="check_circle" family="MaterialSymbols" size={24} color={colors.brand} />}
         />
       )}
     </View>
@@ -151,7 +152,7 @@ export default ScheduleConfirmCard;
 
 const styles = StyleSheet.create({
   mainCard: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     padding: 24,
@@ -176,12 +177,12 @@ const styles = StyleSheet.create({
   dateTimeText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   serviceName: {
     fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   priceText: {
     fontSize: 16,
@@ -208,12 +209,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   addressText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   paymentSection: {
     gap: 16,
@@ -221,7 +222,7 @@ const styles = StyleSheet.create({
   paymentTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   paymentMethodsRow: {
     flexDirection: 'row',
@@ -237,23 +238,23 @@ const styles = StyleSheet.create({
   observationsLabel: {
     fontSize: 12,
     fontFamily: 'Montserrat_400Regular',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 4,
   },
   textInputContainer: {
     width: '100%',
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#474747',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 12,
     paddingVertical: 16,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     minHeight: 80,
   },
   textInput: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     padding: 0,
     margin: 0,
   },

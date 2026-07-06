@@ -5,49 +5,17 @@ import { supabase } from '../../../lib/supabase';
 import AppHeader from '../../../components/layout/AppHeader';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import MonthCalendar from '../../../components/calendar/MonthCalendar';
-import { format, parseISO, isToday, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, parseISO, isToday, startOfMonth, endOfMonth, addMonths, subMonths, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import AppointmentDaySection from '../../../components/appointments/AppointmentDaySection';
 import AppointmentCard from '../../../components/appointments/AppointmentCard';
 import { applyAcceptedReschedules } from '../../../lib/utils';
 import { logger } from '../../../lib/logger';
+import { useToast } from '../../../components/ui/ToastProvider';
+import { MerchantDashboardAppointment } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
-type Appointment = {
-  id: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  payment_method: string;
-  client_notes: string | null;
-  service:
-  | {
-    id: string;
-    name: string;
-    price: number;
-    price_type: string;
-    duration_minutes: number;
-    photos: string[] | string | null;
-  }
-  | {
-    id: string;
-    name: string;
-    price: number;
-    price_type: string;
-    duration_minutes: number;
-    photos: string[] | string | null;
-  }[];
-  client:
-  | {
-    id: string;
-    full_name: string | null;
-    avatar_url: string | null;
-  }
-  | {
-    id: string;
-    full_name: string | null;
-    avatar_url: string | null;
-  }[];
-};
+type Appointment = MerchantDashboardAppointment;
 
 const normalizeAppointment = (appointment: Appointment): Appointment => ({
   ...appointment,
@@ -57,6 +25,7 @@ const normalizeAppointment = (appointment: Appointment): Appointment => ({
 
 const MerchantDashboardScreen: React.FC = () => {
   const router = useRouter();
+  const { showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -157,6 +126,15 @@ const MerchantDashboardScreen: React.FC = () => {
           const isInSelectedMonth = aptDateString >= startDate && aptDateString <= endDate;
           const isFuture = aptDate >= today;
 
+          // Filtro solicitado: Apenas últimos 7 dias
+          const sevenDaysAgo = subDays(today, 7);
+          const sevenDaysAgoString = format(sevenDaysAgo, 'yyyy-MM-dd');
+
+          // Regra principal: Não mostrar nada anterior a 7 dias atrás
+          if (aptDateString < sevenDaysAgoString) {
+            return false;
+          }
+
           return isInSelectedMonth || (isFuture && aptDateString < startDate);
         });
 
@@ -167,11 +145,7 @@ const MerchantDashboardScreen: React.FC = () => {
       }
     } catch (error) {
       logger.error('Erro ao carregar dados:', error);
-      Alert.alert(
-        'Erro ao carregar',
-        'Não foi possível carregar os dados. Verifique sua conexão e tente novamente.',
-        [{ text: 'OK' }]
-      );
+      showError('Não foi possível carregar os dados. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -193,6 +167,62 @@ const MerchantDashboardScreen: React.FC = () => {
 
   useEffect(() => {
     loadBusinessAndAppointments();
+  }, [loadBusinessAndAppointments]);
+
+  // Realtime subscription para atualizar automaticamente quando agendamentos são modificados
+  useEffect(() => {
+    let businessId: number | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setupSubscription = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        // Buscar business_profile do lojista
+        const { data: businessData } = await supabase
+          .from('business_profiles')
+          .select('id')
+          .eq('owner_id', user.id)
+          .single();
+
+        if (!businessData) return;
+
+        businessId = businessData.id;
+
+        // Criar channel para escutar mudanças em appointments
+        channel = supabase
+          .channel(`merchant-appointments-${businessId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*', // INSERT, UPDATE, DELETE
+              schema: 'public',
+              table: 'appointments',
+              filter: `business_id=eq.${businessId}`,
+            },
+            (payload) => {
+              logger.debug('Appointment change detected:', payload.eventType);
+              // Recarregar agendamentos quando houver mudança
+              loadBusinessAndAppointments();
+            }
+          )
+          .subscribe();
+      } catch (error) {
+        logger.error('Erro ao configurar realtime subscription:', error);
+      }
+    };
+
+    setupSubscription();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [loadBusinessAndAppointments]);
 
   const onRefresh = async () => {
@@ -242,9 +272,9 @@ const MerchantDashboardScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScreenContainer scroll={false} backgroundColor="#FAFAFA">
+      <ScreenContainer scroll={false} backgroundColor={colors.background}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -254,7 +284,7 @@ const MerchantDashboardScreen: React.FC = () => {
     <ScreenContainer
       scroll={true}
       hasHeader={true}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       contentContainerStyle={styles.scrollContent}
       header={<AppHeader showBackButton={false} />}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -347,7 +377,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     marginBottom: 24,
   },
   dateGroup: {

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialSymbolIcon } from '../ui/MaterialSymbolIcon';
 import { IconKidStar } from '../../lib/icons';
+import { colors } from '../../lib/theme';
 
 interface ProfileActionsProps {
   /**
@@ -30,7 +31,7 @@ const ProfileActions: React.FC<ProfileActionsProps> = ({ onShare, onReview }) =>
         onPress={onShare}
       >
         <Text style={styles.primaryText}>Compartilhar</Text>
-        <MaterialSymbolIcon name="ios_share" size={24} color="#FEFEFE" />
+        <MaterialSymbolIcon name="ios_share" size={24} color={colors.surface} />
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.outlineButton}
@@ -38,7 +39,7 @@ const ProfileActions: React.FC<ProfileActionsProps> = ({ onShare, onReview }) =>
         onPress={onReview}
       >
         <Text style={styles.outlineText}>Avaliar</Text>
-        <IconKidStar size={24} color="#000E3D" />
+        <IconKidStar size={24} color={colors.brand} />
       </TouchableOpacity>
     </View>
   );
@@ -51,7 +52,7 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   primaryButton: {
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -68,11 +69,11 @@ const styles = StyleSheet.create({
   primaryText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
   },
   outlineButton: {
     borderWidth: 1,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -84,7 +85,7 @@ const styles = StyleSheet.create({
   outlineText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
 });
 

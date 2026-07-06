@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import SurfaceCard from '../ui/SurfaceCard';
 import { IconRatingStar, IconKidStar } from '../../lib/icons';
 import { Icon } from '../ui/Icon';
+import { colors } from '../../lib/theme';
 
 interface RatingsRowCardProps {
   /**
@@ -57,7 +58,7 @@ const RatingsRowCard: React.FC<RatingsRowCardProps> = ({ averageRating, totalRev
                   onPress={onViewReviews}
                   activeOpacity={0.7}
                 >
-                  <Icon name="keyboard-arrow-right" size={18} color="#000E3D" />
+                  <Icon name="keyboard-arrow-right" size={18} color={colors.brand} />
                   <Text style={styles.viewMoreText}>Ver mais</Text>
                 </TouchableOpacity>
               )}
@@ -68,8 +69,10 @@ const RatingsRowCard: React.FC<RatingsRowCardProps> = ({ averageRating, totalRev
         </View>
         <View style={styles.priceSection}>
           <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Preço médio</Text>
-            <Text style={styles.priceValue}>
+            <Text style={styles.priceLabel} numberOfLines={1}>
+              Preço médio
+            </Text>
+            <Text style={styles.priceValue} numberOfLines={1}>
               {priceActive}
               <Text style={styles.priceInactive}>{priceInactive}</Text>
             </Text>
@@ -102,7 +105,10 @@ const styles = StyleSheet.create({
   ratingSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
     gap: 4,
+    marginRight: 12,
+    minWidth: 0,
   },
   starsContainer: {
     flexDirection: 'row',
@@ -114,34 +120,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 15,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   ratingCount: {
     fontSize: 12,
     lineHeight: 15,
     fontFamily: 'Montserrat_500Medium',
-    color: '#474747',
+    color: colors.textSecondary,
   },
   priceSection: {
     flexDirection: 'column',
     alignItems: 'flex-end',
+    flexShrink: 0,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'nowrap',
     gap: 4,
   },
   priceLabel: {
     fontSize: 12,
     lineHeight: 15,
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   priceValue: {
     fontSize: 12,
     lineHeight: 15,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
+    flexShrink: 0,
   },
   priceInactive: {
     color: '#DBDBDB',
@@ -155,7 +164,7 @@ const styles = StyleSheet.create({
   viewMoreText: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
-    color: '#000E3D',
+    color: colors.brand,
   },
 });
 

@@ -14,6 +14,7 @@ import {
 import SectionTitle from './SectionTitle';
 import SurfaceCard from './SurfaceCard';
 import { CustomButton } from '../CustomButton';
+import { colors } from '../../lib/theme';
 
 export type PaymentMethod = 'pix' | 'card' | 'cash';
 
@@ -80,12 +81,12 @@ const RescheduleModalCard: React.FC<RescheduleModalCardProps> = ({
   const renderPaymentIcon = () => {
     switch (paymentMethod) {
       case 'card':
-        return <IconCreditCard size={24} color="#000E3D" />;
+        return <IconCreditCard size={24} color={colors.brand} />;
       case 'cash':
-        return <IconCash size={24} color="#000E3D" />;
+        return <IconCash size={24} color={colors.brand} />;
       case 'pix':
       default:
-        return <IconPix size={24} color="#000E3D" />;
+        return <IconPix size={24} color={colors.brand} />;
     }
   };
 
@@ -108,7 +109,7 @@ const RescheduleModalCard: React.FC<RescheduleModalCardProps> = ({
 
         {/* New Appointment Card */}
         <SurfaceCard style={styles.newAppointmentCard}>
-          <IconDateRange size={24} color="#000E3D" />
+          <IconDateRange size={24} color={colors.brand} />
           <View style={styles.newAppointmentContent}>
             <Text style={styles.newAppointmentDate}>
               {formatDateLong(newDate)}
@@ -186,7 +187,7 @@ const styles = StyleSheet.create({
     gap: 0,
     width: '100%',
     flexShrink: 1,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
   },
   cardContent: {
     gap: 24,
@@ -202,12 +203,12 @@ const styles = StyleSheet.create({
   rescheduleLabel: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   serviceName: {
     fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   newAppointmentCard: {
     flexDirection: 'row',
@@ -215,7 +216,7 @@ const styles = StyleSheet.create({
     gap: 16,
     backgroundColor: '#EBEFFF',
     borderWidth: 2,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     borderRadius: 24,
     padding: 16,
   },
@@ -226,12 +227,12 @@ const styles = StyleSheet.create({
   newAppointmentDate: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   newAppointmentTime: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   section: {
     gap: 8,
@@ -299,7 +300,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   justificationContainer: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     padding: 16,
     borderWidth: 0,

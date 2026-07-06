@@ -276,7 +276,7 @@ export type Database = {
           {
             foreignKeyName: "business_profiles_owner_id_fkey"
             columns: ["owner_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -642,6 +642,54 @@ export type Database = {
         }
         Relationships: []
       }
+      push_tokens: {
+        Row: {
+          created_at: string | null
+          device_type: string
+          id: number
+          token: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_type: string
+          id?: number
+          token: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          device_type?: string
+          id?: number
+          token?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rate_limits: {
+        Row: {
+          count: number
+          created_at: string | null
+          identifier: string
+          reset_at: string
+        }
+        Insert: {
+          count?: number
+          created_at?: string | null
+          identifier: string
+          reset_at: string
+        }
+        Update: {
+          count?: number
+          created_at?: string | null
+          identifier?: string
+          reset_at?: string
+        }
+        Relationships: []
+      }
       referrals: {
         Row: {
           converted_at: string | null
@@ -855,6 +903,126 @@ export type Database = {
         }
         Relationships: []
       }
+      waitlist_entries: {
+        Row: {
+          business_id: number
+          client_id: string
+          converted_at: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: number
+          notified_at: string | null
+          preferred_date: string
+          preferred_end_time: string | null
+          preferred_start_time: string | null
+          priority: number
+          service_id: number
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_id: number
+          client_id: string
+          converted_at?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: number
+          notified_at?: string | null
+          preferred_date: string
+          preferred_end_time?: string | null
+          preferred_start_time?: string | null
+          priority: number
+          service_id: number
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: number
+          client_id?: string
+          converted_at?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: number
+          notified_at?: string | null
+          preferred_date?: string
+          preferred_end_time?: string | null
+          preferred_start_time?: string | null
+          priority?: number
+          service_id?: number
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_entries_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waitlist_settings: {
+        Row: {
+          auto_notify_on_cancel: boolean | null
+          business_id: number
+          created_at: string | null
+          expiry_days: number | null
+          id: number
+          is_active: boolean | null
+          max_queue_size: number | null
+          notification_mode: string | null
+          notification_timeout_minutes: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_notify_on_cancel?: boolean | null
+          business_id: number
+          created_at?: string | null
+          expiry_days?: number | null
+          id?: number
+          is_active?: boolean | null
+          max_queue_size?: number | null
+          notification_mode?: string | null
+          notification_timeout_minutes?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_notify_on_cancel?: boolean | null
+          business_id?: number
+          created_at?: string | null
+          expiry_days?: number | null
+          id?: number
+          is_active?: boolean | null
+          max_queue_size?: number | null
+          notification_mode?: string | null
+          notification_timeout_minutes?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -865,6 +1033,14 @@ export type Database = {
           user_id: string
         }
         Returns: boolean
+      }
+      check_rate_limit: {
+        Args: {
+          p_identifier: string
+          p_max_requests: number
+          p_window_ms: number
+        }
+        Returns: Json
       }
       create_referral_code_on_signup: {
         Args: Record<PropertyKey, never>
@@ -888,10 +1064,15 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_waitlist_count: {
+        Args: { p_business_id: number; p_date: string; p_start_time?: string }
+        Returns: number
+      }
       insert_notification: {
         Args: {
           p_message: string
           p_related_appointment_id?: number
+          p_related_id?: number
           p_related_reschedule_id?: number
           p_title: string
           p_type: string
@@ -899,11 +1080,18 @@ export type Database = {
         }
         Returns: Json
       }
-      process_referral: {
+      join_waitlist: {
         Args: {
-          p_referred_id: string
-          p_referral_code: string
+          p_business_id: number
+          p_preferred_date: string
+          p_preferred_end_time?: string
+          p_preferred_start_time?: string
+          p_service_id: number
         }
+        Returns: Json
+      }
+      process_referral: {
+        Args: { p_referral_code: string; p_referred_id: string }
         Returns: boolean
       }
     }

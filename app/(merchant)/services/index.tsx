@@ -18,19 +18,11 @@ import ScreenContainer from '../../../components/layout/ScreenContainer';
 import ServiceCard from '../../../components/ServiceCard';
 import { CustomButton } from '../../../components/CustomButton';
 import { logger } from '../../../lib/logger';
+import { ServiceListItem } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
 // --- TIPOS ---
-type Service = {
-  id: string;
-  name: string;
-  price: number;
-  description: string | null;
-  photos: string[] | string | null;
-  category: string | null;
-  duration_minutes: number | null;
-  rating?: number;
-  review_count?: number;
-};
+type Service = ServiceListItem;
 
 const MerchantServicesScreen: React.FC = () => {
   const router = useRouter();
@@ -153,16 +145,16 @@ const MerchantServicesScreen: React.FC = () => {
         reviewCount={item.review_count}
         categoryName={item.category}
         containerStyle={{ width: '100%' }}
-        onPress={() => handleServicePress(item.id)}
+        onPress={() => handleServicePress(String(item.id))}
       />
     );
   };
 
   if (loading) {
     return (
-      <ScreenContainer scroll={false} backgroundColor="#FAFAFA" hasHeader={true}>
+      <ScreenContainer scroll={false} backgroundColor={colors.background} hasHeader={true}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -172,7 +164,7 @@ const MerchantServicesScreen: React.FC = () => {
   return (
     <ScreenContainer
       scroll={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       hasHeader={true}
       horizontalPadding={24}
       header={
@@ -203,12 +195,12 @@ const MerchantServicesScreen: React.FC = () => {
             <TextInput
               style={styles.searchInput}
               placeholder="Buscar serviços"
-              placeholderTextColor="#474747"
+              placeholderTextColor={colors.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             <View style={styles.searchIconContainer}>
-              <IconSearch size={20} color="#0F0F0F" />
+              <IconSearch size={20} color={colors.textPrimary} />
             </View>
           </View>
         </View>
@@ -218,7 +210,7 @@ const MerchantServicesScreen: React.FC = () => {
           <FlatList
             data={filteredServices}
             renderItem={renderServiceCard}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => String(item.id)}
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             showsVerticalScrollIndicator={false}
@@ -262,7 +254,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     marginTop: 0,
     marginBottom: 16,
   },
@@ -275,14 +267,14 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#0F0F0F',
+    borderColor: colors.textPrimary,
     backgroundColor: '#FFFFFF',
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
     paddingRight: 12,
     height: '100%',
   },
@@ -308,7 +300,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
 
@@ -316,6 +308,6 @@ const styles = StyleSheet.create({
   footerContainer: {
     paddingTop: 16,
     paddingBottom: 32,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
 });

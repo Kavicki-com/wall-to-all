@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, StyleSheet, StyleProp, TextStyle } from 'react-native';
+import { colors } from '../../lib/theme';
 
 interface SectionTitleProps {
   /**
@@ -24,7 +25,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
 });
 

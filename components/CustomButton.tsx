@@ -1,9 +1,9 @@
 import React from 'react';
-import { 
-  TouchableOpacity, 
-  Text, 
-  StyleSheet, 
-  ActivityIndicator, 
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
   TouchableOpacityProps,
   ViewStyle,
   DimensionValue,
@@ -11,13 +11,14 @@ import {
   TextStyle,
   Platform
 } from 'react-native';
+import { colors } from '../lib/theme';
 
 const COLORS = {
-  BRAND_BLUE: '#000E3D',
-  WHITE: '#FEFEFE',
-  SHADOW: '#1D1D1D',
-  RED_ACTION: '#E5102E', 
-  DISABLED: '#A0A0A0',
+  BRAND_BLUE: colors.brand,
+  WHITE: colors.surface,
+  SHADOW: colors.shadow,
+  RED_ACTION: colors.accent,
+  DISABLED: colors.disabled,
 };
 
 interface CustomButtonProps extends TouchableOpacityProps {
@@ -32,21 +33,21 @@ interface CustomButtonProps extends TouchableOpacityProps {
   compact?: boolean;
 }
 
-export function CustomButton({ 
-  title, 
-  onPress, 
-  isLoading = false, 
-  variant = 'primary', 
-  width = '100%', 
+export function CustomButton({
+  title,
+  onPress,
+  isLoading = false,
+  variant = 'primary',
+  width = '100%',
   disabled,
   style,
   rightIcon,
   leftIcon,
   textStyle,
   compact = false,
-  ...rest 
+  ...rest
 }: CustomButtonProps) {
-  
+
   const getContainerStyle = (): ViewStyle => {
     switch (variant) {
       case 'outline': return styles.containerOutline;
@@ -73,9 +74,9 @@ export function CustomButton({
   return (
     <TouchableOpacity
       style={[
-        styles.baseContainer, 
+        styles.baseContainer,
         compact && styles.compactContainer,
-        getContainerStyle(), 
+        getContainerStyle(),
         { width }, // Aplica a largura passada via prop
         isButtonDisabled && styles.disabledContainer,
         style
@@ -97,9 +98,9 @@ export function CustomButton({
             </View>
           )}
           <Text style={[
-            styles.text, 
+            styles.text,
             compact && styles.compactText,
-            { color: getTextColor() }, 
+            { color: getTextColor() },
             textStyle
           ]}>
             {title}
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     // Não coloque width fixo aqui, ele vem da prop
   },
-  
+
   containerPrimary: {
     backgroundColor: COLORS.BRAND_BLUE,
     borderWidth: 0,
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.RED_ACTION,
     borderWidth: 0,
   },
-  
+
   disabledContainer: {
     backgroundColor: COLORS.DISABLED,
     borderColor: COLORS.DISABLED,

@@ -16,6 +16,7 @@ import {
 } from '../../lib/icons';
 import { Icon } from '../ui/Icon';
 import { logger } from '../../lib/logger';
+import { colors } from '../../lib/theme';
 
 export type PaymentMethod = 'pix' | 'card' | 'cash';
 
@@ -86,12 +87,12 @@ const MerchantRescheduleConfirmCard: React.FC<MerchantRescheduleConfirmCardProps
   const getPaymentMethodIcon = () => {
     const method = paymentMethod.toLowerCase();
     if (method === 'card' || method === 'credit_card' || method === 'debit_card') {
-      return <IconCreditCard size={24} color="#000E3D" />;
+      return <IconCreditCard size={24} color={colors.brand} />;
     }
     if (method === 'cash' || method === 'dinheiro') {
-      return <IconCash size={24} color="#000E3D" />;
+      return <IconCash size={24} color={colors.brand} />;
     }
-    return <IconPix size={24} color="#000E3D" />;
+    return <IconPix size={24} color={colors.brand} />;
   };
 
   const getPaymentMethodLabel = () => {
@@ -115,7 +116,7 @@ const MerchantRescheduleConfirmCard: React.FC<MerchantRescheduleConfirmCardProps
 
       {/* New Appointment Card */}
       <View style={styles.newAppointmentCard}>
-        <Icon name="calendar_clock" family="MaterialSymbols" size={24} color="#000E3D" />
+        <Icon name="calendar_clock" family="MaterialSymbols" size={24} color={colors.brand} />
         <View style={styles.newAppointmentContent}>
           <Text style={styles.newAppointmentDate}>
             {formatDateLong(newDate)}
@@ -198,7 +199,7 @@ const MerchantRescheduleConfirmCard: React.FC<MerchantRescheduleConfirmCardProps
         activeOpacity={0.8}
       >
         {isSubmitting ? (
-          <ActivityIndicator size="small" color="#FEFEFE" />
+          <ActivityIndicator size="small" color={colors.surface} />
         ) : (
           <Text style={styles.submitButtonText}>Enviar</Text>
         )}
@@ -219,12 +220,12 @@ const styles = StyleSheet.create({
   rescheduleLabel: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   serviceName: {
     fontSize: 20,
     fontFamily: 'Montserrat_700Bold',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   newAppointmentCard: {
     flexDirection: 'row',
@@ -232,7 +233,7 @@ const styles = StyleSheet.create({
     gap: 16,
     backgroundColor: '#EBEFFF',
     borderWidth: 2,
-    borderColor: '#000E3D',
+    borderColor: colors.brand,
     borderRadius: 24,
     padding: 16,
   },
@@ -243,12 +244,12 @@ const styles = StyleSheet.create({
   newAppointmentDate: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   newAppointmentTime: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
   },
   section: {
     gap: 8,
@@ -256,7 +257,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
   },
   clientInfo: {
     flexDirection: 'row',
@@ -280,7 +281,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 16,
     borderWidth: 1,
@@ -312,7 +313,7 @@ const styles = StyleSheet.create({
     color: '#17723F',
   },
   observationsContainer: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     padding: 16,
     borderWidth: 1,
@@ -333,7 +334,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   justificationContainer: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     padding: 16,
     borderWidth: 1,
@@ -348,7 +349,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   submitButton: {
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -373,6 +374,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
   },
 });

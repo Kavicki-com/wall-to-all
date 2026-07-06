@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  FlatList,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
@@ -20,6 +21,7 @@ import TopServiceCard from '../../../components/TopServiceCard';
 import { CustomButton } from '../../../components/CustomButton';
 import { safeGoBack } from '../../../lib/router-utils';
 import { BusinessProfile as Business, Service } from '../../../lib/types';
+import { colors } from '../../../lib/theme';
 
 const SearchResultsScreen: React.FC = () => {
   const router = useRouter();
@@ -89,7 +91,7 @@ const SearchResultsScreen: React.FC = () => {
 
       // Verificar se o termo de busca é igual ao nome da categoria
       // Se for, tratar como busca apenas por categoria (não filtrar por nome)
-      const isCategoryOnlySearch = selectedCategory && 
+      const isCategoryOnlySearch = selectedCategory &&
         trimmedSearch.toLowerCase().trim() === selectedCategory.toLowerCase().trim();
 
       // Se não houver busca nem categoria, limpar
@@ -226,15 +228,15 @@ const SearchResultsScreen: React.FC = () => {
           const rating =
             reviews.length > 0
               ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
-                reviews.length
+              reviews.length
               : undefined;
           const reviewCount = reviews.length;
           const appointmentCount = appointments.length;
 
           const baseScore = rating
             ? rating * 0.6 +
-              Math.min(reviewCount / 10, 1) * 0.2 +
-              Math.min(appointmentCount / 5, 1) * 0.2
+            Math.min(reviewCount / 10, 1) * 0.2 +
+            Math.min(appointmentCount / 5, 1) * 0.2
             : 0;
           const featuredBonus = svc.is_featured ? 2.0 : 0;
           const score = baseScore + featuredBonus;
@@ -308,24 +310,8 @@ const SearchResultsScreen: React.FC = () => {
 
   const hasResults = businesses.length > 0 || services.length > 0;
 
-  return (
-    <ScreenContainer 
-      scroll={true}
-      hasHeader={true}
-      hasTabBar={false}
-      backgroundColor="#FAFAFA"
-      contentContainerStyle={styles.scrollContent}
-      header={
-        <AppHeader
-          showBackButton
-          onPressBack={() => safeGoBack('/(client)/home')}
-        />
-      }
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* SearchBar igual ao MCP: cinza, com X e botão de filtro vermelho */}
+  const renderHeader = useCallback(() => (
+    <>
       <View style={styles.searchBarWrapper}>
         <SearchBar
           value={search}
@@ -352,7 +338,7 @@ const SearchResultsScreen: React.FC = () => {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : (
         <>
@@ -360,67 +346,41 @@ const SearchResultsScreen: React.FC = () => {
           {businesses.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Principais resultados</Text>
-              <ScrollView
+              <FlatList
+                data={businesses}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.businessRow}
-              >
-                {businesses.map((biz, index) => (
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item, index }) => (
                   <View
-                    key={biz.id.toString()}
                     style={[
                       styles.businessWrapper,
                       index === businesses.length - 1 && { marginRight: 24 },
                     ]}
                   >
                     <BusinessCard
-                      id={biz.id}
-                      business_name={biz.business_name}
-                      logo_url={biz.logo_url}
-                      banner_url={biz.banner_url}
-                      description={biz.description}
-                      category={biz.categories?.name || null}
-                      categories={biz.categories}
-                      services={biz.services}
-                      work_days={biz.work_days as any}
-                      accepted_payment_methods={biz.accepted_payment_methods as any}
+                      id={item.id}
+                      business_name={item.business_name}
+                      logo_url={item.logo_url}
+                      banner_url={item.banner_url}
+                      description={item.description}
+                      category={item.categories?.name || null}
+                      categories={item.categories}
+                      services={item.services}
+                      work_days={item.work_days as any}
+                      accepted_payment_methods={item.accepted_payment_methods as any}
                       onPress={handleBusinessPress}
                     />
                   </View>
-                ))}
-              </ScrollView>
+                )}
+              />
             </View>
           )}
 
-          {/* PRINCIPAIS SERVIÇOS (TopServiceCard) */}
+          {/* Title for Services List */}
           {services.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Principais serviços</Text>
-              <View style={styles.servicesList}>
-                {services.map((svc) => (
-                  <TopServiceCard
-                    key={String(svc.id)}
-                    id={svc.id}
-                    name={svc.name}
-                    price={svc.price}
-                    photos={svc.photos}
-                    rating={svc.rating}
-                    reviewCount={svc.review_count}
-                    category={svc.categories?.name || null}
-                    onPress={() => handleServicePress(svc)}
-                  />
-                ))}
-              </View>
-
-              <View style={styles.buttonWrapper}>
-                <CustomButton
-                  title="Agendar serviços"
-                  variant="outline"
-                  onPress={handleSchedule}
-                  style={styles.cylindricalButton}
-                />
-              </View>
-            </View>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Principais serviços</Text>
           )}
 
           {!hasResults && (
@@ -433,6 +393,69 @@ const SearchResultsScreen: React.FC = () => {
           )}
         </>
       )}
+    </>
+  ), [search, loading, businesses, services, hasResults, performSearch, handleBusinessPress]);
+
+  const renderServiceItem = useCallback(({ item }: { item: Service }) => (
+    <View style={{ marginBottom: 12 }}>
+      <TopServiceCard
+        id={item.id}
+        name={item.name}
+        price={item.price}
+        photos={item.photos}
+        rating={item.rating}
+        reviewCount={item.review_count}
+        category={item.categories?.name || null}
+        onPress={() => handleServicePress(item)}
+      />
+    </View>
+  ), [handleServicePress]);
+
+  const renderFooter = useCallback(() => {
+    if (services.length > 0) {
+      return (
+        <View style={styles.buttonWrapper}>
+          <CustomButton
+            title="Agendar serviços"
+            variant="outline"
+            onPress={handleSchedule}
+            style={styles.cylindricalButton}
+          />
+        </View>
+      );
+    }
+    return null;
+  }, [services.length, handleSchedule]);
+
+  return (
+    <ScreenContainer
+      scroll={false} // Disable ScreenContainer scroll since we use FlatList
+      hasHeader={true}
+      hasTabBar={false}
+      backgroundColor={colors.background}
+      // contentContainerStyle removed as it applies to ScrollView
+      header={
+        <AppHeader
+          showBackButton
+          onPressBack={() => safeGoBack('/(client)/home')}
+        />
+      }
+    >
+      <FlatList
+        data={services}
+        renderItem={renderServiceItem}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        removeClippedSubviews={true} // Performance optim: unmount offscreen components
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={5}
+      />
     </ScreenContainer>
   );
 };
@@ -441,7 +464,7 @@ export default SearchResultsScreen;
 
 const styles = StyleSheet.create({
   searchBarWrapper: {
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     paddingTop: 12,
     paddingBottom: 8,
   },
@@ -449,7 +472,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 24,
     paddingTop: 8,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   section: {
     marginBottom: 32,
@@ -457,7 +480,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#E5102E',
+    color: colors.accent,
     marginBottom: 16,
   },
   // Horizontal row de BusinessCards
@@ -489,7 +512,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_600SemiBold',
-    color: '#474747',
+    color: colors.textSecondary,
     marginBottom: 8,
     textAlign: 'center',
   },

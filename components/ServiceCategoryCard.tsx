@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { IconRatingStar } from '../lib/icons';
 import { useCardWidth, responsiveHeight, responsiveWidth, responsiveFontSize } from '../lib/responsive';
+import { colors } from '../lib/theme';
 
 type Props = {
   id: number;
@@ -15,7 +16,7 @@ type Props = {
   testID?: string;
 };
 
-const ServiceCategoryCard: React.FC<Props> = ({
+const ServiceCategoryCard: React.FC<Props> = React.memo(({
   id,
   name,
   price,
@@ -28,18 +29,22 @@ const ServiceCategoryCard: React.FC<Props> = ({
 }) => {
   const serviceCardWidth = useCardWidth(2, 24, 14);
 
-  let imagesArray: string[] = [];
-  if (photos) {
-    if (typeof photos === 'string') {
-      try {
-        imagesArray = JSON.parse(photos);
-      } catch {
-        imagesArray = [photos];
+  const imagesArray = React.useMemo(() => {
+    let imgs: string[] = [];
+    if (photos) {
+      if (typeof photos === 'string') {
+        try {
+          imgs = JSON.parse(photos);
+        } catch {
+          imgs = [photos];
+        }
+      } else if (Array.isArray(photos)) {
+        imgs = photos;
       }
-    } else if (Array.isArray(photos)) {
-      imagesArray = photos;
     }
-  }
+    return imgs;
+  }, [photos]);
+
   const firstImage = imagesArray[0] || null;
 
   return (
@@ -82,14 +87,14 @@ const ServiceCategoryCard: React.FC<Props> = ({
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 export default ServiceCategoryCard;
 
 const styles = StyleSheet.create({
   card: {
     marginRight: responsiveWidth(14),
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     borderRadius: responsiveWidth(8),
     overflow: 'hidden',
   },
@@ -112,7 +117,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: responsiveHeight(8),
     right: responsiveWidth(8),
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: responsiveWidth(8),
     paddingHorizontal: responsiveWidth(6),
     paddingVertical: responsiveHeight(4),
@@ -121,7 +126,7 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
-    color: '#000E3D',
+    color: colors.brand,
   },
 
   info: {
@@ -132,7 +137,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: responsiveFontSize(16),
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     minHeight: responsiveHeight(40),
     textAlign: 'left',
   },
@@ -146,13 +151,13 @@ const styles = StyleSheet.create({
   ratingValue: {
     fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
 
   ratingCount: {
     fontSize: responsiveFontSize(12),
     fontFamily: 'Montserrat_500Medium',
-    color: '#474747',
+    color: colors.textSecondary,
   },
 
   price: {

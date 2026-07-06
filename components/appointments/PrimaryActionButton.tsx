@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { colors } from '../../lib/theme';
 
 interface PrimaryActionButtonProps {
   title: string;
@@ -26,7 +27,7 @@ export const PrimaryActionButton: React.FC<PrimaryActionButtonProps> = ({
       accessibilityState={{ disabled: disabled || isLoading }}
     >
       {isLoading ? (
-        <ActivityIndicator size="small" color="#FEFEFE" />
+        <ActivityIndicator size="small" color={colors.surface} />
       ) : (
         <>
           <Text style={styles.text}>{title}</Text>
@@ -43,7 +44,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 24,
@@ -59,6 +60,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
   },
 });

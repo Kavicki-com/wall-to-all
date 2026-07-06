@@ -20,6 +20,7 @@ import { CustomButton } from '../../../components/CustomButton';
 import { RadioGroup } from '../../../components/ui/RadioGroup';
 import { Chip } from '../../../components/ui/Chip';
 import { logger } from '../../../lib/logger';
+import { colors } from '../../../lib/theme';
 
 type AvailabilityOption = {
   value: string;
@@ -386,7 +387,7 @@ const MerchantSignupServicesScreen: React.FC = () => {
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       footer={
         <View style={styles.footerContainer}>
           <CustomButton
@@ -534,7 +535,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: 'Montserrat_700Bold',
     fontSize: 12,
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 4,
   },
   radioGroup: {
@@ -552,7 +553,7 @@ const styles = StyleSheet.create({
   },
   textarea: {
     borderWidth: 1,
-    borderColor: '#474747',
+    borderColor: colors.textSecondary,
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 16,
@@ -561,13 +562,13 @@ const styles = StyleSheet.create({
   errorText: {
     marginTop: 16,
     alignSelf: 'center',
-    color: '#E5102E',
+    color: colors.accent,
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
   },
   footerContainer: {
     paddingTop: 16,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
   },

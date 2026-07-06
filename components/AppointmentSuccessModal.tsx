@@ -8,6 +8,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { IconCheckCircle } from '../lib/icons';
+import { colors } from '../lib/theme';
 
 interface AppointmentSuccessModalProps {
   visible: boolean;
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 16,
     width: '100%',
@@ -91,7 +92,7 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     width: '100%',
-    backgroundColor: '#000E3D',
+    backgroundColor: colors.brand,
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -102,7 +103,7 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
   },
 });
 

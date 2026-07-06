@@ -28,6 +28,7 @@ import { CustomButton } from '../../../components/CustomButton';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { handleError } from '../../../lib/errorHandler';
 import { logger } from '../../../lib/logger';
+import { colors } from '../../../lib/theme';
 
 const BUSINESS_TIME_OPTIONS = ['1 ano', '2 anos', '3 anos', '4 anos', '5+ anos'];
 
@@ -43,7 +44,7 @@ const DAYS_OF_WEEK = [
 
 const EditBusinessProfileScreen: React.FC = () => {
   const router = useRouter();
-  const { showError, showSuccess } = useToast();
+  const { showError, showSuccess, showWarning } = useToast();
   const { session } = useAuth();
   const { businessProfile: contextBusinessProfile, loading: profileLoading, refreshBusinessProfile } = useBusinessProfile();
   const [loading, setLoading] = useState(true);
@@ -76,7 +77,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       setWorkDays(contextBusinessProfile.work_days || {});
       setLoading(false);
     } else if (!profileLoading && !contextBusinessProfile && session) {
-      Alert.alert('Erro', 'Perfil do negócio não encontrado.');
+      showError('Perfil do negócio não encontrado.');
       router.replace('/(merchant)/settings');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,7 +94,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       if (Platform.OS !== 'web') {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+          showWarning('Precisamos de permissão para acessar suas fotos.');
           return;
         }
       }
@@ -132,12 +133,12 @@ const EditBusinessProfileScreen: React.FC = () => {
         try {
           const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+            showWarning('Precisamos de permissão para acessar suas fotos.');
             return;
           }
         } catch (permissionError) {
           logger.error('Erro ao solicitar permissão de imagem:', permissionError);
-          Alert.alert('Erro', 'Não foi possível solicitar permissão para acessar suas fotos.');
+          showError('Não foi possível solicitar permissão para acessar suas fotos.');
           return;
         }
       }
@@ -299,12 +300,12 @@ const EditBusinessProfileScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!businessName.trim()) {
-      Alert.alert('Erro', 'O nome do negócio é obrigatório.');
+      showError('O nome do negócio é obrigatório.');
       return;
     }
 
     if (!contextBusinessProfile) {
-      Alert.alert('Erro', 'Perfil não encontrado.');
+      showError('Perfil não encontrado.');
       return;
     }
 
@@ -320,7 +321,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       const bannerUploadFailed = hadNewBannerSelected && !bannerUrl;
 
       if (bannerUploadFailed) {
-        Alert.alert('Erro', 'Não foi possível fazer upload do banner. Tente novamente.');
+        showError('Não foi possível fazer upload do banner. Tente novamente.');
         setSaving(false);
         return;
       }
@@ -357,7 +358,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       const logoUploadFailed = hadNewLogoSelected && !logoUrl;
 
       if (logoUploadFailed) {
-        Alert.alert('Erro', 'Não foi possível fazer upload do logo. Tente novamente.');
+        showError('Não foi possível fazer upload do logo. Tente novamente.');
         setSaving(false);
         return;
       }
@@ -381,12 +382,10 @@ const EditBusinessProfileScreen: React.FC = () => {
         return;
       }
 
-      showSuccess('Perfil atualizado com sucesso!');
       // Atualizar o contexto do perfil antes de voltar
       await refreshBusinessProfile();
-      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
-        { text: 'OK', onPress: () => safeGoBack('/(merchant)/settings') },
-      ]);
+      showSuccess('Perfil atualizado com sucesso!');
+      safeGoBack('/(merchant)/settings');
     } catch (error) {
       const processed = handleError(error, 'profile');
       showError(processed.userMessage);
@@ -411,7 +410,7 @@ const EditBusinessProfileScreen: React.FC = () => {
               } = await supabase.auth.getUser();
 
               if (!user) {
-                Alert.alert('Erro', 'Usuário não autenticado.');
+                showError('Usuário não autenticado.');
                 return;
               }
 
@@ -433,7 +432,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
                 if (appointmentsError) {
                   logger.error('Erro ao deletar agendamentos:', appointmentsError);
-                  Alert.alert('Erro', 'Não foi possível deletar os agendamentos. Tente novamente.');
+                  showError('Não foi possível deletar os agendamentos. Tente novamente.');
                   return;
                 }
 
@@ -445,7 +444,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
                 if (reviewsError) {
                   logger.error('Erro ao deletar avaliações:', reviewsError);
-                  Alert.alert('Erro', 'Não foi possível deletar as avaliações. Tente novamente.');
+                  showError('Não foi possível deletar as avaliações. Tente novamente.');
                   return;
                 }
 
@@ -457,7 +456,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
                 if (servicesError) {
                   logger.error('Erro ao deletar serviços:', servicesError);
-                  Alert.alert('Erro', 'Não foi possível deletar os serviços. Tente novamente.');
+                  showError('Não foi possível deletar os serviços. Tente novamente.');
                   return;
                 }
 
@@ -469,7 +468,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
                 if (businessProfileError) {
                   logger.error('Erro ao deletar perfil do negócio:', businessProfileError);
-                  Alert.alert('Erro', 'Não foi possível deletar o perfil do negócio. Tente novamente.');
+                  showError('Não foi possível deletar o perfil do negócio. Tente novamente.');
                   return;
                 }
               }
@@ -482,7 +481,7 @@ const EditBusinessProfileScreen: React.FC = () => {
 
               if (profileError) {
                 logger.error('Erro ao deletar perfil do usuário:', profileError);
-                Alert.alert('Erro', 'Não foi possível deletar o perfil do usuário. Tente novamente.');
+                showError('Não foi possível deletar o perfil do usuário. Tente novamente.');
                 return;
               }
 
@@ -504,11 +503,11 @@ const EditBusinessProfileScreen: React.FC = () => {
               // 7. Fazer logout
               await supabase.auth.signOut();
 
-              Alert.alert('Conta Excluída', 'Sua conta foi excluída com sucesso.');
+              showSuccess('Sua conta foi excluída com sucesso.');
               router.replace('/(auth)/login');
             } catch (error) {
               logger.error('Erro ao excluir conta:', error);
-              Alert.alert('Erro', 'Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
+              showError('Ocorreu um erro ao excluir sua conta. Por favor, tente novamente.');
             }
           },
         },
@@ -520,7 +519,7 @@ const EditBusinessProfileScreen: React.FC = () => {
     return (
       <ScreenContainer
         scroll={false}
-        backgroundColor="#FAFAFA"
+        backgroundColor={colors.background}
         hasHeader={true}
         hasTabBar={false}
         header={
@@ -532,7 +531,7 @@ const EditBusinessProfileScreen: React.FC = () => {
         }
       >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#E5102E" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </ScreenContainer>
     );
@@ -542,7 +541,7 @@ const EditBusinessProfileScreen: React.FC = () => {
     return (
       <ScreenContainer
         scroll={false}
-        backgroundColor="#FAFAFA"
+        backgroundColor={colors.background}
         hasHeader={true}
         hasTabBar={false}
         header={
@@ -567,7 +566,7 @@ const EditBusinessProfileScreen: React.FC = () => {
       scroll={true}
       hasHeader={true}
       hasTabBar={false}
-      backgroundColor="#FAFAFA"
+      backgroundColor={colors.background}
       header={
         <AppHeader
           title="Editar perfil"
@@ -610,7 +609,7 @@ const EditBusinessProfileScreen: React.FC = () => {
               ? categories.find(c => c.id === selectedCategoryId)?.name || 'Selecione uma categoria'
               : 'Selecione uma categoria'}
           </Text>
-          <IconChevronDown size={24} color="#0F0F0F" />
+          <IconChevronDown size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -621,9 +620,9 @@ const EditBusinessProfileScreen: React.FC = () => {
         activeOpacity={0.7}
       >
         {hasLunchTime ? (
-          <IconCheckbox size={24} color="#000E3D" />
+          <IconCheckbox size={24} color={colors.brand} />
         ) : (
-          <IconCheckboxOutline size={24} color="#000E3D" />
+          <IconCheckboxOutline size={24} color={colors.brand} />
         )}
         <Text style={styles.checkboxLabel}>Horário de almoço</Text>
       </TouchableOpacity>
@@ -634,7 +633,7 @@ const EditBusinessProfileScreen: React.FC = () => {
           <Text style={styles.label}>Horário de almoço</Text>
           <TouchableOpacity style={[styles.input, styles.inputWithBorder]}>
             <Text style={styles.inputText}>12:00</Text>
-            <IconChevronDown size={24} color="#0F0F0F" />
+            <IconChevronDown size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
       )}
@@ -649,7 +648,7 @@ const EditBusinessProfileScreen: React.FC = () => {
           <Text style={[styles.inputText, !businessTime && styles.inputPlaceholder]}>
             {businessTime || '1 ano'}
           </Text>
-          <IconChevronDown size={24} color="#0F0F0F" />
+          <IconChevronDown size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -668,9 +667,9 @@ const EditBusinessProfileScreen: React.FC = () => {
                 activeOpacity={0.7}
               >
                 {isEnabled ? (
-                  <IconCheckbox size={24} color="#000E3D" />
+                  <IconCheckbox size={24} color={colors.brand} />
                 ) : (
-                  <IconCheckboxOutline size={24} color="#474747" />
+                  <IconCheckboxOutline size={24} color={colors.textSecondary} />
                 )}
                 <Text style={[styles.dayLabel, !isEnabled && styles.dayLabelDisabled]}>
                   {day.label}
@@ -726,7 +725,7 @@ const EditBusinessProfileScreen: React.FC = () => {
             <Image source={{ uri: logoUri }} style={styles.logoImage} />
           ) : (
             <View style={styles.logoPlaceholder}>
-              <IconDelete size={34} color="#474747" />
+              <IconDelete size={34} color={colors.textSecondary} />
             </View>
           )}
         </TouchableOpacity>
@@ -848,7 +847,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
   },
   topBarContainer: {
     width: '100%',
@@ -880,7 +879,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#FEFEFE',
+    color: colors.surface,
     textAlign: 'center',
   },
   notificationButton: {
@@ -895,30 +894,30 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 4,
   },
   input: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#474747',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 12,
     paddingVertical: 16,
     minHeight: 48,
   },
   inputWithBorder: {
     borderWidth: 2,
-    borderColor: '#0F0F0F',
+    borderColor: colors.textPrimary,
   },
   inputText: {
     flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   inputPlaceholder: {
     color: '#9E9E9E',
@@ -937,7 +936,7 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   workDaysSection: {
     marginBottom: 16,
@@ -954,10 +953,10 @@ const styles = StyleSheet.create({
   dayLabel: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   dayLabelDisabled: {
-    color: '#474747',
+    color: colors.textSecondary,
   },
   dayTimes: {
     flexDirection: 'row',
@@ -970,14 +969,14 @@ const styles = StyleSheet.create({
   timeLabel: {
     fontSize: 12,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 4,
   },
   timeInput: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#474747',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 12,
     paddingVertical: 16,
     minHeight: 48,
@@ -1014,12 +1013,12 @@ const styles = StyleSheet.create({
   bannerPlaceholderText: {
     fontFamily: 'Montserrat_400Regular',
     fontSize: 14,
-    color: '#474747',
+    color: colors.textSecondary,
   },
   uploadLabel: {
     fontSize: 12,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 8,
   },
   logoUploadContainer: {
@@ -1044,7 +1043,7 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     paddingTop: 16,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
   },
@@ -1057,7 +1056,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#474747',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   modalOverlay: {
@@ -1066,7 +1065,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -1075,7 +1074,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontFamily: 'Montserrat_700Bold',
-    color: '#000E3D',
+    color: colors.brand,
     marginBottom: 16,
   },
   modalOption: {
@@ -1089,7 +1088,7 @@ const styles = StyleSheet.create({
   modalOptionText: {
     fontSize: 16,
     fontFamily: 'Montserrat_400Regular',
-    color: '#0F0F0F',
+    color: colors.textPrimary,
   },
   modalOptionTextSelected: {
     fontFamily: 'Montserrat_700Bold',
