@@ -1,7 +1,5 @@
 # Merchant Signup Role Sync Routing Fix Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Ensure a user who finishes the merchant signup flow lands in the merchant area on the first post-signup navigation, without needing to log out and log back in.
 
 **Architecture:** The fix should synchronize the in-memory auth role immediately after the merchant profile is finalized and before leaving the signup flow. We will expose an explicit `refreshUserRole` helper from `AuthContext`, call it from the merchant signup loading screen after the `profiles` upsert succeeds, and preserve the current product expectation of navigating to the merchant dashboard.

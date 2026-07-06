@@ -1,2 +1,3 @@
-npm run ci:check
+# Heap aumentado: o tsc estoura a heap padrão do Node nesta base (OOM, exit 134).
+NODE_OPTIONS="--max-old-space-size=8192" npm run ci:check
 

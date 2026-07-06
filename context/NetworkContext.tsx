@@ -35,6 +35,10 @@ export const getNetInfo = (): NetInfoLike | null => {
   }
 
   try {
+    // Carga tardia de dependência nativa opcional: se ausente, o catch abaixo
+    // trata e seguimos sem monitoramento. require() é intencional aqui — um import
+    // estático seria avaliado ansiosamente no bundle. Não converter para import.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const module = require('@react-native-community/netinfo');
     const resolved = (module?.default ?? module) as Partial<NetInfoLike>;
 

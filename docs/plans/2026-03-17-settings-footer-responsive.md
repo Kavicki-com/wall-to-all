@@ -1,7 +1,5 @@
 # Settings Footer Responsive Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Keep both settings screens visually centered like the approved reference while pinning the `Sair` action above the tab bar through `ScreenContainer` footer handling.
 
 **Architecture:** Both settings screens will share the same structural pattern: scrollable content for the profile header and options list, plus a footer-hosted logout button. The implementation keeps the existing visual hierarchy and removes the positional drift caused by rendering `Sair` inside the content body.
