@@ -84,3 +84,10 @@ feature-graphic*.png
 .agents
 __tests__
 migrations
+
+# Android build artifacts (App Bundles / APKs)
+*.aab
+*.apk
+
+# Supabase CLI local temp
+supabase/.temp/
