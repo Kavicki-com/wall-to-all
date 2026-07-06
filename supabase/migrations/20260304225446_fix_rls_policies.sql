@@ -30,12 +30,12 @@ CREATE POLICY "Owner manage services"
   TO authenticated
   USING (
     auth.uid() IN (
-      SELECT owner_id FROM businesses WHERE id = business_id
+      SELECT owner_id FROM business_profiles WHERE id = business_id
     )
   )
   WITH CHECK (
     auth.uid() IN (
-      SELECT owner_id FROM businesses WHERE id = business_id
+      SELECT owner_id FROM business_profiles WHERE id = business_id
     )
   );
 
