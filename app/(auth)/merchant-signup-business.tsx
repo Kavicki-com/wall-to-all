@@ -80,6 +80,18 @@ type WorkDaysState = {
   sunday: WorkDayData;
 };
 
+const DRAFT_KEY = 'merchant_signup_draft';
+
+const getDefaultWorkDays = (): WorkDaysState => ({
+  monday: { active: false, start: '07:00', end: '18:00' },
+  tuesday: { active: false, start: '07:00', end: '18:00' },
+  wednesday: { active: false, start: '07:00', end: '18:00' },
+  thursday: { active: false, start: '07:00', end: '18:00' },
+  friday: { active: false, start: '07:00', end: '18:00' },
+  saturday: { active: false, start: '07:00', end: '18:00' },
+  sunday: { active: false, start: '07:00', end: '18:00' },
+});
+
 const MerchantSignupBusinessScreen: React.FC = () => {
   const router = useRouter();
   const safeGoBack = useSafeGoBack('/(auth)/merchant-signup-address');
@@ -116,42 +128,99 @@ const MerchantSignupBusinessScreen: React.FC = () => {
     }
   };
 
-  const [workDays, setWorkDays] = useState<WorkDaysState>({
-    monday: { active: false, start: '07:00', end: '18:00' },
-    tuesday: { active: false, start: '07:00', end: '18:00' },
-    wednesday: { active: false, start: '07:00', end: '18:00' },
-    thursday: { active: false, start: '07:00', end: '18:00' },
-    friday: { active: false, start: '07:00', end: '18:00' },
-    saturday: { active: false, start: '07:00', end: '18:00' },
-    sunday: { active: false, start: '07:00', end: '18:00' },
-  });
+  const [workDays, setWorkDays] = useState<WorkDaysState>(getDefaultWorkDays());
 
-  // Resetar campos quando a tela é focada (quando volta de outras telas)
+  // A categoria depende da lista `categories` (carregada de forma assíncrona),
+  // então guardamos o id restaurado e resolvemos quando ambos estiverem prontos.
+  const [pendingCategoryId, setPendingCategoryId] = useState<number | null>(null);
+
+  // Ao focar a tela, RESTAURAR o que já foi preenchido a partir do rascunho.
+  // (Antes, isto zerava todos os campos — o lojista perdia tudo ao voltar da
+  // tela de serviços. O rascunho já é persistido em `handleContinue`.)
   useFocusEffect(
     React.useCallback(() => {
-      setBusinessName('');
-      setSelectedCategory(null);
-      setBusinessTime(null);
-      setHasLunchBreak(false);
-      setLunchTime(null);
-      setDescription('');
-      setPix(true);
-      setCard(true);
-      setCash(true);
-      setBannerImage(null);
-      setLogoImage(null);
-      setError(null);
-      setWorkDays({
-        monday: { active: false, start: '07:00', end: '18:00' },
-        tuesday: { active: false, start: '07:00', end: '18:00' },
-        wednesday: { active: false, start: '07:00', end: '18:00' },
-        thursday: { active: false, start: '07:00', end: '18:00' },
-        friday: { active: false, start: '07:00', end: '18:00' },
-        saturday: { active: false, start: '07:00', end: '18:00' },
-        sunday: { active: false, start: '07:00', end: '18:00' },
-      });
+      let active = true;
+      (async () => {
+        try {
+          const stored = await AsyncStorage.getItem(DRAFT_KEY);
+          const draft = stored ? JSON.parse(stored) : null;
+          if (!active) return;
+
+          // Sem dados do negócio ainda no rascunho: começar com formulário limpo.
+          if (!draft || draft.business_name === undefined) {
+            setBusinessName('');
+            setSelectedCategory(null);
+            setPendingCategoryId(null);
+            setBusinessTime(null);
+            setHasLunchBreak(false);
+            setLunchTime(null);
+            setDescription('');
+            setPix(true);
+            setCard(true);
+            setCash(true);
+            setBannerImage(null);
+            setLogoImage(null);
+            setError(null);
+            setWorkDays(getDefaultWorkDays());
+            return;
+          }
+
+          // Restaurar campos previamente preenchidos.
+          setBusinessName(draft.business_name || '');
+          setDescription(draft.description || '');
+          setBusinessTime(
+            BUSINESS_TIME_OPTIONS.find((o) => o.label === draft.business_time) || null,
+          );
+          const hasLunch = !!(draft.lunch_break_start && draft.lunch_break_end);
+          setHasLunchBreak(hasLunch);
+          setLunchTime(
+            hasLunch
+              ? LUNCH_TIME_OPTIONS.find(
+                  (l) => l.start === draft.lunch_break_start && l.end === draft.lunch_break_end,
+                ) || null
+              : null,
+          );
+          const pm = draft.accepted_payment_methods || {};
+          setPix(pm.pix ?? true);
+          setCard(pm.card ?? true);
+          setCash(pm.cash ?? true);
+          setBannerImage(draft.banner_image_uri || null);
+          setLogoImage(draft.logo_image_uri || null);
+          setError(null);
+          setPendingCategoryId(
+            typeof draft.category_id === 'number' ? draft.category_id : null,
+          );
+
+          // Reconstruir os dias de funcionamento ativos.
+          const restoredWorkDays = getDefaultWorkDays();
+          const savedWorkDays = draft.work_days || {};
+          (Object.keys(restoredWorkDays) as (keyof WorkDaysState)[]).forEach((key) => {
+            const saved = savedWorkDays[key];
+            if (saved && saved.start && saved.end) {
+              restoredWorkDays[key] = { active: true, start: saved.start, end: saved.end };
+            }
+          });
+          setWorkDays(restoredWorkDays);
+        } catch (e) {
+          logger.error('[MerchantSignupBusiness] Erro ao restaurar rascunho:', e);
+        }
+      })();
+      return () => {
+        active = false;
+      };
     }, [])
   );
+
+  // Resolver a categoria salva assim que a lista de categorias estiver carregada.
+  useEffect(() => {
+    if (pendingCategoryId != null && categories.length > 0) {
+      const found = categories.find((c) => c.id === pendingCategoryId);
+      if (found) {
+        setSelectedCategory(found);
+        setPendingCategoryId(null);
+      }
+    }
+  }, [pendingCategoryId, categories]);
 
   const handleContinue = async () => {
     if (!businessName) {
@@ -198,7 +267,7 @@ const MerchantSignupBusinessScreen: React.FC = () => {
       setError(null);
 
       // Buscar dados salvos anteriormente
-      const draftKey = 'merchant_signup_draft';
+      const draftKey = DRAFT_KEY;
       const stored = await AsyncStorage.getItem(draftKey);
 
       if (!stored) {

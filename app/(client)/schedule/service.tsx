@@ -64,6 +64,7 @@ const ScheduleServiceScreen: React.FC = () => {
         .from('services')
         .select('*')
         .eq('business_id', Number(params.businessId))
+        .eq('is_active', true)
         .order('name', { ascending: true });
 
       if (error) {

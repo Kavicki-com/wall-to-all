@@ -108,7 +108,10 @@ const ScheduleConfirmScreen: React.FC = () => {
   const formatDateAndTime = () => {
     if (!params.date || !params.time) return 'Hoje - 10h às 11h';
 
-    const date = new Date(params.date);
+    // params.date é date-only (yyyy-MM-dd); parsear como data LOCAL para não
+    // recuar um dia por causa da interpretação UTC de `new Date("yyyy-MM-dd")`.
+    const [year, month, day] = params.date.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const compareDate = new Date(date);

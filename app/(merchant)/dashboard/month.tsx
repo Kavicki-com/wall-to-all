@@ -128,18 +128,24 @@ const MerchantMonthDashboardScreen: React.FC = () => {
           return aptDateString >= startDate && aptDateString <= endDate;
         });
 
-        // Converter id de number para string para corresponder ao tipo Appointment
+        // Converter id de number para string para corresponder ao tipo Appointment.
+        // service/client podem vir nulos quando o registro relacionado foi removido
+        // (serviço desativado/excluído ou cliente que apagou a conta), então usamos fallback.
         const normalizedAppointments: Appointment[] = filteredAppointments.map((apt) => ({
           ...apt,
           id: String(apt.id),
-          service: {
-            id: String(apt.service.id),
-            name: apt.service.name,
-          },
-          client: {
-            id: String(apt.client.id),
-            full_name: apt.client.full_name,
-          },
+          service: apt.service
+            ? {
+                id: String(apt.service.id),
+                name: apt.service.name,
+              }
+            : { id: '', name: 'Serviço removido' },
+          client: apt.client
+            ? {
+                id: String(apt.client.id),
+                full_name: apt.client.full_name,
+              }
+            : { id: '', full_name: 'Cliente removido' },
         }));
 
         setAppointments(normalizedAppointments);

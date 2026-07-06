@@ -19,7 +19,10 @@ const TOTAL_CELLS = 42;
 const generateCalendarDates = (month: Date) => {
   const startOfMonthDate = startOfMonth(month);
   const endOfMonthDate = endOfMonth(month);
-  const startDay = startOfMonthDate.getDay();
+  // Cabeçalho é Segunda-first (S,T,Q,Q,S,S,D), então o padding de dias do mês
+  // anterior precisa ser contado a partir de Segunda: (getDay()+6)%7
+  // (getDay(): 0=Domingo ... 6=Sábado).
+  const startDay = (startOfMonthDate.getDay() + 6) % 7;
   const dates: Date[] = [];
 
   for (let i = startDay; i > 0; i--) {

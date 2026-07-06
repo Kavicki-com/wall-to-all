@@ -24,6 +24,20 @@ type TimeSlot = {
   type?: 'available' | 'occupied' | 'lunch';
 };
 
+// Parseia uma string date-only (yyyy-MM-dd) como data LOCAL.
+// `new Date("2025-01-15")` seria interpretado como UTC (meia-noite UTC),
+// o que em UTC-3 recuaria para o dia anterior. Construindo com (ano, mês, dia)
+// garantimos a meia-noite local correta.
+const parseDateParam = (dateStr?: string): Date => {
+  if (!dateStr) return new Date();
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
+    const [year, month, day] = parts;
+    return new Date(year, month - 1, day);
+  }
+  return new Date(dateStr);
+};
+
 const ScheduleTimeScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -31,7 +45,7 @@ const ScheduleTimeScreen: React.FC = () => {
     serviceId: string;
     date?: string;
   }>();
-  const initialDate = params.date ? new Date(params.date) : new Date();
+  const initialDate = parseDateParam(params.date);
   const [loading, setLoading] = useState(true);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -44,8 +58,8 @@ const ScheduleTimeScreen: React.FC = () => {
   useFocusEffect(
     React.useCallback(() => {
       setSelectedTime(null);
-      setCurrentMonth(params.date ? new Date(params.date) : new Date());
-      setSelectedDate(params.date ? new Date(params.date) : new Date());
+      setCurrentMonth(parseDateParam(params.date));
+      setSelectedDate(parseDateParam(params.date));
       setCalendarResetKey((prev) => prev + 1);
       return () => {
       };

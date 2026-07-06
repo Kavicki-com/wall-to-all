@@ -74,13 +74,19 @@ const ServiceCategoryCard: React.FC<Props> = React.memo(({
         </Text>
 
         <View style={styles.ratingRow}>
-          <Text style={styles.ratingValue}>{rating?.toFixed(1) || '4.9'}</Text>
+          {typeof rating === 'number' && typeof reviewCount === 'number' && reviewCount > 0 ? (
+            <>
+              <Text style={styles.ratingValue}>{rating.toFixed(1)}</Text>
 
-          {[1, 2, 3, 4, 5].map((n) => (
-            <IconRatingStar key={n} size={12} color="#FFD700" />
-          ))}
+              {[1, 2, 3, 4, 5].map((n) => (
+                <IconRatingStar key={n} size={12} color="#FFD700" />
+              ))}
 
-          <Text style={styles.ratingCount}>({reviewCount || 30})</Text>
+              <Text style={styles.ratingCount}>({reviewCount})</Text>
+            </>
+          ) : (
+            <Text style={styles.ratingCount}>Novo</Text>
+          )}
         </View>
 
         <Text style={styles.price}>R$ {price.toFixed(2).replace('.', ',')}</Text>

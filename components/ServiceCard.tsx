@@ -85,13 +85,15 @@ const ServiceCard: React.FC<ServiceCardProps> = React.memo(({
       <View style={styles.serviceInfo}>
         <Text style={styles.serviceName}>{name}</Text>
         <View style={styles.serviceRating}>
-          <Text style={styles.serviceRatingValue}>
-            {typeof rating === 'number' ? rating.toFixed(1) : '4.5'}
-          </Text>
-          <IconRatingStar size={16} color="#FFD700" />
-          <Text style={styles.serviceRatingCount}>
-            ({typeof reviewCount === 'number' ? reviewCount : 25})
-          </Text>
+          {typeof rating === 'number' && typeof reviewCount === 'number' && reviewCount > 0 ? (
+            <>
+              <Text style={styles.serviceRatingValue}>{rating.toFixed(1)}</Text>
+              <IconRatingStar size={16} color="#FFD700" />
+              <Text style={styles.serviceRatingCount}>({reviewCount})</Text>
+            </>
+          ) : (
+            <Text style={styles.serviceRatingCount}>Novo</Text>
+          )}
         </View>
         <Text style={styles.servicePrice}>{formattedPrice}</Text>
       </View>
