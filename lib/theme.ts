@@ -36,6 +36,13 @@ export const colors = {
     shadow: '#1D1D1D',       // Shadow color
     disabled: '#A0A0A0',     // Disabled state fill
     overlay: 'rgba(0,0,0,0.5)', // Modal overlay
+
+    // ── New design system (novo escopo) ────────────────────
+    // Tokens do Figma do novo escopo (cliente/lojista). Reutilizados
+    // por Toggle, Slider, tab bars, etc. — nomeados pela intenção do token.
+    surfaceGrey: '#DBDBDB',    // Figma surface/grey — trilhos/off states
+    surfaceSuccess: '#17723F', // Figma surface/success — verde do design system (≠ colors.success)
+    contentLight: '#FEFEFE',   // Figma content/light — knobs/conteúdo claro sobre superfícies
 } as const;
 
 export type ColorKey = keyof typeof colors;
