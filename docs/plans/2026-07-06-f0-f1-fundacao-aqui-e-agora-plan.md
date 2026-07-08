@@ -74,6 +74,8 @@ git add package.json package-lock.json app.json app.config.js
 git commit -m "chore: add react-native-maps, expo-camera and expo-video for new scope"
 ```
 
+> **Nota (pós-implementação):** o diretório `android/` é versionado no git (bare workflow), então config plugins e `android.config.googleMaps` do app.json/app.config.js NÃO se aplicam automaticamente — só teriam efeito em `expo prebuild`, que nunca roda aqui. A key do Google Maps é injetada em nível de Gradle: `android/app/build.gradle` define `manifestPlaceholders` lendo `GOOGLE_MAPS_ANDROID_API_KEY` do ambiente em tempo de build, e `android/app/src/main/AndroidManifest.xml` referencia `${GOOGLE_MAPS_API_KEY}` no meta-data `com.google.android.geo.API_KEY`. Tasks posteriores (14/20) não devem assumir prebuild.
+
 ### Task 2: Mocks de Jest para as libs nativas
 
 **Files:**
