@@ -43,6 +43,7 @@ export const colors = {
   surfaceGrey: '#DBDBDB', // Figma surface/grey — trilhos/off states
   surfaceSuccess: '#17723F', // Figma surface/success — verde do design system (≠ colors.success)
   contentLight: '#FEFEFE', // Figma content/light — knobs/conteúdo claro sobre superfícies
+  surfacePrimaryExtraLight: '#EBEFFF', // Figma surface/primary-extra-light — fundo da TopBar variante clara
 } as const;
 
 export type ColorKey = keyof typeof colors;
