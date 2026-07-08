@@ -6,10 +6,12 @@ export interface QueueTicket {
   id: string;
   number: number;
   customerName: string;
-  joinedAt: string; // ISO 8601
+  /** ISO 8601 */
+  joinedAt: string;
   isFuraFila: boolean;
   status: TicketStatus;
-  positionInLine: number; // 0 = sendo atendido
+  /** 0 = sendo atendido */
+  positionInLine: number;
   estimatedWaitMinutes: number;
 }
 
@@ -52,9 +54,11 @@ export interface QueueService {
   joinQueue(merchantId: string, opts?: { furaFila?: boolean }): Promise<QueueTicket>;
   leaveQueue(ticketId: string): Promise<void>;
   getMyTicket(): Promise<QueueTicket | null>;
+  /** Emite a cada mudança da fila; NÃO emite imediatamente no subscribe. Use getMyTicket()/getMerchantQueue() para o snapshot inicial. Retorna função de unsubscribe. */
   subscribeToTicket(ticketId: string, cb: (ticket: QueueTicket) => void): () => void;
   // lojista
   getMerchantQueue(): Promise<QueueTicket[]>;
+  /** Emite a cada mudança da fila; NÃO emite imediatamente no subscribe. Use getMyTicket()/getMerchantQueue() para o snapshot inicial. Retorna função de unsubscribe. */
   subscribeToMerchantQueue(cb: (tickets: QueueTicket[]) => void): () => void;
   setQueueStatus(status: QueueStatus): Promise<void>;
   callNext(): Promise<QueueTicket | null>;
@@ -71,15 +75,18 @@ export interface PaymentCard {
   brand: CardBrand;
   last4: string;
   holderName: string;
-  expiry: string; // MM/YY
+  /** MM/YY */
+  expiry: string;
   isDefault: boolean;
 }
 
 export interface PixCharge {
+  /** Payload EMV (BR Code) a ser renderizado como QR pela UI — mesmo conteúdo do copyPasteCode, NÃO uma imagem/data-URI. */
   qrCode: string;
   copyPasteCode: string;
   amountCents: number;
-  expiresAt: string; // ISO 8601
+  /** ISO 8601 */
+  expiresAt: string;
 }
 
 export interface WalletService {
