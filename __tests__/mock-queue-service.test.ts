@@ -147,4 +147,34 @@ describe('MockQueueService', () => {
     expect(merchants.some((m) => m.id === 'm1')).toBe(true);
     expect(merchants.some((m) => /Barbearia/.test(m.name))).toBe(true);
   });
+
+  it('isolates a throwing subscriber so others still receive the emission', async () => {
+    const svc = new MockQueueService({ tickIntervalMs: 1000 });
+    const ticket = await svc.joinQueue('m1');
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const good = jest.fn();
+    svc.subscribeToTicket(ticket.id, () => {
+      throw new Error('boom');
+    });
+    svc.subscribeToTicket(ticket.id, good);
+    expect(() => jest.advanceTimersByTime(1000)).not.toThrow();
+    expect(good).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it('resolveTicket with no_show removes the ticket from the merchant queue', async () => {
+    const svc = new MockQueueService();
+    await svc.setQueueStatus('active');
+    const next = await svc.callNext();
+    expect(next?.status).toBe('called');
+    await svc.resolveTicket(next!.id, 'no_show');
+    const queue = await svc.getMerchantQueue();
+    expect(queue.find((t) => t.id === next!.id)).toBeUndefined();
+  });
+
+  it('rejects for an unknown merchantId', async () => {
+    const svc = new MockQueueService();
+    await expect(svc.getQueueInfo('does-not-exist')).rejects.toThrow(/does-not-exist/);
+  });
 });

@@ -316,11 +316,17 @@ export class MockQueueService implements QueueService {
       const ticket = this.tickets.find((t) => t.id === ticketId);
       if (!ticket) continue;
       for (const cb of [...callbacks]) {
-        cb({ ...ticket });
+        this.invokeTicketCb(cb, ticket);
       }
     }
     for (const cb of [...this.merchantQueueSubscribers]) {
-      cb(this.snapshotQueue());
+      // Isola cada subscriber: um throw não pode abortar o loop nem escapar
+      // do setInterval (red-box no RN/Hermes).
+      try {
+        cb(this.snapshotQueue());
+      } catch (err) {
+        console.error('[MockQueueService] merchant queue subscriber threw', err);
+      }
     }
   }
 
@@ -328,7 +334,19 @@ export class MockQueueService implements QueueService {
     const callbacks = this.ticketSubscribers.get(ticket.id);
     if (!callbacks) return;
     for (const cb of [...callbacks]) {
+      this.invokeTicketCb(cb, ticket);
+    }
+  }
+
+  /**
+   * Invoca um subscriber de ticket com uma cópia defensiva, isolando erros:
+   * um throw não pode abortar o loop de notificação nem escapar do setInterval.
+   */
+  private invokeTicketCb(cb: (ticket: QueueTicket) => void, ticket: QueueTicket): void {
+    try {
       cb({ ...ticket });
+    } catch (err) {
+      console.error('[MockQueueService] ticket subscriber threw', err);
     }
   }
 
