@@ -1,12 +1,18 @@
 import React, { useEffect, useRef } from 'react';
-import { Pressable, Animated, StyleSheet } from 'react-native';
+import { Pressable, Animated, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { colors } from '../../lib/theme';
 
 export interface ToggleProps {
   value: boolean;
   onValueChange: (value: boolean) => void;
   disabled?: boolean;
+  accessibilityLabel?: string;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
 }
+
+// Alarga o alvo de toque do pill (32×20) para ~44×44 (mínimo de acessibilidade).
+const DEFAULT_HIT_SLOP = { top: 12, bottom: 12, left: 6, right: 6 };
 
 // Figma node 2560:5009 — pill switch compacto.
 const TRACK_WIDTH = 32;
@@ -16,7 +22,14 @@ const THUMB_INSET = 2;
 // Deslocamento do knob entre off (esquerda) e on (direita).
 const THUMB_TRAVEL = TRACK_WIDTH - THUMB_SIZE - THUMB_INSET * 2;
 
-export const Toggle: React.FC<ToggleProps> = ({ value, onValueChange, disabled = false }) => {
+export const Toggle: React.FC<ToggleProps> = ({
+  value,
+  onValueChange,
+  disabled = false,
+  accessibilityLabel,
+  style,
+  testID,
+}) => {
   const progress = useRef(new Animated.Value(value ? 1 : 0)).current;
   const isFirstRender = useRef(true);
 
@@ -31,6 +44,8 @@ export const Toggle: React.FC<ToggleProps> = ({ value, onValueChange, disabled =
       duration: 160,
       useNativeDriver: false,
     }).start();
+    // Interrompe a animação se desmontar no meio, evitando updates em valor detached.
+    return () => progress.stopAnimation();
   }, [value, progress]);
 
   const translateX = progress.interpolate({
@@ -52,9 +67,12 @@ export const Toggle: React.FC<ToggleProps> = ({ value, onValueChange, disabled =
     <Pressable
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled }}
+      accessibilityLabel={accessibilityLabel}
       onPress={handlePress}
       disabled={disabled}
-      style={disabled ? styles.disabled : undefined}
+      hitSlop={DEFAULT_HIT_SLOP}
+      testID={testID}
+      style={[disabled && styles.disabled, style]}
     >
       <Animated.View style={[styles.track, { backgroundColor: trackColor }]}>
         <Animated.View style={[styles.thumb, { transform: [{ translateX }] }]} />

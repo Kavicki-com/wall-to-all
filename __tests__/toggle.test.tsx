@@ -33,4 +33,18 @@ describe('Toggle', () => {
     const { getByRole } = render(<Toggle value={false} onValueChange={jest.fn()} disabled />);
     expect(getByRole('switch').props.accessibilityState.disabled).toBe(true);
   });
+
+  it('forwards testID so it is findable via getByTestId', () => {
+    const { getByTestId } = render(
+      <Toggle value={false} onValueChange={jest.fn()} testID="notifications-toggle" />,
+    );
+    expect(getByTestId('notifications-toggle')).toBeTruthy();
+  });
+
+  it('exposes accessibilityLabel on the switch', () => {
+    const { getByRole } = render(
+      <Toggle value={false} onValueChange={jest.fn()} accessibilityLabel="Ativar notificações" />,
+    );
+    expect(getByRole('switch').props.accessibilityLabel).toBe('Ativar notificações');
+  });
 });
