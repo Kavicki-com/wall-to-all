@@ -31,6 +31,12 @@ export const ServicesProvider: React.FC<{ children: ReactNode }> = ({ children }
   const queueRef = useRef<MockQueueService | null>(null);
   const walletRef = useRef<MockWalletService | null>(null);
 
+  // NOTA: as instâncias são criadas aqui no render (lazy via ref) e o dispose()
+  // da fila roda no cleanup do useEffect abaixo. Esse acoplamento render↔effect é
+  // seguro porque StrictMode NÃO está habilitado neste app (Expo Router não o
+  // ativa por padrão). Se StrictMode for adotado, mover a criação para dentro do
+  // useEffect (lifecycle simétrico) para evitar segurar uma fila já disposed após
+  // o ciclo mount→unmount→mount.
   if (queueRef.current === null) {
     queueRef.current = new MockQueueService({ latencyMs: QUEUE_LATENCY_MS });
   }
