@@ -99,9 +99,7 @@ NOTA: Em builds do EAS, as credenciais devem ser configuradas via secrets.
     GOOGLE_MAPS_PLACEHOLDER;
 
   if (googleMapsApiKey === GOOGLE_MAPS_PLACEHOLDER) {
-    console.warn(
-      '[app.config] GOOGLE_MAPS_ANDROID_API_KEY not set — Android map will not render',
-    );
+    console.warn('[app.config] GOOGLE_MAPS_ANDROID_API_KEY not set — Android map will not render');
   }
 
   return {

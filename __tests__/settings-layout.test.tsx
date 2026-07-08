@@ -92,7 +92,15 @@ jest.mock('../components/CustomButton', () => {
   const { Pressable, Text } = require('react-native');
 
   return {
-    CustomButton: ({ title, onPress, style }: { title: string; onPress: () => void; style?: unknown }) => (
+    CustomButton: ({
+      title,
+      onPress,
+      style,
+    }: {
+      title: string;
+      onPress: () => void;
+      style?: unknown;
+    }) => (
       <Pressable accessibilityRole="button" onPress={onPress} style={style}>
         <Text>{title}</Text>
       </Pressable>
