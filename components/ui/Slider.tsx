@@ -34,8 +34,11 @@ const BORDER_RADIUS_L = 24; // Figma border/radius/l — pílula.
 const clamp = (v: number, min: number, max: number): number => Math.min(Math.max(v, min), max);
 
 // Alinha um valor bruto ao passo mais próximo a partir do mínimo.
-const snapToStep = (raw: number, min: number, step: number): number =>
-  min + Math.round((raw - min) / step) * step;
+// Passo efetivo `step || 1` evita divisão por zero (espelha o guard `range || 1`).
+const snapToStep = (raw: number, min: number, step: number): number => {
+  const effectiveStep = step || 1;
+  return min + Math.round((raw - min) / effectiveStep) * effectiveStep;
+};
 
 export const Slider: React.FC<SliderProps> = ({
   value,
@@ -104,8 +107,14 @@ export const Slider: React.FC<SliderProps> = ({
           collapsable={false}
         >
           <View style={styles.track} />
-          <View style={[styles.fill, { width: fillWidth }]} />
-          <View style={[styles.thumb, { transform: [{ translateX: thumbX }] }]} />
+          <View
+            testID={testID ? `${testID}-fill` : 'slider-fill'}
+            style={[styles.fill, { width: fillWidth }]}
+          />
+          <View
+            testID={testID ? `${testID}-thumb` : 'slider-thumb'}
+            style={[styles.thumb, { transform: [{ translateX: thumbX }] }]}
+          />
         </View>
       </GestureDetector>
     </View>
