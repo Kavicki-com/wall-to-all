@@ -92,10 +92,17 @@ NOTA: Em builds do EAS, as credenciais devem ser configuradas via secrets.
 
   // Google Maps (Android): a key vem do ambiente (.env / secrets do EAS).
   // Fallback: placeholder do app.json — o build funciona, mas o mapa fica em branco.
+  const GOOGLE_MAPS_PLACEHOLDER = 'PLACEHOLDER_REPLACE_ME';
   const googleMapsApiKey =
     process.env.GOOGLE_MAPS_ANDROID_API_KEY ||
     appJson.expo?.android?.config?.googleMaps?.apiKey ||
-    'PLACEHOLDER_REPLACE_ME';
+    GOOGLE_MAPS_PLACEHOLDER;
+
+  if (googleMapsApiKey === GOOGLE_MAPS_PLACEHOLDER) {
+    console.warn(
+      '[app.config] GOOGLE_MAPS_ANDROID_API_KEY not set — Android map will not render',
+    );
+  }
 
   return {
     expo: {
