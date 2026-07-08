@@ -18,6 +18,7 @@ import { useSignupCheck } from '../lib/hooks/useSignupCheck';
 import { useAuth } from '../context/AuthContext';
 import { NotificationProvider } from '../context/NotificationContext';
 import { NetworkProvider } from '../context/NetworkContext';
+import { ServicesProvider } from '../context/ServicesContext';
 import { ActivityIndicator } from 'react-native';
 
 
@@ -111,7 +112,9 @@ const RootLayout: React.FC = () => {
           <NetworkProvider>
             <AuthProvider>
               <NotificationProvider>
-                <MainLayout />
+                <ServicesProvider>
+                  <MainLayout />
+                </ServicesProvider>
               </NotificationProvider>
             </AuthProvider>
           </NetworkProvider>
