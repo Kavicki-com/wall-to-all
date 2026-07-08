@@ -14,7 +14,7 @@ export default () => {
       'https://SEU-PROJETO.supabase.co',
       'https://seu-projeto.supabase.co',
       'SEU_SUPABASE_ANON_KEY',
-      'sua-chave-anon-aqui'
+      'sua-chave-anon-aqui',
     ];
     return placeholders.includes(value);
   };
@@ -22,10 +22,11 @@ export default () => {
   // Detectar se estamos em contexto do EAS CLI (build/config check)
   // O EAS CLI precisa conseguir ler a config mesmo sem credenciais locais
   // As credenciais virão dos secrets durante o build
-  const isEASContext = process.env.EAS_BUILD === 'true' || 
-                       process.env.EAS_BUILD_ID || 
-                       process.env.EXPO_PUBLIC_ENV === 'production' ||
-                       process.argv.some(arg => arg.includes('eas') || arg.includes('expo config'));
+  const isEASContext =
+    process.env.EAS_BUILD === 'true' ||
+    process.env.EAS_BUILD_ID ||
+    process.env.EXPO_PUBLIC_ENV === 'production' ||
+    process.argv.some((arg) => arg.includes('eas') || arg.includes('expo config'));
 
   // Pega as variáveis de ambiente ou usa as do app.json como fallback (se não forem placeholders)
   const envUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -39,8 +40,15 @@ export default () => {
 
   // VALIDAÇÃO: Falha explicitamente se as credenciais não estiverem configuradas
   // EXCETO em contexto do EAS, onde as credenciais virão dos secrets durante o build
-  if (!isEASContext && (!supabaseUrl || !supabaseAnonKey || isPlaceholder(supabaseUrl) || isPlaceholder(supabaseAnonKey))) {
-    throw new Error(`
+  if (
+    !isEASContext &&
+    (!supabaseUrl ||
+      !supabaseAnonKey ||
+      isPlaceholder(supabaseUrl) ||
+      isPlaceholder(supabaseAnonKey))
+  ) {
+    throw new Error(
+      `
 ╔══════════════════════════════════════════════════════════════╗
 ║  ERRO: Variáveis de ambiente do Supabase não configuradas   ║
 ╚══════════════════════════════════════════════════════════════╝
@@ -73,7 +81,8 @@ COMO OBTER AS CREDENCIAIS:
 ⚠️  NUNCA commite credenciais reais no código. Use apenas variáveis de ambiente.
 
 NOTA: Em builds do EAS, as credenciais devem ser configuradas via secrets.
-    `.trim());
+    `.trim(),
+    );
   }
 
   // Em contexto do EAS, usar valores das variáveis de ambiente (que virão dos secrets)
@@ -81,9 +90,26 @@ NOTA: Em builds do EAS, as credenciais devem ser configuradas via secrets.
   const finalSupabaseUrl = supabaseUrl || (isEASContext ? appJsonUrl : undefined);
   const finalSupabaseAnonKey = supabaseAnonKey || (isEASContext ? appJsonKey : undefined);
 
+  // Google Maps (Android): a key vem do ambiente (.env / secrets do EAS).
+  // Fallback: placeholder do app.json — o build funciona, mas o mapa fica em branco.
+  const googleMapsApiKey =
+    process.env.GOOGLE_MAPS_ANDROID_API_KEY ||
+    appJson.expo?.android?.config?.googleMaps?.apiKey ||
+    'PLACEHOLDER_REPLACE_ME';
+
   return {
     expo: {
       ...appJson.expo,
+      android: {
+        ...appJson.expo?.android,
+        config: {
+          ...appJson.expo?.android?.config,
+          googleMaps: {
+            ...appJson.expo?.android?.config?.googleMaps,
+            apiKey: googleMapsApiKey,
+          },
+        },
+      },
       extra: {
         ...appJson.expo?.extra,
         supabaseUrl: finalSupabaseUrl,
@@ -95,4 +121,3 @@ NOTA: Em builds do EAS, as credenciais devem ser configuradas via secrets.
     },
   };
 };
-

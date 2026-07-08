@@ -34,7 +34,12 @@
         "android.permission.READ_MEDIA_IMAGES"
       ],
       "package": "com.kavicki.walltoall",
-      "versionCode": 14
+      "versionCode": 14,
+      "config": {
+        "googleMaps": {
+          "apiKey": "PLACEHOLDER_REPLACE_ME"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -62,6 +67,14 @@
         {
           "icon": "./assets/branding/notification-icon.png",
           "color": "#000E3D"
+        }
+      ],
+      "expo-video",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O app precisa da câmera para gravar vídeos e stories do seu negócio.",
+          "microphonePermission": "O app precisa do microfone para gravar o áudio dos vídeos."
         }
       ]
     ],
