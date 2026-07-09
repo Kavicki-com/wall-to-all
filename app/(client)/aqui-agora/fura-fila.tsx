@@ -91,11 +91,12 @@ const FuraFilaScreen: React.FC = () => {
     router.back();
   }, [router]);
 
-  // "Alterar" alterna o método de pagamento (só há dois: Pix e cartão). Só
-  // permite cartão quando há um cartão salvo; sem cartão, permanece no Pix.
+  // "Alterar" alterna o método de pagamento (só há dois: Pix e cartão). O botão
+  // só é renderizado quando há um cartão salvo (ver abaixo), então o toggle nunca
+  // é um no-op silencioso.
   const handleToggleMethod = useCallback(() => {
-    setMethod((prev) => (prev === 'pix' && defaultCard ? 'card' : 'pix'));
-  }, [defaultCard]);
+    setMethod((prev) => (prev === 'pix' ? 'card' : 'pix'));
+  }, []);
 
   const paymentDescription = useMemo(
     () => (merchant ? `Fura-fila · ${merchant.name}` : ''),
@@ -246,8 +247,10 @@ const FuraFilaScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Método de pagamento: "Alterar" alterna Pix ⇄ cartão. O pagamento abre
-            o bottom-sheet correspondente (Task 17) ao "Confirmar e Pagar". */}
+        {/* Método de pagamento: quando há cartão salvo, "Alterar" alterna Pix ⇄
+            cartão (ícone de troca, não navegação). Sem cartão salvo, o toggle não
+            é renderizado — nunca um no-op silencioso. O pagamento abre o
+            bottom-sheet correspondente (Task 17) ao "Confirmar e Pagar". */}
         <View style={styles.paymentRow}>
           <View style={styles.paymentIcon}>
             <Icon name={method === 'card' ? 'credit-card' : 'pix'} size={24} color={colors.brand} />
@@ -256,16 +259,18 @@ const FuraFilaScreen: React.FC = () => {
             <Text style={styles.paymentTitle}>{methodTitle}</Text>
             <Text style={styles.paymentSubtitle}>{methodSubtitle}</Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Alterar método de pagamento"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={styles.changeButton}
-            onPress={handleToggleMethod}
-          >
-            <Text style={styles.changeButtonText}>Alterar</Text>
-            <Icon name="chevron-right" size={22} color={colors.brand} />
-          </Pressable>
+          {defaultCard ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Alterar método de pagamento"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.changeButton}
+              onPress={handleToggleMethod}
+            >
+              <Text style={styles.changeButtonText}>Alterar</Text>
+              <Icon name="swap-horiz" size={22} color={colors.brand} />
+            </Pressable>
+          ) : null}
         </View>
 
         {/* CTA primário: abre o bottom-sheet de pagamento do método selecionado. */}

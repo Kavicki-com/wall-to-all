@@ -66,12 +66,14 @@ describe('FuraFilaScreen (aqui e agora — seleção fura-fila)', () => {
     const { findByText, getByText } = renderWithProviders(<FuraFilaScreen />, { queue });
 
     // "Confirmar e Pagar" abre o bottom-sheet Pix (método default). Confirmar o
-    // pagamento no sheet dispara o onSuccess → joinQueue + modal de sucesso.
+    // pagamento no sheet mostra o "Processando..." por ~600ms e então dispara o
+    // onSuccess → joinQueue + modal de sucesso.
     fireEvent.press(await findByText('Confirmar e Pagar'));
     fireEvent.press(await findByText('Já realizei o pagamento'));
 
-    // Modal de sucesso conforme Figma (node 2659:6381).
-    await findByText('Pagamento Realizado');
+    // Modal de sucesso conforme Figma (node 2659:6381). Timeout folgado cobre o
+    // atraso do "Processando..." do sheet Pix.
+    await findByText('Pagamento Realizado', {}, { timeout: 2000 });
     expect(getByText('Você será o próximo da fila!')).toBeTruthy();
     // Default = Furar fila → entra na fila como fura-fila.
     expect(joinSpy).toHaveBeenCalledWith('m1', { furaFila: true });
@@ -82,7 +84,8 @@ describe('FuraFilaScreen (aqui e agora — seleção fura-fila)', () => {
 
     fireEvent.press(await findByText('Confirmar e Pagar'));
     fireEvent.press(await findByText('Já realizei o pagamento'));
-    fireEvent.press(await findByText('Fechar'));
+    // "Fechar" só aparece após o "Processando..." (~600ms) e o modal de sucesso.
+    fireEvent.press(await findByText('Fechar', {}, { timeout: 2000 }));
 
     // `replace` (não `push`): voltar da senha não reexibe o modal já concluído.
     expect(mockReplace).toHaveBeenCalledWith(expect.stringContaining('senha'));
@@ -103,7 +106,8 @@ describe('FuraFilaScreen (aqui e agora — seleção fura-fila)', () => {
     fireEvent.press(getByText('Confirmar e Pagar'));
     fireEvent.press(await findByText('Já realizei o pagamento'));
 
-    await findByText('Pagamento Realizado');
+    // Timeout folgado cobre o atraso do "Processando..." do sheet Pix.
+    await findByText('Pagamento Realizado', {}, { timeout: 2000 });
     expect(joinSpy).toHaveBeenCalledWith('m1', { furaFila: false });
   });
 

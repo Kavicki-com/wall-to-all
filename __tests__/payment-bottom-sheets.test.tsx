@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { renderWithProviders } from './test-utils';
 import { MockWalletService } from '../lib/services/mock/mockWalletService';
 import { PaymentPixBottomSheet } from '../components/payment/PaymentPixBottomSheet';
@@ -25,6 +25,8 @@ const noop = (): void => undefined;
 
 describe('PaymentPixBottomSheet', () => {
   beforeEach(() => jest.clearAllMocks());
+  // Garante que timers reais sejam restaurados mesmo se um teste falhar no meio.
+  afterEach(() => jest.useRealTimers());
 
   it('creates the Pix charge with the amount/description and shows the copy-paste code', async () => {
     const wallet = new MockWalletService({ latencyMs: 0 });
@@ -70,12 +72,12 @@ describe('PaymentPixBottomSheet', () => {
     );
   });
 
-  it('triggers onSuccess when the confirm action is pressed', async () => {
+  it('shows the "Processando..." state and calls onSuccess after a brief delay', async () => {
     const onSuccess = jest.fn();
     const wallet = new MockWalletService({ latencyMs: 0 });
     jest.spyOn(wallet, 'createPixCharge').mockResolvedValue(PIX_CHARGE);
 
-    const { findByText } = renderWithProviders(
+    const { findByText, getByText } = renderWithProviders(
       <PaymentPixBottomSheet
         visible
         amountCents={AMOUNT}
@@ -86,7 +88,19 @@ describe('PaymentPixBottomSheet', () => {
       { wallet },
     );
 
-    fireEvent.press(await findByText('Já realizei o pagamento'));
+    // Carrega a cobrança com timers reais (microtask); só então usa fake timers
+    // para exercitar o atraso do "Processando..." (setTimeout de 600ms).
+    const confirm = await findByText('Já realizei o pagamento');
+    jest.useFakeTimers();
+    fireEvent.press(confirm);
+
+    // O estado "Processando..." (node 2663:7091) pinta antes do onSuccess.
+    expect(getByText('Processando seu pagamento...')).toBeTruthy();
+    expect(onSuccess).not.toHaveBeenCalled();
+
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
     expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 

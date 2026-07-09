@@ -147,7 +147,9 @@ export const PaymentCardBottomSheet: React.FC<PaymentCardBottomSheetProps> = ({
                 </View>
 
                 {declined ? (
-                  <Text style={styles.decline}>Pagamento recusado. Tente outro cartão.</Text>
+                  <Text accessibilityLiveRegion="polite" style={styles.decline}>
+                    Pagamento recusado. Tente outro cartão.
+                  </Text>
                 ) : null}
 
                 <Pressable

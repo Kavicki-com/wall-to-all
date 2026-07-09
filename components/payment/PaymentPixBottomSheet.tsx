@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,8 @@ export interface PaymentPixBottomSheetProps {
 const QR_MODULES = 21; // Malha do placeholder de QR (v1 clássico: 21×21 módulos).
 const QR_SIZE = 176; // Lado do QR renderizado (px).
 const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
+// Duração do estado "Processando..." (node 2663:7091) antes de sinalizar sucesso.
+const PROCESSING_MS = 600;
 
 /**
  * Constrói uma matriz booleana determinística a partir do payload (copia-e-cola)
@@ -112,6 +114,14 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
   const [charge, setCharge] = useState<PixCharge | null>(null);
   const [copied, setCopied] = useState(false);
   const [processing, setProcessing] = useState(false);
+  // Ref para o onSuccess mais recente (o timeout do "Processando..." dispara mais
+  // tarde; sem ref capturaria um onSuccess velho). Timeout guardado p/ cancelar.
+  const onSuccessRef = useRef(onSuccess);
+  const processingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  }, [onSuccess]);
 
   // Ao abrir, cria a cobrança Pix (mock). Reseta o estado transitório a cada
   // abertura; só busca quando visível (não desperdiça chamadas com o sheet fechado).
@@ -132,6 +142,12 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
       });
     return () => {
       active = false;
+      // Cancela o timeout do "Processando..." se o sheet fechar antes de disparar
+      // (fechar pelo backdrop após confirmar não deve concluir o pagamento).
+      if (processingTimeout.current) {
+        clearTimeout(processingTimeout.current);
+        processingTimeout.current = null;
+      }
     };
   }, [visible, wallet, amountCents, description]);
 
@@ -142,11 +158,15 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
   }, [charge]);
 
   const handleConfirm = useCallback(() => {
-    // Reflete o estado "Processando..." do Figma e sinaliza sucesso ao pai (que
-    // fecha o sheet e segue o fluxo — entra na fila e abre o modal de sucesso).
+    // Mostra o estado "Processando..." do Figma (node 2663:7091) e só então
+    // sinaliza sucesso ao pai. O onSuccess é DEFERIDO (setTimeout) porque o pai
+    // zera `visible` de forma síncrona — sem o atraso o "Processando..." nunca
+    // pintaria. `onSuccessRef` evita capturar um onSuccess velho no timeout.
     setProcessing(true);
-    onSuccess();
-  }, [onSuccess]);
+    processingTimeout.current = setTimeout(() => {
+      onSuccessRef.current();
+    }, PROCESSING_MS);
+  }, []);
 
   if (!visible) return null;
 
@@ -198,7 +218,11 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
                   >
                     <Text style={styles.copyButtonText}>Copiar código PIX</Text>
                   </Pressable>
-                  {copied ? <Text style={styles.copiedHint}>Código copiado!</Text> : null}
+                  {copied ? (
+                    <Text accessibilityLiveRegion="polite" style={styles.copiedHint}>
+                      Código copiado!
+                    </Text>
+                  ) : null}
                   <Pressable
                     accessibilityRole="button"
                     hitSlop={HIT_SLOP}
