@@ -15,36 +15,47 @@ interface TabItem {
 }
 
 const tabs: TabItem[] = [
-  { route: 'home/index', iconName: 'home', family: 'MaterialSymbols', iconSize: 28 },
-  { route: 'dashboard/index', iconName: 'calendar-clock', family: 'MaterialCommunityIcons', iconSize: 26 },
-  { route: 'services/index', iconName: 'business_center', family: 'MaterialSymbols', iconSize: 26 },
-  { route: 'profile/index', iconName: 'account-circle-outline', family: 'MaterialCommunityIcons', iconSize: 28 },
-  { route: 'settings/index', iconName: 'settings', family: 'MaterialSymbols', iconSize: 28 },
+  { route: 'home/index', iconName: 'home', family: 'MaterialSymbols', iconSize: 24 },
+  {
+    route: 'dashboard/index',
+    iconName: 'calendar-clock',
+    family: 'MaterialCommunityIcons',
+    iconSize: 24,
+  },
+  { route: 'services/index', iconName: 'business_center', family: 'MaterialSymbols', iconSize: 24 },
+  {
+    route: 'profile/index',
+    iconName: 'account-circle-outline',
+    family: 'MaterialCommunityIcons',
+    iconSize: 24,
+  },
+  { route: 'settings/index', iconName: 'settings', family: 'MaterialSymbols', iconSize: 24 },
 ];
 
 export const MerchantCustomTabBar: React.FC<TabBarProps> = (props) => {
   const { state, descriptors, navigation } = props;
   const insets = useSafeAreaInsets();
 
-  const TAB_BAR_HEIGHT = 56;
-  const ACTIVE_BUTTON_HEIGHT = 68;
+  const TAB_BAR_HEIGHT = 72;
 
   const visibleRoutes = state.routes
     .filter((route) => tabs.some((t) => t.route === route.name))
     .sort((a, b) => {
-      const indexA = tabs.findIndex(t => t.route === a.name);
-      const indexB = tabs.findIndex(t => t.route === b.name);
+      const indexA = tabs.findIndex((t) => t.route === a.name);
+      const indexB = tabs.findIndex((t) => t.route === b.name);
       return indexA - indexB;
     });
 
   return (
-    <View style={[
-      styles.tabBarContainer,
-      {
-        height: TAB_BAR_HEIGHT + (insets.bottom > 0 ? insets.bottom : 10),
-        paddingBottom: insets.bottom > 0 ? insets.bottom : 10
-      }
-    ]}>
+    <View
+      style={[
+        styles.tabBarContainer,
+        {
+          height: TAB_BAR_HEIGHT + (insets.bottom > 0 ? insets.bottom : 10),
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+        },
+      ]}
+    >
       {visibleRoutes.map((route) => {
         const routeIndex = state.routes.findIndex((r) => r.key === route.key);
         const { options } = descriptors[route.key];
@@ -65,20 +76,16 @@ export const MerchantCustomTabBar: React.FC<TabBarProps> = (props) => {
           }
         };
 
-        const iconColor = isFocused ? colors.surface : colors.brand;
+        const iconColor = isFocused ? colors.brand : colors.textMuted;
 
         return (
           <TouchableOpacity
             key={route.key}
             accessibilityRole="button"
-            accessibilityState={isFocused ? { selected: true } : {}}
+            accessibilityState={{ selected: isFocused }}
             accessibilityLabel={options.tabBarAccessibilityLabel}
             onPress={onPress}
-            style={[
-              styles.tabButton,
-              { height: isFocused ? ACTIVE_BUTTON_HEIGHT : TAB_BAR_HEIGHT },
-              isFocused && styles.tabButtonActive,
-            ]}
+            style={styles.tabButton}
             activeOpacity={0.8}
           >
             <View style={styles.tabIconWrapper}>
@@ -101,18 +108,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 24,
     backgroundColor: colors.surface,
-    alignItems: 'flex-end',
+    alignItems: 'stretch',
     justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
     width: '100%',
-    overflow: 'visible',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: -4 },
         shadowOpacity: 0.08,
-        shadowRadius: 4,
+        shadowRadius: 12,
         zIndex: 10,
       },
       android: {
@@ -124,18 +128,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 22,
-    marginHorizontal: 4,
-    backgroundColor: 'transparent',
-  },
-  tabButtonActive: {
-    backgroundColor: colors.accent,
-    shadowColor: '#1D1D1D',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    elevation: 4,
-    marginBottom: 0,
   },
   tabIconWrapper: {
     justifyContent: 'center',
