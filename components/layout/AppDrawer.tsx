@@ -14,6 +14,7 @@ export interface DrawerItem {
   icon?: React.ReactNode;
   route?: string;
   onPress?: () => void;
+  /** Renderizado quando `!= null`, então `0` aparece como "0"; passe `undefined` para ocultar. */
   badge?: string | number;
 }
 
@@ -64,10 +65,12 @@ export const AppDrawer: React.FC<AppDrawerProps> = ({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.root}>
+      {/* accessibilityViewIsModal impede o VoiceOver (iOS) de alcançar o conteúdo atrás do drawer. */}
+      <View style={styles.root} accessibilityViewIsModal>
         {/* Backdrop translúcido que ocupa a tela inteira e fecha ao toque. */}
         <Pressable
           testID="drawer-overlay"
+          accessibilityRole="button"
           accessibilityLabel="Fechar menu"
           style={styles.overlay}
           onPress={onClose}

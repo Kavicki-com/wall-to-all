@@ -114,4 +114,16 @@ describe('AppDrawer', () => {
     );
     expect(getByTestId('app-drawer')).toBeTruthy();
   });
+
+  it('renders the optional icon and badge of an item', () => {
+    const { getByTestId, getByText } = render(
+      <AppDrawer
+        visible
+        onClose={jest.fn()}
+        items={[{ label: 'Carteira', icon: <Text testID="drawer-item-icon">i</Text>, badge: 3 }]}
+      />,
+    );
+    expect(getByTestId('drawer-item-icon')).toBeTruthy();
+    expect(getByText('3')).toBeTruthy();
+  });
 });
