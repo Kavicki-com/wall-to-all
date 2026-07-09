@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { Icon } from '../../../components/ui/Icon';
 import { IconMenu } from '../../../lib/icons';
 import { Toggle } from '../../../components/ui/Toggle';
 import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
+import { RequestBottomSheet } from '../../../components/aqui-agora/RequestBottomSheet';
 import { colors } from '../../../lib/theme';
 import { LIVE_MERCHANT_ID } from '../../../lib/services/mock/queueFixtures';
 
@@ -96,6 +97,13 @@ const MerchantAquiAgoraScreen: React.FC = () => {
   const [tickets, setTickets] = useState<QueueTicket[]>([]);
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Solicitação recebida: o ticket que abre o RequestBottomSheet (Task 23), ou
+  // null quando não há sheet aberto.
+  const [incomingRequest, setIncomingRequest] = useState<QueueTicket | null>(null);
+  // Ids de tickets já "vistos" pela home. Populado com o snapshot inicial (as
+  // fixtures pré-existentes NÃO devem abrir o sheet); só chegadas posteriores
+  // (ids inéditos, status 'waiting') contam como novas solicitações.
+  const seenTicketIds = useRef<Set<string>>(new Set());
 
   // Status/settings do próprio lojista (fila do LIVE_MERCHANT_ID).
   useEffect(() => {
@@ -128,9 +136,31 @@ const MerchantAquiAgoraScreen: React.FC = () => {
         if (!active) return;
         setTickets(snapshot);
         setQueueLoaded(true);
+        // Marca TODOS os tickets do snapshot inicial como vistos — as fixtures
+        // pré-existentes não disparam o sheet de solicitação.
+        for (const ticket of snapshot) {
+          seenTicketIds.current.add(ticket.id);
+        }
         unsubscribe = queueService.subscribeToMerchantQueue((updated) => {
           if (!active) return;
           setTickets(updated);
+          // Detecta uma NOVA solicitação: um ticket 'waiting' cujo id ainda não
+          // vimos (uma chegada via joinQueue). Detecta ANTES de marcar como visto.
+          const arrival = updated.find(
+            (ticket) => ticket.status === 'waiting' && !seenTicketIds.current.has(ticket.id),
+          );
+          // Marca todos os ids atuais como vistos (inclui o recém-chegado) para
+          // não reabrir o sheet em emissões subsequentes.
+          for (const ticket of updated) {
+            seenTicketIds.current.add(ticket.id);
+          }
+          if (arrival) {
+            // Update funcional: se um sheet já está aberto, NÃO o substitui — uma
+            // segunda solicitação nova enquanto o sheet está aberto é descartada
+            // (tratamos uma solicitação por vez nesta fase).
+            // TODO(F2): fila de solicitações pendentes p/ surfacear a próxima ao dispensar.
+            setIncomingRequest((prev) => prev ?? arrival);
+          }
         });
       })
       .catch(() => {
@@ -187,6 +217,22 @@ const MerchantAquiAgoraScreen: React.FC = () => {
   const handleClientPress = useCallback(() => {
     router.push(FILA_ROUTE);
   }, [router]);
+
+  // Aceitar a solicitação = o cliente PERMANECE na fila (o lojista o atende pela
+  // tela de gestão de fila). Nenhuma mutação de domínio — apenas fecha o sheet.
+  const handleAcceptRequest = useCallback(() => {
+    setIncomingRequest(null);
+  }, []);
+
+  // Recusar/dispensar = remove o cliente da fila. O domínio não tem desfecho
+  // 'rejected'; 'no_show' via resolveTicket (lado lojista) é o mais próximo.
+  // Ignora falhas (o mock não falha) e fecha o sheet.
+  const handleRejectRequest = useCallback(() => {
+    if (incomingRequest) {
+      queueService.resolveTicket(incomingRequest.id, 'no_show').catch(() => undefined);
+    }
+    setIncomingRequest(null);
+  }, [incomingRequest, queueService]);
 
   // Itens do menu (drawer) do lojista — rotas já existentes do app.
   const drawerItems: DrawerItem[] = useMemo(
@@ -391,6 +437,16 @@ const MerchantAquiAgoraScreen: React.FC = () => {
       )}
 
       <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={drawerItems} />
+
+      {/* Sheet de solicitação recebida — invisível até uma NOVA solicitação
+          chegar pela assinatura da fila. Aceitar mantém o cliente na fila;
+          recusar o remove (no_show). */}
+      <RequestBottomSheet
+        visible={incomingRequest !== null}
+        ticket={incomingRequest}
+        onAccept={handleAcceptRequest}
+        onReject={handleRejectRequest}
+      />
     </View>
   );
 };
