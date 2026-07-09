@@ -101,9 +101,16 @@ const WaitingListScreen: React.FC = () => {
     };
   }, [queueService]);
 
-  // Quando o ticket é chamado, navega para a senha (uma única vez).
+  // Quando o ticket é chamado, navega para a senha (uma única vez). Cobre
+  // também 'served': se um lote coalescido do React juntar called→served numa
+  // só volta do event loop (backend real emitindo as duas mudanças no mesmo
+  // flush, ou ticks muito próximos), o render intermediário 'called' seria
+  // pulado — ambos significam "chegou a minha vez". 'left'/'no_show' NÃO
+  // navegam (saída é tratada pelo fluxo de "Sair da fila").
   useEffect(() => {
-    if (ticket?.status === 'called' && !navigatedRef.current) {
+    if (navigatedRef.current) return;
+    const s = ticket?.status;
+    if (s === 'called' || s === 'served') {
       navigatedRef.current = true;
       router.replace('/(client)/aqui-agora/senha');
     }
@@ -198,7 +205,9 @@ const WaitingListScreen: React.FC = () => {
             <Text style={styles.ticketService}>{SERVICE_LABEL}</Text>
           </View>
 
-          <Text style={styles.positionText}>Você é o {ordinal(ticket.positionInLine)} da fila</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.positionText}>
+            Você é o {ordinal(ticket.positionInLine)} da fila
+          </Text>
         </View>
 
         <View style={styles.body}>
@@ -212,7 +221,12 @@ const WaitingListScreen: React.FC = () => {
               </View>
             </View>
 
-            <View style={styles.timerRow}>
+            <View
+              style={styles.timerRow}
+              accessible
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={`${ticket.estimatedWaitMinutes} minutos restantes`}
+            >
               <Text style={styles.timerValue}>{ticket.estimatedWaitMinutes}</Text>
               <Text style={styles.timerUnit}>min restantes</Text>
             </View>
@@ -305,7 +319,9 @@ const WaitingListScreen: React.FC = () => {
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ disabled: leaving }}
               style={styles.modalCancel}
+              disabled={leaving}
               onPress={handleCancelLeave}
             >
               <Text style={styles.modalCancelText}>Continuar na fila</Text>

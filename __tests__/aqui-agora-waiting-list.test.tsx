@@ -2,6 +2,7 @@ import React from 'react';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { renderWithProviders } from './test-utils';
 import { MockQueueService } from '../lib/services/mock/mockQueueService';
+import type { QueueTicket } from '../lib/services/types';
 
 // expo-router mockado no escopo do módulo (o Jest iça o jest.mock acima dos
 // imports). `mockPush`/`mockReplace`/`mockBack` (prefixo `mock` exigido pelo
@@ -108,6 +109,35 @@ describe('WaitingListScreen (aqui e agora — lista de espera ao vivo)', () => {
       jest.advanceTimersByTime(6000);
     });
 
+    expect(mockReplace).toHaveBeenCalledWith(expect.stringContaining('senha'));
+  });
+
+  it('navigates when the ticket resolves to served without a committed called render', async () => {
+    // Regressão: um called→served coalescido num único lote do React nunca
+    // comita o render intermediário 'called'. Aqui capturamos o callback do
+    // subscribe e emitimos DIRETO o estado terminal 'served' (sem 'called'),
+    // provando que o efeito endurecido (called||served) ainda navega uma vez.
+    const queue = new MockQueueService({ latencyMs: 0, tickIntervalMs: 1_000_000 });
+    const joined = await queue.joinQueue('m1');
+    const realSubscribe = queue.subscribeToTicket.bind(queue);
+    let emit: ((ticket: QueueTicket) => void) | undefined;
+    jest.spyOn(queue, 'subscribeToTicket').mockImplementation((id, cb) => {
+      emit = cb;
+      return realSubscribe(id, cb);
+    });
+
+    renderWithProviders(<WaitingListScreen />, { queue });
+
+    // Resolve getMyTicket (waiting) + subscribe; ainda não navegou.
+    await flushAsync();
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    // Emite o estado terminal 'served' direto — sem 'called' intermediário.
+    await act(async () => {
+      emit?.({ ...joined, status: 'served', positionInLine: 0, estimatedWaitMinutes: 0 });
+    });
+
+    expect(mockReplace).toHaveBeenCalledTimes(1);
     expect(mockReplace).toHaveBeenCalledWith(expect.stringContaining('senha'));
   });
 });
