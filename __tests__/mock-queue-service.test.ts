@@ -104,6 +104,19 @@ describe('MockQueueService', () => {
     expect(await svc.getSettings()).toEqual(after);
   });
 
+  it('updateSettings persists visibilityRadiusKm and a null autoCloseMinutes (Não encerrar)', async () => {
+    const svc = new MockQueueService();
+    // autoCloseMinutes é anulável: passar null DEVE persistir null (não cair no valor
+    // atual, como aconteceria com o operador `??`).
+    const after = await svc.updateSettings({ visibilityRadiusKm: 5, autoCloseMinutes: null });
+    expect(after.visibilityRadiusKm).toBe(5);
+    expect(after.autoCloseMinutes).toBeNull();
+    // Um update subsequente sem a chave preserva o null e o novo raio.
+    const next = await svc.updateSettings({ visibilityRadiusKm: 1 });
+    expect(next.autoCloseMinutes).toBeNull();
+    expect(next.visibilityRadiusKm).toBe(1);
+  });
+
   it('leaveQueue removes the ticket and getMyTicket returns null', async () => {
     const svc = new MockQueueService();
     const ticket = await svc.joinQueue('m1');

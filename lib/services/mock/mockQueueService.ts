@@ -221,12 +221,19 @@ export class MockQueueService implements QueueService {
 
   async updateSettings(settings: Partial<QueueSettings>): Promise<QueueSettings> {
     await this.delay();
-    // Merge que ignora chaves com valor undefined (não sobrescreve).
+    // Merge que ignora chaves com valor undefined (não sobrescreve). `autoCloseMinutes`
+    // é anulável (null = "Não encerrar"), então usa guarda `!== undefined` em vez de
+    // `??` — senão um null explícito seria descartado a favor do valor atual.
     this.settings = {
       furaFilaEnabled: settings.furaFilaEnabled ?? this.settings.furaFilaEnabled,
       furaFilaPriceCents: settings.furaFilaPriceCents ?? this.settings.furaFilaPriceCents,
       maxSize: settings.maxSize ?? this.settings.maxSize,
       avgServiceMinutes: settings.avgServiceMinutes ?? this.settings.avgServiceMinutes,
+      visibilityRadiusKm: settings.visibilityRadiusKm ?? this.settings.visibilityRadiusKm,
+      autoCloseMinutes:
+        settings.autoCloseMinutes !== undefined
+          ? settings.autoCloseMinutes
+          : this.settings.autoCloseMinutes,
     };
     for (const ticket of this.tickets) {
       if (ticket.status === 'waiting') {

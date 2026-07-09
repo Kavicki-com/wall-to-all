@@ -20,6 +20,10 @@ export interface QueueSettings {
   furaFilaPriceCents: number;
   maxSize: number;
   avgServiceMinutes: number;
+  /** Raio de visibilidade no mapa, em km (0,5–10). Distância máxima para clientes te encontrarem no "Aqui e Agora". */
+  visibilityRadiusKm: number;
+  /** Encerramento automático do modo Aqui e Agora, em minutos; `null` = "Não encerrar". */
+  autoCloseMinutes: number | null;
 }
 
 export interface QueueInfo {
