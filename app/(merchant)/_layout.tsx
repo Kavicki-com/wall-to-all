@@ -133,6 +133,12 @@ const MerchantLayout: React.FC = () => {
             tabBarButton: () => null,
           }}
         />
+        <Tabs.Screen
+          name="aqui-agora/fila"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
       </Tabs>
     </BusinessProfileProvider>
   );

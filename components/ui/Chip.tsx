@@ -100,6 +100,8 @@ export const Chip: React.FC<ChipProps> = ({
       onPress={handlePress}
       activeOpacity={0.7}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isSelected, disabled }}
     >
       <Text style={[...getTextStyle(), textStyle]}>{label}</Text>
       {onClose && isSelected && (
