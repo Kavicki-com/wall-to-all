@@ -6,13 +6,16 @@ import { formatBRL } from '../lib/formatters';
 import { DEFAULT_QUEUE_SETTINGS } from '../lib/services/mock/queueFixtures';
 
 // expo-router mockado no escopo do módulo (o Jest iça o jest.mock acima dos
-// imports). `mockPush`/`mockBack` (prefixo `mock` exigido pelo hoisting) capturam
-// a navegação; `useLocalSearchParams` devolve o merchantId encaminhado pela Task 15.
+// imports). `mockPush`/`mockReplace`/`mockBack` (prefixo `mock` exigido pelo
+// hoisting) capturam a navegação; `mockParams` controla o merchantId lido via
+// useLocalSearchParams (mutável p/ exercitar id inexistente → tela de erro).
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 const mockBack = jest.fn();
+let mockParams: { merchantId: string } = { merchantId: 'm1' };
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: mockBack }),
-  useLocalSearchParams: () => ({ merchantId: 'm1' }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack }),
+  useLocalSearchParams: () => mockParams,
 }));
 
 // A TopBar consome useSafeAreaInsets; inset determinístico (igual top-bar.test.tsx).
@@ -29,6 +32,7 @@ const SERVICE_BASE_CENTS = 8000; // R$ 80,00 (base decorativa; domínio não tem
 describe('FuraFilaScreen (aqui e agora — seleção fura-fila)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockParams = { merchantId: 'm1' }; // Barbearia do Zé (fura-fila habilitado)
   });
 
   it('renders the fura-fila fee from settings.furaFilaPriceCents', async () => {
@@ -70,12 +74,37 @@ describe('FuraFilaScreen (aqui e agora — seleção fura-fila)', () => {
     expect(joinSpy).toHaveBeenCalledWith('m1', { furaFila: true });
   });
 
-  it('navigates to the senha screen when "Fechar" is pressed on the success modal', async () => {
+  it('replaces to the senha screen when "Fechar" is pressed on the success modal', async () => {
     const { findByText } = renderWithProviders(<FuraFilaScreen />);
 
     fireEvent.press(await findByText('Confirmar e Pagar'));
     fireEvent.press(await findByText('Fechar'));
 
-    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('senha'));
+    // `replace` (não `push`): voltar da senha não reexibe o modal já concluído.
+    expect(mockReplace).toHaveBeenCalledWith(expect.stringContaining('senha'));
+  });
+
+  it('joins the queue as a regular ticket (furaFila:false) when "Padrão" is confirmed', async () => {
+    const queue = new MockQueueService({ latencyMs: 0 });
+    const joinSpy = jest.spyOn(queue, 'joinQueue');
+    const { findByText, getByText, getByTestId } = renderWithProviders(<FuraFilaScreen />, {
+      queue,
+    });
+
+    await findByText('Confirmar e Pagar');
+    fireEvent.press(getByText('Padrão'));
+    // Sem taxa de urgência → total é só a base.
+    expect(getByTestId('summary-total').props.children).toBe(formatBRL(SERVICE_BASE_CENTS)); // R$ 80,00
+
+    fireEvent.press(getByText('Confirmar e Pagar'));
+
+    await findByText('Pagamento Realizado');
+    expect(joinSpy).toHaveBeenCalledWith('m1', { furaFila: false });
+  });
+
+  it('renders the error state when the merchant id is unknown', async () => {
+    mockParams = { merchantId: 'nope' }; // id inexistente → tela de erro
+    const { findByText } = renderWithProviders(<FuraFilaScreen />);
+    await findByText('Não foi possível carregar este estabelecimento.');
   });
 });

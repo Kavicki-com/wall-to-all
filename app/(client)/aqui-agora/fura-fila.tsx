@@ -114,26 +114,52 @@ const FuraFilaScreen: React.FC = () => {
     setChoosingMethod(false);
   }, []);
 
+  /**
+   * Executa o pagamento mock do total e devolve se foi aprovado. Cartão: confere
+   * o `status` retornado (`approved`). Pix: `createPixCharge` apenas cria a
+   * cobrança — no mock isso já é sucesso; um fluxo Pix real confirmaria o
+   * pagamento fora de banda (webhook/polling) na F3. Este seam também é onde a
+   * Task 17 encaixa os bottom-sheets reutilizáveis de pagamento.
+   */
+  const payTotal = useCallback(
+    async (description: string): Promise<boolean> => {
+      if (method === 'card' && defaultCard) {
+        const result = await walletService.payWithCard(defaultCard.id, totalCents, description);
+        return result.status === 'approved';
+      }
+      await walletService.createPixCharge(totalCents, description);
+      return true;
+    },
+    [method, defaultCard, totalCents, walletService],
+  );
+
   const handleConfirm = useCallback(async () => {
     if (paying || !merchant) return;
     setPaying(true);
     const description = `Fura-fila · ${merchant.name}`;
     try {
-      if (method === 'card' && defaultCard) {
-        await walletService.payWithCard(defaultCard.id, totalCents, description);
-      } else {
-        await walletService.createPixCharge(totalCents, description);
+      const paid = await payTotal(description);
+      if (!paid) {
+        // Pagamento recusado: reabilita o CTA e NÃO entra na fila. (No mock, um
+        // cartão desconhecido volta 'declined'; a UI de recusa detalhada é F3.)
+        setPaying(false);
+        return;
       }
+      // NB: se joinQueue falhar APÓS um pagamento de cartão aprovado, uma nova
+      // tentativa re-cobra o cartão. No mock isso é inócuo (nada rejeita), mas o
+      // fluxo real precisa de idempotência na cobrança / retry só do joinQueue (F3).
       await queueService.joinQueue(merchant.id, { furaFila: urgency === 'furar' });
       setSuccess(true);
     } catch {
       // Reabilita o CTA para nova tentativa se o pagamento/entrada na fila falhar.
       setPaying(false);
     }
-  }, [paying, merchant, method, defaultCard, totalCents, urgency, walletService, queueService]);
+  }, [paying, merchant, payTotal, urgency, queueService]);
 
   const handleCloseSuccess = useCallback(() => {
-    router.push('/(client)/aqui-agora/senha');
+    // `replace` (não `push`): ao voltar da senha não reexibe a tela/modal de
+    // "Pagamento Realizado" já concluído.
+    router.replace('/(client)/aqui-agora/senha');
   }, [router]);
 
   const methodTitle = useMemo(() => {
@@ -269,6 +295,7 @@ const FuraFilaScreen: React.FC = () => {
           <View style={styles.methodChooser}>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ selected: method === 'pix' }}
               style={styles.methodChooserOption}
               onPress={() => handleSelectMethod('pix')}
             >
@@ -281,6 +308,7 @@ const FuraFilaScreen: React.FC = () => {
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ selected: method === 'card' }}
               style={styles.methodChooserOption}
               onPress={() => handleSelectMethod('card')}
               disabled={!defaultCard}
@@ -314,7 +342,9 @@ const FuraFilaScreen: React.FC = () => {
         <View style={styles.modalRoot} accessibilityViewIsModal>
           <View style={styles.modalCard}>
             <IconCheckCircle size={40} color={colors.surfaceSuccess} />
-            <Text style={styles.modalTitle}>Pagamento Realizado</Text>
+            <Text accessibilityRole="header" style={styles.modalTitle}>
+              Pagamento Realizado
+            </Text>
             <Text style={styles.modalMessage}>Você será o próximo da fila!</Text>
             <Pressable
               accessibilityRole="button"
