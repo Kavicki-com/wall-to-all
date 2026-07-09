@@ -17,6 +17,8 @@ import { IconCheckCircle, IconRadioFill, IconRadioNoFill } from '../../../lib/ic
 import { colors } from '../../../lib/theme';
 import { formatBRL } from '../../../lib/formatters';
 import { useMerchant } from '../../../lib/hooks/useNearbyMerchants';
+import { PaymentPixBottomSheet } from '../../../components/payment/PaymentPixBottomSheet';
+import { PaymentCardBottomSheet } from '../../../components/payment/PaymentCardBottomSheet';
 
 type Urgency = 'padrao' | 'furar';
 type Method = 'pix' | 'card';
@@ -43,11 +45,13 @@ const MERCHANT_ADDRESS = 'Av. Paulista, 1000 - Bela Vista - São Paulo';
  * furaFilaPriceCents, default selecionada, pois esta é a tela do fura-fila). O
  * resumo reflete a urgência escolhida no total.
  *
- * "Confirmar e Pagar" executa o pagamento mock do total via `WalletService`
- * (Pix por `createPixCharge` ou cartão por `payWithCard`), depois entra na fila
- * com `joinQueue(merchantId, { furaFila })` e abre o modal de sucesso (node
- * 2659:6381). NB: os bottom-sheets reutilizáveis de pagamento são da Task 17 —
- * aqui o pagamento é inline e autossuficiente, com um seletor Pix|cartão simples.
+ * "Confirmar e Pagar" abre o bottom-sheet de pagamento da Task 17 conforme o
+ * método selecionado (Pix → `PaymentPixBottomSheet`, cartão →
+ * `PaymentCardBottomSheet`), passando `amountCents = total` e a descrição. Ao
+ * `onSuccess` do sheet, entra na fila com `joinQueue(merchantId, { furaFila })` e
+ * abre o modal de sucesso (node 2659:6381). O sheet encapsula o pagamento mock
+ * (`createPixCharge` / `payWithCard`); esta tela só cuida da urgência, do resumo
+ * e da entrada na fila. "Alterar" alterna o método (Pix ⇄ cartão).
  */
 const FuraFilaScreen: React.FC = () => {
   const router = useRouter();
@@ -58,9 +62,10 @@ const FuraFilaScreen: React.FC = () => {
   const { merchant, status } = useMerchant(merchantId);
   const [urgency, setUrgency] = useState<Urgency>('furar');
   const [method, setMethod] = useState<Method>('pix');
-  const [choosingMethod, setChoosingMethod] = useState(false);
   const [defaultCard, setDefaultCard] = useState<PaymentCard | null>(null);
-  const [paying, setPaying] = useState(false);
+  // Qual bottom-sheet de pagamento está aberto (null = nenhum). O pagamento em si
+  // vive no sheet (Task 17); esta tela apenas o abre e reage ao onSuccess.
+  const [openSheet, setOpenSheet] = useState<Method | null>(null);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -86,52 +91,44 @@ const FuraFilaScreen: React.FC = () => {
     router.back();
   }, [router]);
 
-  const handleSelectMethod = useCallback((next: Method) => {
-    setMethod(next);
-    setChoosingMethod(false);
+  // "Alterar" alterna o método de pagamento (só há dois: Pix e cartão). Só
+  // permite cartão quando há um cartão salvo; sem cartão, permanece no Pix.
+  const handleToggleMethod = useCallback(() => {
+    setMethod((prev) => (prev === 'pix' && defaultCard ? 'card' : 'pix'));
+  }, [defaultCard]);
+
+  const paymentDescription = useMemo(
+    () => (merchant ? `Fura-fila · ${merchant.name}` : ''),
+    [merchant],
+  );
+
+  // "Confirmar e Pagar" abre o sheet do método selecionado; o pagamento ocorre lá.
+  const handleConfirm = useCallback(() => {
+    if (!merchant) return;
+    setOpenSheet(method);
+  }, [merchant, method]);
+
+  const handleCloseSheet = useCallback(() => {
+    setOpenSheet(null);
   }, []);
 
   /**
-   * Executa o pagamento mock do total e devolve se foi aprovado. Cartão: confere
-   * o `status` retornado (`approved`). Pix: `createPixCharge` apenas cria a
-   * cobrança — no mock isso já é sucesso; um fluxo Pix real confirmaria o
-   * pagamento fora de banda (webhook/polling) na F3. Este seam também é onde a
-   * Task 17 encaixa os bottom-sheets reutilizáveis de pagamento.
+   * `onSuccess` dos bottom-sheets: fecha o sheet, entra na fila com o flag de
+   * urgência e abre o modal de sucesso. O pagamento já foi tratado no sheet.
+   * NB: se joinQueue falhar APÓS um pagamento de cartão aprovado, uma nova
+   * tentativa re-cobra o cartão. No mock isso é inócuo (nada rejeita), mas o
+   * fluxo real precisa de idempotência na cobrança / retry só do joinQueue (F3).
    */
-  const payTotal = useCallback(
-    async (description: string): Promise<boolean> => {
-      if (method === 'card' && defaultCard) {
-        const result = await walletService.payWithCard(defaultCard.id, totalCents, description);
-        return result.status === 'approved';
-      }
-      await walletService.createPixCharge(totalCents, description);
-      return true;
-    },
-    [method, defaultCard, totalCents, walletService],
-  );
-
-  const handleConfirm = useCallback(async () => {
-    if (paying || !merchant) return;
-    setPaying(true);
-    const description = `Fura-fila · ${merchant.name}`;
+  const handleSheetSuccess = useCallback(async () => {
+    if (!merchant) return;
+    setOpenSheet(null);
     try {
-      const paid = await payTotal(description);
-      if (!paid) {
-        // Pagamento recusado: reabilita o CTA e NÃO entra na fila. (No mock, um
-        // cartão desconhecido volta 'declined'; a UI de recusa detalhada é F3.)
-        setPaying(false);
-        return;
-      }
-      // NB: se joinQueue falhar APÓS um pagamento de cartão aprovado, uma nova
-      // tentativa re-cobra o cartão. No mock isso é inócuo (nada rejeita), mas o
-      // fluxo real precisa de idempotência na cobrança / retry só do joinQueue (F3).
       await queueService.joinQueue(merchant.id, { furaFila: urgency === 'furar' });
       setSuccess(true);
     } catch {
-      // Reabilita o CTA para nova tentativa se o pagamento/entrada na fila falhar.
-      setPaying(false);
+      // Falha ao entrar na fila: sheet já fechado; o CTA segue disponível.
     }
-  }, [paying, merchant, payTotal, urgency, queueService]);
+  }, [merchant, urgency, queueService]);
 
   const handleCloseSuccess = useCallback(() => {
     // `replace` (não `push`): ao voltar da senha não reexibe a tela/modal de
@@ -249,7 +246,8 @@ const FuraFilaScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Método de pagamento (inline; bottom-sheets reutilizáveis são da Task 17). */}
+        {/* Método de pagamento: "Alterar" alterna Pix ⇄ cartão. O pagamento abre
+            o bottom-sheet correspondente (Task 17) ao "Confirmar e Pagar". */}
         <View style={styles.paymentRow}>
           <View style={styles.paymentIcon}>
             <Icon name={method === 'card' ? 'credit-card' : 'pix'} size={24} color={colors.brand} />
@@ -260,59 +258,37 @@ const FuraFilaScreen: React.FC = () => {
           </View>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="Alterar método de pagamento"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.changeButton}
-            onPress={() => setChoosingMethod((prev) => !prev)}
+            onPress={handleToggleMethod}
           >
             <Text style={styles.changeButtonText}>Alterar</Text>
             <Icon name="chevron-right" size={22} color={colors.brand} />
           </Pressable>
         </View>
 
-        {choosingMethod && (
-          <View style={styles.methodChooser}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: method === 'pix' }}
-              style={styles.methodChooserOption}
-              onPress={() => handleSelectMethod('pix')}
-            >
-              {method === 'pix' ? (
-                <IconRadioFill size={20} color={colors.brand} />
-              ) : (
-                <IconRadioNoFill size={20} color={colors.surfaceGrey} />
-              )}
-              <Text style={styles.methodChooserLabel}>Pagamento via Pix</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: method === 'card' }}
-              style={styles.methodChooserOption}
-              onPress={() => handleSelectMethod('card')}
-              disabled={!defaultCard}
-            >
-              {method === 'card' ? (
-                <IconRadioFill size={20} color={colors.brand} />
-              ) : (
-                <IconRadioNoFill size={20} color={colors.surfaceGrey} />
-              )}
-              <Text style={styles.methodChooserLabel}>
-                {defaultCard ? `Cartão •••• ${defaultCard.last4}` : 'Cartão indisponível'}
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* CTA primário: pagamento mock + entrada na fila + modal de sucesso. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: paying }}
-          style={[styles.confirmButton, paying && styles.confirmButtonDisabled]}
-          disabled={paying}
-          onPress={handleConfirm}
-        >
+        {/* CTA primário: abre o bottom-sheet de pagamento do método selecionado. */}
+        <Pressable accessibilityRole="button" style={styles.confirmButton} onPress={handleConfirm}>
           <Text style={styles.confirmButtonText}>Confirmar e Pagar</Text>
         </Pressable>
       </ScrollView>
+
+      {/* Bottom-sheets de pagamento (Task 17). Visível conforme o método aberto. */}
+      <PaymentPixBottomSheet
+        visible={openSheet === 'pix'}
+        amountCents={totalCents}
+        description={paymentDescription}
+        onSuccess={handleSheetSuccess}
+        onClose={handleCloseSheet}
+      />
+      <PaymentCardBottomSheet
+        visible={openSheet === 'card'}
+        amountCents={totalCents}
+        description={paymentDescription}
+        onSuccess={handleSheetSuccess}
+        onClose={handleCloseSheet}
+      />
 
       {/* Modal de sucesso (Figma node 2659:6381). */}
       <Modal visible={success} transparent animationType="fade" onRequestClose={handleCloseSuccess}>
@@ -630,25 +606,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.brand,
   },
-  methodChooser: {
-    backgroundColor: colors.contentLight,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.surfaceGrey,
-    padding: 16,
-    rowGap: 16,
-    marginTop: -8,
-  },
-  methodChooserOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 12,
-  },
-  methodChooserLabel: {
-    fontFamily: 'Montserrat_500Medium',
-    fontSize: 14,
-    color: colors.textPrimary,
-  },
   confirmButton: {
     height: 48,
     borderRadius: 24,
@@ -656,9 +613,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
-  },
-  confirmButtonDisabled: {
-    backgroundColor: colors.disabled,
   },
   confirmButtonText: {
     fontFamily: 'Montserrat_700Bold',
