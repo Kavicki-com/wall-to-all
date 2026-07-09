@@ -76,7 +76,7 @@ export const MerchantCustomTabBar: React.FC<TabBarProps> = (props) => {
           }
         };
 
-        const iconColor = isFocused ? colors.brand : colors.textMuted;
+        const iconColor = isFocused ? colors.brand : colors.iconInactive;
 
         return (
           <TouchableOpacity

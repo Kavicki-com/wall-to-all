@@ -44,6 +44,7 @@ export const colors = {
   surfaceSuccess: '#17723F', // Figma surface/success — verde do design system (≠ colors.success)
   contentLight: '#FEFEFE', // Figma content/light — knobs/conteúdo claro sobre superfícies
   surfacePrimaryExtraLight: '#EBEFFF', // Figma surface/primary-extra-light — fundo da TopBar variante clara
+  iconInactive: '#767676', // Ícone inativo (tab bar) — cinza médio, ≈4.5:1 sobre surface (WCAG 1.4.11)
 } as const;
 
 export type ColorKey = keyof typeof colors;
