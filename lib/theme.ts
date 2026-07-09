@@ -52,6 +52,10 @@ export const colors = {
   surfaceWarningLight: '#FFE59E', // Figma surface/warning-light — fundo do badge "+R$" do fura-fila
   contentPrimaryLight: '#A8BDFF', // Figma content/primary-light — acento "Você é o … da fila" (lista de espera)
   surfacePrimaryLight: '#D6E0FF', // Figma surface/primary-light — segmentos preenchidos da barra de progresso da fila
+  contentInfo: '#0037EB', // Figma content/info — valor "Ativo há … min" do active-alert (Aqui e Agora lojista)
+  // Figma surface/info-light — fundo do active-alert (Aqui e Agora lojista). Compartilha
+  // o valor com contentPrimaryLight (#A8BDFF) mas é um token DISTINTO do Figma: não unificar.
+  surfaceInfoLight: '#A8BDFF',
 } as const;
 
 export type ColorKey = keyof typeof colors;
