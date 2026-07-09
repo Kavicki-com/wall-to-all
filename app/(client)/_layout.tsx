@@ -49,6 +49,14 @@ const ClientLayout: React.FC = () => {
           ROTAS OCULTAS (não aparecem na TabBar)
           ======================================== */}
 
+        {/* Aqui e Agora - Mapa de merchants próximos (fila) */}
+        <Tabs.Screen
+          name="aqui-agora/index"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+
         {/* Schedule - Fluxo de agendamento */}
         <Tabs.Screen
           name="schedule/service"

@@ -42,6 +42,8 @@ export const colors = {
   // por Toggle, Slider, tab bars, etc. — nomeados pela intenção do token.
   surfaceGrey: '#DBDBDB', // Figma surface/grey — trilhos/off states
   surfaceSuccess: '#17723F', // Figma surface/success — verde do design system (≠ colors.success)
+  surfaceSuccessLight: '#A2ECC2', // Figma surface/success-light — fundo do badge "ativos"
+  neutral400: '#6B6B6B', // Cinza secundário — labels/metadados de menor ênfase
   contentLight: '#FEFEFE', // Figma content/light — knobs/conteúdo claro sobre superfícies
   contentLightGrey: '#DADADA', // Figma content/light-grey — borda dos cartões (CreditCard)
   surfacePrimaryExtraLight: '#EBEFFF', // Figma surface/primary-extra-light — fundo da TopBar variante clara
