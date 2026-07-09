@@ -48,6 +48,8 @@ export const colors = {
   contentLightGrey: '#DADADA', // Figma content/light-grey — borda dos cartões (CreditCard)
   surfacePrimaryExtraLight: '#EBEFFF', // Figma surface/primary-extra-light — fundo da TopBar variante clara
   iconInactive: '#767676', // Ícone inativo (tab bar) — cinza médio, ≈4.5:1 sobre surface (WCAG 1.4.11)
+  contentWarning: '#D69D00', // Figma content/warning — acento/borda/ETA da opção "Furar fila"
+  surfaceWarningLight: '#FFE59E', // Figma surface/warning-light — fundo do badge "+R$" do fura-fila
 } as const;
 
 export type ColorKey = keyof typeof colors;
