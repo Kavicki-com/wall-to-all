@@ -52,10 +52,16 @@ describe('MerchantProfileScreen (aqui e agora — perfil do lojista)', () => {
     expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('waiting-list'));
   });
 
-  it('shows the fura-fila CTA and navigates to fura-fila when the merchant allows it', async () => {
+  it('shows the fura-fila CTA and navigates to fura-fila (with merchant id) when allowed', async () => {
     const { findByText } = renderWithProviders(<MerchantProfileScreen />);
     fireEvent.press(await findByText('Furar a fila'));
-    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('fura-fila'));
+    // Encaminha o merchantId para a próxima tela (Task 16 lê esse param).
+    expect(mockPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: expect.stringContaining('fura-fila'),
+        params: { merchantId: 'm1' },
+      }),
+    );
   });
 
   it('hides the fura-fila CTA when the merchant does not allow it', async () => {
@@ -63,5 +69,11 @@ describe('MerchantProfileScreen (aqui e agora — perfil do lojista)', () => {
     const { findByText, queryByText } = renderWithProviders(<MerchantProfileScreen />);
     await findByText('Café Aurora');
     expect(queryByText('Furar a fila')).toBeNull();
+  });
+
+  it('renders the error state when the merchant id is unknown', async () => {
+    mockParams = { id: 'nope' }; // id inexistente → tela de erro
+    const { findByText } = renderWithProviders(<MerchantProfileScreen />);
+    await findByText('Não foi possível carregar este estabelecimento.');
   });
 });

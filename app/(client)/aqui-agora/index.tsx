@@ -3,14 +3,13 @@ import { View, Text, StyleSheet, ScrollView, Platform, StatusBar } from 'react-n
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import { useQueueService } from '../../../context/ServicesContext';
-import type { LatLng, NearbyMerchant } from '../../../lib/services/types';
+import type { NearbyMerchant } from '../../../lib/services/types';
 import SearchBar from '../../../components/SearchBar';
 import { Chip } from '../../../components/ui/Chip';
 import { ResultsSheet, ResultsSheetStatus } from '../../../components/aqui-agora/ResultsSheet';
 import { colors } from '../../../lib/theme';
-
-/** Centro do mapa: região da Av. Paulista, São Paulo. */
-const SP_CENTER: LatLng = { latitude: -23.5505, longitude: -46.6333 };
+import { formatBRL } from '../../../lib/formatters';
+import { SP_CENTER } from '../../../lib/aqui-agora/constants';
 
 const INITIAL_REGION = {
   ...SP_CENTER,
@@ -30,11 +29,6 @@ const CATEGORY_CHIPS = [
   'Pedreiro',
   'Massagista',
 ];
-
-/** Preço em centavos → "R$ 15,00". */
-function formatBRL(cents: number): string {
-  return `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
-}
 
 /**
  * Tela "Aqui e Agora" (cliente): mapa em tela cheia com marcadores dos

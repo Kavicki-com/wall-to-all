@@ -2,21 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueueService } from '../../../../context/ServicesContext';
-import type { LatLng, NearbyMerchant } from '../../../../lib/services/types';
+import type { NearbyMerchant } from '../../../../lib/services/types';
 import { TopBar } from '../../../../components/layout/TopBar';
 import { Icon } from '../../../../components/ui/Icon';
 import { FuraFilaIcon } from '../../../../components/icons/FuraFilaIcon';
 import { colors } from '../../../../lib/theme';
-
-/** Centro do mapa: região da Av. Paulista, São Paulo (igual à tela do mapa). */
-const SP_CENTER: LatLng = { latitude: -23.5505, longitude: -46.6333 };
+import { formatBRL } from '../../../../lib/formatters';
+import { SP_CENTER } from '../../../../lib/aqui-agora/constants';
 
 type Status = 'loading' | 'ready' | 'error';
-
-/** Preço em centavos → "R$ 15,00". */
-function formatBRL(cents: number): string {
-  return `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
-}
 
 /**
  * Perfil do lojista (cliente) da experiência "Aqui e Agora". Recebe o `[id]` do
@@ -72,8 +66,12 @@ const MerchantProfileScreen: React.FC = () => {
   }, [joining, merchant, queueService, router]);
 
   const handleFuraFila = useCallback(() => {
-    router.push('/(client)/aqui-agora/fura-fila');
-  }, [router]);
+    if (!merchant) return;
+    router.push({
+      pathname: '/(client)/aqui-agora/fura-fila',
+      params: { merchantId: merchant.id },
+    });
+  }, [merchant, router]);
 
   const handleBack = useCallback(() => {
     router.back();
@@ -145,12 +143,12 @@ const MerchantProfileScreen: React.FC = () => {
           <Text style={styles.infoText}>Seg à Sex · 10h às 18h</Text>
         </View>
 
-        {/* Serviço solicitado (decorativo/estático). */}
+        {/* Serviço solicitado (decorativo/estático, sem nome específico). */}
         <View style={styles.serviceCard}>
           <Text style={styles.serviceLabel}>SERVIÇO SOLICITADO</Text>
           <View style={styles.serviceRow}>
             <View>
-              <Text style={styles.serviceName}>Corte de cabelo</Text>
+              <Text style={styles.serviceName}>Serviço solicitado</Text>
               <Text style={styles.serviceMeta}>~30 min · Valor a pagar</Text>
             </View>
             <Text style={styles.servicePrice}>R$ 80</Text>
