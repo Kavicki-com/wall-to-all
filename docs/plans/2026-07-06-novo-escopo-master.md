@@ -27,7 +27,7 @@ O código atual (expo-router, grupos `(auth)`/`(client)`/`(merchant)`, Supabase)
 
 Dependências: `F0 → F1 → F2 → F3 → {F4, F5, F7} → F6 → F8` (F4/F5/F7 dependem dos componentes de pagamento da F3; F6 é independente e fica antes apenas da integração; a ordem F4 → F5 → F6 → F7 é a sequência de execução planejada).
 
-### Fase 0 — Fundação compartilhada
+### Fase 0 — Fundação compartilhada ✅ implementada (2026-07-09)
 - Libs nativas + rebuild do dev client: `react-native-maps` (provider Google — requer API key), `expo-camera`, `expo-video`
 - Camada de serviços mockados (ver §4 Arquitetura)
 - Componentes novos do design system:
@@ -45,7 +45,7 @@ Dependências: `F0 → F1 → F2 → F3 → {F4, F5, F7} → F6 → F8` (F4/F5/F
 | slider | `2586:5081` |
 | fura-fila-icon | `2596:5943` |
 
-### Fase 1 — Aqui e Agora (cliente + lojista) — prioridade #1
+### Fase 1 — Aqui e Agora (cliente + lojista) — prioridade #1 ✅ implementada (2026-07-09)
 
 **Cliente** (seção `2660:6325`):
 
@@ -168,6 +168,6 @@ Assinatura (seção `2678:149`): subscription-offer `2678:150` · subscription-m
 | Doc | Quando criar |
 |---|---|
 | `2026-07-06-novo-escopo-master.md` (este) | ✅ criado |
-| Design doc + plano da F0+F1 | antes de iniciar a F0 (próximo passo) |
+| Design doc + plano da F0+F1 | ✅ criado; F0+F1 **implementadas** (2026-07-09) — suíte 251/251, typecheck e lint limpos. Pendente: QA em dispositivo (percorrer os 2 fluxos ponta a ponta) + revisão de fidelidade visual vs Figma (`2715:3575`, `2715:3616`). |
 | Design doc + plano das demais fases | imediatamente antes de cada fase |
 | Plano da F8 (integração) | ao final da F7, com PSP decidido |
