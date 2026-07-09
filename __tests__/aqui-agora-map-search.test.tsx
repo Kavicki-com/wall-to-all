@@ -10,6 +10,7 @@ jest.mock('expo-router', () => ({
 }));
 
 import MapSearchScreen from '../app/(client)/aqui-agora/index';
+import { categoryIcon, formatDistance } from '../components/aqui-agora/ResultsSheet';
 
 describe('MapSearchScreen (aqui e agora — map search)', () => {
   beforeEach(() => {
@@ -35,5 +36,26 @@ describe('MapSearchScreen (aqui e agora — map search)', () => {
     await findByText(/Barbearia/);
     fireEvent.changeText(getByPlaceholderText(/procurar/i), 'pizzaria-inexistente');
     await waitFor(() => expect(queryByText(/Barbearia/)).toBeNull());
+  });
+});
+
+describe('ResultsSheet helpers', () => {
+  it('formatDistance renders metres below 1 km', () => {
+    expect(formatDistance(0.8)).toBe('800 m');
+    expect(formatDistance(0.3)).toBe('300 m');
+  });
+
+  it('formatDistance renders km with a comma decimal at/above 1 km', () => {
+    expect(formatDistance(1.2)).toBe('1,2 km');
+    expect(formatDistance(2)).toBe('2,0 km');
+  });
+
+  it('categoryIcon maps known categories case-insensitively', () => {
+    expect(categoryIcon('Barbearia')).toBe('content-cut');
+    expect(categoryIcon('CAFETERIA')).toBe('local-cafe');
+  });
+
+  it('categoryIcon falls back to storefront for unknown categories', () => {
+    expect(categoryIcon('Floricultura')).toBe('storefront');
   });
 });

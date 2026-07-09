@@ -15,6 +15,12 @@ import type { QueueService, WalletService } from '../lib/services/types';
  * —, mantendo os testes rápidos e determinísticos. Retorna o resultado do RTL
  * acrescido das instâncias injetadas (`queue`, `wallet`) para asserções diretas.
  *
+ * Após cada teste, o harness descarta (dispose) QUALQUER serviço que exponha um
+ * método `dispose()` — tanto os criados por default quanto as sobreposições
+ * (`options.queue` / `options.wallet`) passadas pelo chamador. Isso limpa, por
+ * exemplo, o setInterval de simulação do `MockQueueService` (senão o Jest não
+ * encerra por conta de handles abertos).
+ *
  * IMPORTANTE — este módulo NÃO chama `jest.mock('expo-router', ...)`. `jest.mock`
  * é içado por arquivo e precisa viver no escopo do módulo de CADA teste. Todo
  * arquivo de teste que renderiza uma tela que consome `useRouter()` DEVE
@@ -35,16 +41,26 @@ export type RenderWithProvidersResult = ReturnType<typeof render> & {
   wallet: WalletService;
 };
 
-// Filas criadas internamente por `renderWithProviders` (não as sobreposições do
-// chamador). Cada `MockQueueService` inicia um setInterval de simulação; sem
-// dispose o Jest não encerra por conta de handles abertos. Descartamos todas
-// após cada teste — espelhando o `afterEach(cleanup)` do próprio RTL.
-const createdQueues = new Set<MockQueueService>();
+// Serviços a descartar após cada teste — criados por default OU injetados. Um
+// `MockQueueService`, p.ex., inicia um setInterval de simulação; sem dispose o
+// Jest não encerra por handles abertos. Duck-typed: registra qualquer serviço
+// com `dispose()`. Espelha o `afterEach(cleanup)` do próprio RTL.
+interface Disposable {
+  dispose: () => void;
+}
+
+const disposables = new Set<Disposable>();
+
+function trackDisposable(service: QueueService | WalletService): void {
+  if (typeof (service as Partial<Disposable>).dispose === 'function') {
+    disposables.add(service as unknown as Disposable);
+  }
+}
 
 if (typeof afterEach === 'function') {
   afterEach(() => {
-    createdQueues.forEach((queue) => queue.dispose());
-    createdQueues.clear();
+    disposables.forEach((service) => service.dispose());
+    disposables.clear();
   });
 }
 
@@ -53,10 +69,10 @@ export function renderWithProviders(
   options: RenderWithProvidersOptions = {},
 ): RenderWithProvidersResult {
   const { queue: queueOverride, wallet: walletOverride, ...renderOptions } = options;
-  const createdQueue = queueOverride ? null : new MockQueueService({ latencyMs: 0 });
-  if (createdQueue) createdQueues.add(createdQueue);
-  const queue: QueueService = queueOverride ?? createdQueue!;
+  const queue: QueueService = queueOverride ?? new MockQueueService({ latencyMs: 0 });
   const wallet: WalletService = walletOverride ?? new MockWalletService({ latencyMs: 0 });
+  trackDisposable(queue);
+  trackDisposable(wallet);
 
   // Referência estável do objeto de serviços (não recriado a cada render do wrapper).
   const services = { queue, wallet };

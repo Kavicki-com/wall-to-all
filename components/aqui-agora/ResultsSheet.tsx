@@ -1,8 +1,14 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { NearbyMerchant } from '../../lib/services/types';
 import { colors } from '../../lib/theme';
+
+/**
+ * Estado de carregamento dos dados da lista. Convenção reusada pelas telas F1:
+ * `loading` mostra um indicador, `error` uma mensagem curta, `ready` a lista.
+ */
+export type ResultsSheetStatus = 'loading' | 'ready' | 'error';
 
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
@@ -38,25 +44,23 @@ interface MerchantRowProps {
 }
 
 /**
- * Linha da lista: a categoria é comunicada pelo ÍCONE (com accessibilityLabel),
- * não por texto visível — assim o único nó de texto que casa com o nome do
- * merchant é o próprio nome (evita ambiguidade quando nome e categoria
- * compartilham a mesma palavra, ex.: "Barbearia do Zé" / "Barbearia").
+ * Linha da lista: a categoria é comunicada pelo ÍCONE (sem texto visível) —
+ * assim o único nó de texto que casa com o nome do merchant é o próprio nome
+ * (evita ambiguidade quando nome e categoria compartilham a mesma palavra, ex.:
+ * "Barbearia do Zé" / "Barbearia"). O `accessibilityLabel` do Pressable carrega
+ * a paridade com o que o usuário vidente vê: nome, categoria, nota e distância.
  */
 const MerchantRow: React.FC<MerchantRowProps> = ({ merchant, onPress }) => (
   <Pressable
     accessibilityRole="button"
-    accessibilityLabel={`${merchant.name}, ${merchant.category}`}
+    accessibilityLabel={`${merchant.name}, ${merchant.category}, ${merchant.rating.toFixed(
+      1,
+    )} estrelas, ${formatDistance(merchant.distanceKm)}`}
     onPress={() => onPress(merchant)}
     style={styles.row}
   >
     <View style={styles.rowIcon}>
-      <MaterialIcons
-        name={categoryIcon(merchant.category)}
-        size={22}
-        color={colors.brand}
-        accessibilityLabel={merchant.category}
-      />
+      <MaterialIcons name={categoryIcon(merchant.category)} size={22} color={colors.brand} />
     </View>
     <View style={styles.rowBody}>
       <Text style={styles.rowName} numberOfLines={1}>
@@ -76,14 +80,21 @@ const MerchantRow: React.FC<MerchantRowProps> = ({ merchant, onPress }) => (
 export interface ResultsSheetProps {
   merchants: NearbyMerchant[];
   onPressMerchant: (merchant: NearbyMerchant) => void;
+  /** Estado do carregamento (default `ready`). Ver `ResultsSheetStatus`. */
+  status?: ResultsSheetStatus;
 }
 
 /**
  * Bottom-sheet de resultados: alça de arraste, header "Disponíveis agora" com
- * um badge de quantos merchants estão com a fila ativa, e a lista rolável de
- * merchants próximos. A linha inteira é pressionável.
+ * um badge de quantos merchants estão com a fila ativa, e o corpo — que varia
+ * com `status`: indicador de carregamento, mensagem de erro, ou a lista rolável
+ * de merchants próximos (cada linha é pressionável).
  */
-export const ResultsSheet: React.FC<ResultsSheetProps> = ({ merchants, onPressMerchant }) => {
+export const ResultsSheet: React.FC<ResultsSheetProps> = ({
+  merchants,
+  onPressMerchant,
+  status = 'ready',
+}) => {
   const activeCount = useMemo(
     () => merchants.filter((merchant) => merchant.queue.status === 'active').length,
     [merchants],
@@ -94,20 +105,38 @@ export const ResultsSheet: React.FC<ResultsSheetProps> = ({ merchants, onPressMe
       <View style={styles.handle} />
       <View style={styles.header}>
         <Text style={styles.title}>Disponíveis agora</Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{activeCount} ativos</Text>
-        </View>
+        {status === 'ready' && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{activeCount} ativos</Text>
+          </View>
+        )}
       </View>
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {merchants.map((merchant) => (
-          <MerchantRow key={merchant.id} merchant={merchant} onPress={onPressMerchant} />
-        ))}
-      </ScrollView>
+
+      {status === 'loading' && (
+        <View style={styles.stateBox}>
+          <ActivityIndicator color={colors.brand} />
+          <Text style={styles.stateText}>Carregando...</Text>
+        </View>
+      )}
+
+      {status === 'error' && (
+        <View style={styles.stateBox}>
+          <Text style={styles.stateText}>Não foi possível carregar os estabelecimentos.</Text>
+        </View>
+      )}
+
+      {status === 'ready' && (
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {merchants.map((merchant) => (
+            <MerchantRow key={merchant.id} merchant={merchant} onPress={onPressMerchant} />
+          ))}
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -164,6 +193,19 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 8,
+  },
+  stateBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    columnGap: 8,
+    paddingVertical: 24,
+  },
+  stateText: {
+    fontFamily: 'Montserrat_400Regular',
+    fontSize: 14,
+    color: colors.neutral400,
+    textAlign: 'center',
   },
   row: {
     flexDirection: 'row',

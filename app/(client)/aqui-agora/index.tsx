@@ -6,7 +6,7 @@ import { useQueueService } from '../../../context/ServicesContext';
 import type { LatLng, NearbyMerchant } from '../../../lib/services/types';
 import SearchBar from '../../../components/SearchBar';
 import { Chip } from '../../../components/ui/Chip';
-import { ResultsSheet } from '../../../components/aqui-agora/ResultsSheet';
+import { ResultsSheet, ResultsSheetStatus } from '../../../components/aqui-agora/ResultsSheet';
 import { colors } from '../../../lib/theme';
 
 /** Centro do mapa: região da Av. Paulista, São Paulo. */
@@ -47,17 +47,23 @@ const MapSearchScreen: React.FC = () => {
   const router = useRouter();
   const queueService = useQueueService();
   const [merchants, setMerchants] = useState<NearbyMerchant[]>([]);
+  const [status, setStatus] = useState<ResultsSheetStatus>('loading');
   const [query, setQuery] = useState('');
 
   useEffect(() => {
     let active = true;
+    setStatus('loading');
     queueService
       .getNearbyMerchants(SP_CENTER)
       .then((result) => {
-        if (active) setMerchants(result);
+        if (!active) return;
+        setMerchants(result);
+        setStatus('ready');
       })
       .catch(() => {
-        if (active) setMerchants([]);
+        if (!active) return;
+        setMerchants([]);
+        setStatus('error');
       });
     return () => {
       active = false;
@@ -136,7 +142,7 @@ const MapSearchScreen: React.FC = () => {
 
         <View style={styles.spacer} pointerEvents="none" />
 
-        <ResultsSheet merchants={filtered} onPressMerchant={handlePressMerchant} />
+        <ResultsSheet merchants={filtered} onPressMerchant={handlePressMerchant} status={status} />
       </View>
     </View>
   );
