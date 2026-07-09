@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from
 import { MaterialIcons } from '@expo/vector-icons';
 import type { NearbyMerchant } from '../../lib/services/types';
 import { colors } from '../../lib/theme';
+import { formatDistance } from '../../lib/formatters';
 
 /**
  * Estado de carregamento dos dados da lista. Convenção reusada pelas telas F1:
@@ -25,17 +26,6 @@ const CATEGORY_ICONS: Record<string, MaterialIconName> = {
 /** Ícone para uma categoria (fallback: vitrine genérica). */
 export function categoryIcon(category: string): MaterialIconName {
   return CATEGORY_ICONS[category.trim().toLowerCase()] ?? 'storefront';
-}
-
-/**
- * Distância legível: "800 m" para < 1 km, "0,3 km"/"2,4 km" para >= 1 km.
- * `distanceKm` já vem arredondado a 1 casa pelo QueueService.
- */
-export function formatDistance(distanceKm: number): string {
-  if (distanceKm < 1) {
-    return `${Math.round(distanceKm * 1000)} m`;
-  }
-  return `${distanceKm.toFixed(1).replace('.', ',')} km`;
 }
 
 interface MerchantRowProps {

@@ -10,7 +10,8 @@ jest.mock('expo-router', () => ({
 }));
 
 import MapSearchScreen from '../app/(client)/aqui-agora/index';
-import { categoryIcon, formatDistance } from '../components/aqui-agora/ResultsSheet';
+import { categoryIcon } from '../components/aqui-agora/ResultsSheet';
+import { formatDistance } from '../lib/formatters';
 
 describe('MapSearchScreen (aqui e agora — map search)', () => {
   beforeEach(() => {

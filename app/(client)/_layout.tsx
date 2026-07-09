@@ -59,6 +59,7 @@ const ClientLayout: React.FC = () => {
         <Tabs.Screen name="aqui-agora/merchant/[id]" options={{ tabBarButton: () => null }} />
         <Tabs.Screen name="aqui-agora/fura-fila" options={{ tabBarButton: () => null }} />
         <Tabs.Screen name="aqui-agora/waiting-list" options={{ tabBarButton: () => null }} />
+        <Tabs.Screen name="aqui-agora/senha" options={{ tabBarButton: () => null }} />
 
         {/* Schedule - Fluxo de agendamento */}
         <Tabs.Screen
