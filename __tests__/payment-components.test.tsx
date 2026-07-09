@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { CardBrandFlag } from '../components/payment/CardBrandFlag';
 import { CreditCard } from '../components/payment/CreditCard';
@@ -24,19 +25,36 @@ const masterCard: PaymentCard = {
   isDefault: false,
 };
 
+const eloCard: PaymentCard = {
+  id: 'c3',
+  brand: 'elo',
+  last4: '6363',
+  holderName: 'JOAO SOUZA',
+  expiry: '02/29',
+  isDefault: false,
+};
+
+// Extrai o translateY do array de transform de um slot da pilha.
+function slotTranslateY(testID: string): number | undefined {
+  const style = StyleSheet.flatten(screen.getByTestId(testID).props.style) as {
+    transform?: Array<Record<string, number>>;
+  };
+  return style.transform?.find((t) => 'translateY' in t)?.translateY;
+}
+
 describe('CardBrandFlag', () => {
   it('renders the visa mark with its brand testID and accessibilityLabel', () => {
     render(<CardBrandFlag brand="visa" />);
     const flag = screen.getByTestId('card-brand-visa');
     expect(flag).toBeTruthy();
-    expect(flag.props.accessibilityLabel).toBe('visa');
+    expect(flag.props.accessibilityLabel).toBe('Bandeira Visa');
   });
 
   it('renders the mastercard mark with its brand testID and accessibilityLabel', () => {
     render(<CardBrandFlag brand="mastercard" />);
     const flag = screen.getByTestId('card-brand-mastercard');
     expect(flag).toBeTruthy();
-    expect(flag.props.accessibilityLabel).toBe('mastercard');
+    expect(flag.props.accessibilityLabel).toBe('Bandeira Mastercard');
   });
 
   it('renders a distinct mark per brand (elo/amex fallbacks included)', () => {
@@ -104,6 +122,15 @@ describe('CardsStack', () => {
   it('renders one pressable per card', () => {
     render(<CardsStack cards={cards} />);
     expect(screen.getAllByRole('button')).toHaveLength(cards.length);
+  });
+
+  it('offsets each card by depth so the stack is visible (activeIndex 0)', () => {
+    // Caminho real da F1: activeIndex 0 → profundidades monotônicas 0,1,2, então
+    // cada slot deve receber um translateY distinto (a pilha realmente escalona).
+    render(<CardsStack cards={[visaCard, masterCard, eloCard]} activeIndex={0} />);
+    const offsets = [0, 1, 2].map((i) => slotTranslateY(`cards-stack-card-${i}`));
+    expect(offsets[0]).toBeCloseTo(0); // ativo não desloca (-0 é aceitável)
+    expect(new Set(offsets).size).toBe(3); // cada profundidade tem offset distinto
   });
 
   it('fires onSelect with the tapped card and its index', () => {

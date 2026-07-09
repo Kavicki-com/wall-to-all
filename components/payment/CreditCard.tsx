@@ -57,6 +57,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   number: {
+    // Ocupa o espaço restante do row space-between e encolhe/elipsa antes de
+    // empurrar a bandeira (defensivo contra last4 malformado/longo).
+    flex: 1,
     fontFamily: 'Montserrat_500Medium',
     fontSize: 14,
     letterSpacing: 2,

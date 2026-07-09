@@ -21,9 +21,10 @@ const MASTERCARD_AMBER = '#F79E1B';
 const VISA_BLUE = '#1A1F71';
 
 export const CardBrandFlag: React.FC<CardBrandFlagProps> = ({ brand, size = DEFAULT_SIZE }) => {
+  const brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
   const rootProps = {
     testID: `card-brand-${brand}`,
-    accessibilityLabel: brand,
+    accessibilityLabel: `Bandeira ${brandName}`,
     accessibilityRole: 'image' as const,
   };
 

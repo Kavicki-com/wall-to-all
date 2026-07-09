@@ -30,10 +30,16 @@ export const CardsStack: React.FC<CardsStackProps> = ({
   style,
   testID,
 }) => {
+  const slotTestIdPrefix = testID ?? 'cards-stack';
   return (
     <View testID={testID} style={[styles.container, style]}>
       {cards.map((card, index) => {
         // Profundidade = distância ao cartão ativo; 0 = à frente.
+        // LIMITAÇÃO: com activeIndex INTERIOR e 3+ cartões, cartões em lados
+        // opostos recebem a mesma profundidade e colapsam (mesmo transform/zIndex).
+        // Aceitável para F1 (2 cartões, activeIndex 0). Revisitar na carteira F5
+        // (3+ cartões selecionáveis): trocar por uma cascata de distância COM
+        // sinal. Não reescrever o algoritmo agora — F1 não precisa.
         const depth = Math.abs(index - activeIndex);
         const translateY = -depth * PEEK_OFFSET;
         const scale = Math.max(MIN_SCALE, 1 - depth * SCALE_STEP);
@@ -44,6 +50,7 @@ export const CardsStack: React.FC<CardsStackProps> = ({
         return (
           <Pressable
             key={card.id}
+            testID={`${slotTestIdPrefix}-card-${index}`}
             accessibilityRole="button"
             accessibilityLabel={`Cartão terminado em ${card.last4}`}
             onPress={() => onSelect?.(card, index)}
