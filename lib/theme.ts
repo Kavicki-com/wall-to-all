@@ -50,6 +50,8 @@ export const colors = {
   iconInactive: '#767676', // Ícone inativo (tab bar) — cinza médio, ≈4.5:1 sobre surface (WCAG 1.4.11)
   contentWarning: '#D69D00', // Figma content/warning — acento/borda/ETA da opção "Furar fila"
   surfaceWarningLight: '#FFE59E', // Figma surface/warning-light — fundo do badge "+R$" do fura-fila
+  contentPrimaryLight: '#A8BDFF', // Figma content/primary-light — acento "Você é o … da fila" (lista de espera)
+  surfacePrimaryLight: '#D6E0FF', // Figma surface/primary-light — segmentos preenchidos da barra de progresso da fila
 } as const;
 
 export type ColorKey = keyof typeof colors;
