@@ -56,6 +56,7 @@ const ClientLayout: React.FC = () => {
             tabBarButton: () => null,
           }}
         />
+        <Tabs.Screen name="aqui-agora/merchant/[id]" options={{ tabBarButton: () => null }} />
 
         {/* Schedule - Fluxo de agendamento */}
         <Tabs.Screen
