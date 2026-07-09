@@ -1,16 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueueService } from '../../../../context/ServicesContext';
-import type { NearbyMerchant } from '../../../../lib/services/types';
 import { TopBar } from '../../../../components/layout/TopBar';
 import { Icon } from '../../../../components/ui/Icon';
 import { FuraFilaIcon } from '../../../../components/icons/FuraFilaIcon';
 import { colors } from '../../../../lib/theme';
 import { formatBRL } from '../../../../lib/formatters';
-import { SP_CENTER } from '../../../../lib/aqui-agora/constants';
-
-type Status = 'loading' | 'ready' | 'error';
+import { useMerchant } from '../../../../lib/hooks/useNearbyMerchants';
 
 /**
  * Perfil do lojista (cliente) da experiência "Aqui e Agora". Recebe o `[id]` do
@@ -28,30 +25,8 @@ const MerchantProfileScreen: React.FC = () => {
   const queueService = useQueueService();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [merchant, setMerchant] = useState<NearbyMerchant | null>(null);
-  const [status, setStatus] = useState<Status>('loading');
+  const { merchant, status } = useMerchant(id);
   const [joining, setJoining] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    setStatus('loading');
-    queueService
-      .getNearbyMerchants(SP_CENTER)
-      .then((result) => {
-        if (!active) return;
-        const found = result.find((m) => m.id === id) ?? null;
-        setMerchant(found);
-        setStatus(found ? 'ready' : 'error');
-      })
-      .catch(() => {
-        if (!active) return;
-        setMerchant(null);
-        setStatus('error');
-      });
-    return () => {
-      active = false;
-    };
-  }, [queueService, id]);
 
   const handleJoin = useCallback(async () => {
     if (joining || !merchant) return;

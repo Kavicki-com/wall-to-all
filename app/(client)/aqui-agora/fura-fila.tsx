@@ -10,15 +10,14 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueueService, useWalletService } from '../../../context/ServicesContext';
-import type { NearbyMerchant, PaymentCard } from '../../../lib/services/types';
+import type { PaymentCard } from '../../../lib/services/types';
 import { TopBar } from '../../../components/layout/TopBar';
 import { Icon } from '../../../components/ui/Icon';
 import { IconCheckCircle, IconRadioFill, IconRadioNoFill } from '../../../lib/icons';
 import { colors } from '../../../lib/theme';
 import { formatBRL } from '../../../lib/formatters';
-import { SP_CENTER } from '../../../lib/aqui-agora/constants';
+import { useMerchant } from '../../../lib/hooks/useNearbyMerchants';
 
-type Status = 'loading' | 'ready' | 'error';
 type Urgency = 'padrao' | 'furar';
 type Method = 'pix' | 'card';
 
@@ -56,35 +55,13 @@ const FuraFilaScreen: React.FC = () => {
   const walletService = useWalletService();
   const { merchantId } = useLocalSearchParams<{ merchantId: string }>();
 
-  const [merchant, setMerchant] = useState<NearbyMerchant | null>(null);
-  const [status, setStatus] = useState<Status>('loading');
+  const { merchant, status } = useMerchant(merchantId);
   const [urgency, setUrgency] = useState<Urgency>('furar');
   const [method, setMethod] = useState<Method>('pix');
   const [choosingMethod, setChoosingMethod] = useState(false);
   const [defaultCard, setDefaultCard] = useState<PaymentCard | null>(null);
   const [paying, setPaying] = useState(false);
   const [success, setSuccess] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    setStatus('loading');
-    queueService
-      .getNearbyMerchants(SP_CENTER)
-      .then((result) => {
-        if (!active) return;
-        const found = result.find((m) => m.id === merchantId) ?? null;
-        setMerchant(found);
-        setStatus(found ? 'ready' : 'error');
-      })
-      .catch(() => {
-        if (!active) return;
-        setMerchant(null);
-        setStatus('error');
-      });
-    return () => {
-      active = false;
-    };
-  }, [queueService, merchantId]);
 
   useEffect(() => {
     let active = true;

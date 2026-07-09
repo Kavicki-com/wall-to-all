@@ -1,15 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, StatusBar } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useRouter } from 'expo-router';
-import { useQueueService } from '../../../context/ServicesContext';
 import type { NearbyMerchant } from '../../../lib/services/types';
 import SearchBar from '../../../components/SearchBar';
 import { Chip } from '../../../components/ui/Chip';
-import { ResultsSheet, ResultsSheetStatus } from '../../../components/aqui-agora/ResultsSheet';
+import { ResultsSheet } from '../../../components/aqui-agora/ResultsSheet';
 import { colors } from '../../../lib/theme';
 import { formatBRL } from '../../../lib/formatters';
 import { SP_CENTER } from '../../../lib/aqui-agora/constants';
+import { useNearbyMerchants } from '../../../lib/hooks/useNearbyMerchants';
 
 const INITIAL_REGION = {
   ...SP_CENTER,
@@ -39,30 +39,8 @@ const CATEGORY_CHIPS = [
  */
 const MapSearchScreen: React.FC = () => {
   const router = useRouter();
-  const queueService = useQueueService();
-  const [merchants, setMerchants] = useState<NearbyMerchant[]>([]);
-  const [status, setStatus] = useState<ResultsSheetStatus>('loading');
+  const { merchants, status } = useNearbyMerchants();
   const [query, setQuery] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    setStatus('loading');
-    queueService
-      .getNearbyMerchants(SP_CENTER)
-      .then((result) => {
-        if (!active) return;
-        setMerchants(result);
-        setStatus('ready');
-      })
-      .catch(() => {
-        if (!active) return;
-        setMerchants([]);
-        setStatus('error');
-      });
-    return () => {
-      active = false;
-    };
-  }, [queueService]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
