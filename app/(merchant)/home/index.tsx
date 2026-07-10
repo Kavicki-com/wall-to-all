@@ -1,334 +1,596 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Image,
   ActivityIndicator,
-  FlatList,
-  ScrollView,
+  Pressable,
   RefreshControl,
   Alert,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { applyAcceptedReschedules } from '../../../lib/utils';
-import { IconShare } from '../../../lib/icons';
-import AppHeader from '../../../components/layout/AppHeader';
-import ScreenContainer from '../../../components/layout/ScreenContainer';
-import ServiceCategoryCard from '../../../components/ServiceCategoryCard';
-import AppointmentCard from '../../../components/appointments/AppointmentCard';
-import { CustomButton } from '../../../components/CustomButton';
 import { logger } from '../../../lib/logger';
-import { Business, Service, Appointment } from '../../../lib/types';
-import { useToast } from '../../../components/ui/ToastProvider';
 import { colors } from '../../../lib/theme';
+import { getInitials } from '../../../lib/formatters';
+import {
+  computeMonthOverview,
+  groupRevenueByService,
+  computeDelta,
+} from '../../../lib/dashboardMetrics';
+import type {
+  MonthOverview,
+  RevenueSegment,
+  ServiceRevenueRow,
+} from '../../../lib/dashboardMetrics';
+import ScreenContainer from '../../../components/layout/ScreenContainer';
+import HomeTopBar from '../../../components/home/HomeTopBar';
+import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
+import NotificationModal from '../../../components/notifications/NotificationModal';
+import { useNotifications } from '../../../context/NotificationContext';
+import { GoalOverview } from '../../../components/dashboard/GoalOverview';
+import { KpiCard } from '../../../components/dashboard/KpiCard';
+import { RevenueDonut } from '../../../components/dashboard/RevenueDonut';
+import { Icon } from '../../../components/ui/Icon';
+import { Business } from '../../../lib/types';
+
+/**
+ * Home do LOJISTA redesenhada (F2 — Dashboards/Home, node 2478:111).
+ *
+ * Reaproveita a mesma casca das homes do novo escopo (HomeTopBar navy → AppDrawer
+ * + sino → NotificationModal, exatamente como a home do cliente da Task 4) e troca
+ * a camada visual antiga por um painel de indicadores: avatar do negócio, card de
+ * meta (GoalOverview), quatro KPIs (KpiCard), "Próximos agendamentos" e o donut de
+ * receita por serviço (RevenueDonut).
+ *
+ * Fonte dos dados (Supabase, consultas locais — NÃO usa `useMerchantMetrics`,
+ * para não acoplar a tela de métricas):
+ * - business_profiles → perfil do negócio (nome/logo).
+ * - appointments (janela mês anterior→mês corrente) → receita/contagem/donut.
+ * - appointments (a partir de agora) → "Próximos agendamentos".
+ * - appointments (histórico enxuto: client_id + start_time) → "Novos clientes"
+ *   (clientes cujo 1º agendamento cai no mês).
+ * - reviews → média de avaliação.
+ * - referrals → indicações do mês.
+ *
+ * Definição de RECEITA (única no app): agendamentos com status 'confirmed' ou
+ * 'completed' e `service.price` — a mesma usada por `useMerchantMetrics`.
+ */
+
+// Status que contam como receita realizada (mesma definição de useMerchantMetrics).
+const REVENUE_STATUSES = ['confirmed', 'completed'];
+
+// Variação exibida no badge do KpiCard (ou null para escondê-lo).
+type Delta = { text: string; up: boolean } | null;
+
+// ── Shapes das linhas das consultas (o join do Supabase pode vir objeto ou array) ──
+interface JoinedService {
+  id: number;
+  name: string;
+  price: number | null;
+}
+type MaybeJoined<T> = T | T[] | null;
+
+interface MetricsRow {
+  start_time: string;
+  status: string;
+  service: MaybeJoined<JoinedService>;
+}
+interface UpcomingRow {
+  id: number;
+  start_time: string;
+  end_time: string;
+  service: MaybeJoined<JoinedService>;
+  client: MaybeJoined<{ id: string; full_name: string | null }>;
+}
+interface HistoryRow {
+  client_id: string | null;
+  start_time: string;
+}
+interface ReviewRow {
+  rating: number | null;
+}
+interface ReferralRow {
+  created_at: string | null;
+}
+
+// Item já normalizado da lista "Próximos agendamentos".
+interface UpcomingAppointment {
+  id: number;
+  start_time: string;
+  serviceName: string;
+  clientName: string;
+}
+
+// Normaliza um join to-one que o Supabase às vezes entrega como array de 1.
+function firstOf<T>(value: MaybeJoined<T>): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+// Variação percentual (ex.: "+12%") — usada em "Agendamentos".
+function pctDelta(delta: { pct: number; up: boolean } | null): Delta {
+  if (delta === null) return null;
+  return { text: `${delta.pct > 0 ? '+' : ''}${delta.pct}%`, up: delta.up };
+}
+
+// Variação absoluta (ex.: "+3") — usada em "Indicações" e "Novos clientes".
+function absDelta(delta: { abs: number; up: boolean } | null): Delta {
+  if (delta === null) return null;
+  return { text: `${delta.abs > 0 ? '+' : ''}${delta.abs}`, up: delta.up };
+}
 
 const MerchantHomeScreen: React.FC = () => {
   const router = useRouter();
-  const { showError } = useToast();
+  const { unreadCount, refreshNotifications } = useNotifications();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [services, setServices] = useState<Service[]>([]);
   const [businessProfile, setBusinessProfile] = useState<Business | null>(null);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [monthOverview, setMonthOverview] = useState<MonthOverview | null>(null);
+  const [upcoming, setUpcoming] = useState<UpcomingAppointment[]>([]);
+  const [donut, setDonut] = useState<{ total: number; segments: RevenueSegment[] }>({
+    total: 0,
+    segments: [],
+  });
+  const [kpis, setKpis] = useState<{
+    agendamentos: { value: string; delta: Delta };
+    avaliacao: { value: string; delta: Delta };
+    indicacoes: { value: string; delta: Delta };
+    novosClientes: { value: string; delta: Delta };
+  }>({
+    agendamentos: { value: '0', delta: null },
+    avaliacao: { value: '—', delta: null },
+    indicacoes: { value: '0', delta: null },
+    novosClientes: { value: '0', delta: null },
+  });
 
-  useEffect(() => {
-    loadBusinessAndServices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // loadBusinessAndServices é estável (useCallback), não precisa estar nas dependências
-  }, []);
+  // Menu lateral (AppDrawer) e modal de notificações — donos do estado que a
+  // HomeTopBar (genérica) apenas dispara via callbacks (idêntico à home do cliente).
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadBusinessAndServices();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      // loadBusinessAndServices é estável (useCallback), não precisa estar nas dependências
-    }, [])
-  );
+  const loadData = useCallback(
+    async (isRefresh = false) => {
+      try {
+        if (!isRefresh) setLoading(true);
 
-  const loadBusinessAndServices = async () => {
-    try {
-      setLoading(true);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        logger.debug('Usuário não autenticado');
-        setLoading(false);
-        return;
-      }
-
-      const { data: businessData, error: businessError } = await supabase
-        .from('business_profiles')
-        .select('id, business_name, logo_url, description')
-        .eq('owner_id', user.id)
-        .single();
-
-      if (businessError || !businessData) {
-        if (businessError?.code === 'PGRST116') {
-          Alert.alert(
-            'Perfil não encontrado',
-            'Você precisa criar um perfil de negócio primeiro.',
-            [{ text: 'OK', onPress: () => router.push('/(merchant)/profile/edit') }]
-          );
-        } else if (businessError) {
-          logger.error('Erro ao buscar negócio:', businessError);
+        if (!user) {
+          logger.debug('Usuário não autenticado');
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-        return;
-      }
 
-      setBusinessProfile(businessData);
+        // 1. Perfil do negócio (mesma consulta/tratamento da home antiga).
+        const { data: businessData, error: businessError } = await supabase
+          .from('business_profiles')
+          .select('id, business_name, logo_url, description')
+          .eq('owner_id', user.id)
+          .single();
 
-      const { data: servicesData, error: servicesError } = await supabase
-        .from('services')
-        .select(`
-          *,
-          categories:category_id (
-            id,
-            name
-          )
-        `)
-        .eq('business_id', businessData.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(5);
+        if (businessError || !businessData) {
+          if (businessError?.code === 'PGRST116') {
+            Alert.alert(
+              'Perfil não encontrado',
+              'Você precisa criar um perfil de negócio primeiro.',
+              [{ text: 'OK', onPress: () => router.push('/(merchant)/profile/edit') }],
+            );
+          } else if (businessError) {
+            logger.error('Erro ao buscar negócio:', businessError);
+          }
+          setLoading(false);
+          return;
+        }
 
-      if (servicesError) {
-        logger.error('Erro ao buscar serviços:', servicesError);
-      } else if (servicesData) {
-        const servicesWithRatings = await Promise.all(
-          servicesData.map(async (service) => {
-            const { data: serviceReviews } = await supabase
-              .from('reviews')
-              .select('rating')
-              .eq('service_id', service.id);
+        setBusinessProfile(businessData as Business);
 
-            const rating =
-              serviceReviews && serviceReviews.length > 0
-                ? serviceReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / serviceReviews.length
-                : undefined;
-            const reviewCount = serviceReviews?.length || undefined;
-
-            return {
-              ...service,
-              rating,
-              review_count: reviewCount,
-            };
-          })
+        // ── Janelas de data (fonte única) ──
+        // Mês corrente e anterior alimentam a meta (GoalOverview) e os deltas dos
+        // KPIs; os últimos 30 dias alimentam o donut (mantém honesta a legenda
+        // "Últimos 30 dias" do card).
+        const now = new Date();
+        const dayOfMonth = now.getDate();
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        const startOfPreviousMonth = new Date(
+          now.getFullYear(),
+          now.getMonth() - 1,
+          1,
+          0,
+          0,
+          0,
+          0,
         );
-        setServices(servicesWithRatings as Service[]);
-      }
+        const endOfCurrentMonth = new Date(
+          now.getFullYear(),
+          now.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
+        const last30Start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      const today = new Date();
-      const startOfToday = new Date(today);
-      startOfToday.setHours(0, 0, 0, 0);
-      const endOfToday = new Date(today);
-      endOfToday.setHours(23, 59, 59, 999);
+        // 2. Consultas independentes em paralelo.
+        const [metricsRes, upcomingRes, historyRes, reviewsRes, referralsRes] = await Promise.all([
+          // Métricas: janela [mês anterior, fim do mês corrente].
+          supabase
+            .from('appointments')
+            .select('id, start_time, status, service:services(id, name, price)')
+            .eq('business_id', businessData.id)
+            .gte('start_time', startOfPreviousMonth.toISOString())
+            .lte('start_time', endOfCurrentMonth.toISOString())
+            .order('start_time', { ascending: true })
+            .limit(500),
+          // Próximos agendamentos (a partir de agora) com nome do cliente.
+          supabase
+            .from('appointments')
+            .select(
+              'id, start_time, end_time, service:services(id, name), client:profiles!appointments_client_id_fkey(id, full_name)',
+            )
+            .eq('business_id', businessData.id)
+            .gte('start_time', now.toISOString())
+            .order('start_time', { ascending: true })
+            .limit(10),
+          // Histórico enxuto (cliente + data) p/ "Novos clientes" (1º agendamento).
+          // Ascendente + limite: capta o 1º agendamento dos clientes mais antigos.
+          supabase
+            .from('appointments')
+            .select('client_id, start_time')
+            .eq('business_id', businessData.id)
+            .order('start_time', { ascending: true })
+            .limit(2000),
+          // Avaliações do negócio (média).
+          supabase.from('reviews').select('rating').eq('business_id', businessData.id),
+          // Indicações do lojista (usuário) — contagem mensal + delta.
+          supabase.from('referrals').select('created_at').eq('referrer_id', user.id),
+        ]);
 
-      const { data: appointmentsData, error: appointmentsError } = await supabase
-        .from('appointments')
-        .select(
-          `
-          id,
-          start_time,
-          end_time,
-          service:services(id, name)
-        `,
-        )
-        .eq('business_id', businessData.id)
-        .gte('start_time', startOfToday.toISOString())
-        .lte('start_time', endOfToday.toISOString())
-        .order('start_time', { ascending: true })
-        .limit(50);
+        const metricsRows = (metricsRes.data ?? []) as MetricsRow[];
+        const upcomingRows = (upcomingRes.data ?? []) as UpcomingRow[];
+        const historyRows = (historyRes.data ?? []) as HistoryRow[];
+        const reviewRows = (reviewsRes.data ?? []) as ReviewRow[];
+        const referralRows = (referralsRes.data ?? []) as ReferralRow[];
 
-      if (appointmentsError) {
-        logger.error('Erro ao buscar agendamentos do lojista:', appointmentsError);
-      } else if (appointmentsData) {
-        const appointmentsWithReschedules = await applyAcceptedReschedules(appointmentsData);
+        // ── Receita, contagem e linhas do donut (partição defensiva no cliente) ──
+        let currentRevenue = 0;
+        let previousRevenue = 0;
+        let currentCount = 0;
+        let previousCount = 0;
+        const donutRows: ServiceRevenueRow[] = [];
 
-        const todayAppointments = appointmentsWithReschedules.filter((apt) => {
-          const appointmentDate = new Date(apt.start_time);
-          return appointmentDate >= startOfToday && appointmentDate <= endOfToday;
+        for (const row of metricsRows) {
+          const start = new Date(row.start_time);
+          const service = firstOf(row.service);
+          const price = service?.price ?? 0;
+          const isRevenue = REVENUE_STATUSES.includes(row.status);
+          const inCurrentMonth = start >= startOfCurrentMonth && start <= endOfCurrentMonth;
+          const inPreviousMonth = start >= startOfPreviousMonth && start < startOfCurrentMonth;
+
+          if (inCurrentMonth) {
+            currentCount += 1;
+            if (isRevenue) currentRevenue += price;
+          } else if (inPreviousMonth) {
+            previousCount += 1;
+            if (isRevenue) previousRevenue += price;
+          }
+
+          // Donut = receita realizada dos últimos 30 dias, por serviço.
+          if (isRevenue && service?.name && start >= last30Start && start <= now) {
+            donutRows.push({ serviceName: service.name, amount: price });
+          }
+        }
+
+        setMonthOverview(
+          computeMonthOverview({ currentRevenue, previousRevenue, dayOfMonth, daysInMonth }),
+        );
+        setDonut(groupRevenueByService(donutRows));
+
+        // ── KPI: Avaliação (média). Delta absoluto não é barato (exigiria média
+        // por período com reviews datadas) → degrada para null (esconde o badge). ──
+        const ratings = reviewRows
+          .map((r) => r.rating)
+          .filter((r): r is number => typeof r === 'number');
+        const ratingValue =
+          ratings.length > 0
+            ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
+            : '—';
+
+        // ── KPI: Indicações (indicações do mês vs mês anterior) ──
+        let referralsCurrent = 0;
+        let referralsPrevious = 0;
+        for (const ref of referralRows) {
+          if (!ref.created_at) continue;
+          const created = new Date(ref.created_at);
+          if (created >= startOfCurrentMonth && created <= endOfCurrentMonth) referralsCurrent += 1;
+          else if (created >= startOfPreviousMonth && created < startOfCurrentMonth)
+            referralsPrevious += 1;
+        }
+
+        // ── KPI: Novos clientes (clientes cujo 1º agendamento cai no mês) ──
+        const firstByClient = new Map<string, Date>();
+        for (const row of historyRows) {
+          if (!row.client_id) continue;
+          const when = new Date(row.start_time);
+          const seen = firstByClient.get(row.client_id);
+          if (!seen || when < seen) firstByClient.set(row.client_id, when);
+        }
+        let newClientsCurrent = 0;
+        let newClientsPrevious = 0;
+        for (const first of firstByClient.values()) {
+          if (first >= startOfCurrentMonth && first <= endOfCurrentMonth) newClientsCurrent += 1;
+          else if (first >= startOfPreviousMonth && first < startOfCurrentMonth)
+            newClientsPrevious += 1;
+        }
+
+        setKpis({
+          agendamentos: {
+            value: String(currentCount),
+            delta: pctDelta(computeDelta(currentCount, previousCount)),
+          },
+          avaliacao: { value: ratingValue, delta: null },
+          indicacoes: {
+            value: String(referralsCurrent),
+            delta: absDelta(computeDelta(referralsCurrent, referralsPrevious)),
+          },
+          novosClientes: {
+            value: String(newClientsCurrent),
+            delta: absDelta(computeDelta(newClientsCurrent, newClientsPrevious)),
+          },
         });
 
-        setAppointments(todayAppointments as Appointment[]);
+        // ── Próximos agendamentos (máx. 3), aplicando reagendamentos aceitos ──
+        const futureRows = upcomingRows.filter((a) => new Date(a.start_time) >= now);
+        const withReschedules = await applyAcceptedReschedules(futureRows);
+        const upcomingList: UpcomingAppointment[] = withReschedules
+          .filter((a) => new Date(a.start_time) >= now)
+          .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+          .slice(0, 3)
+          .map((a) => {
+            const service = firstOf(a.service);
+            const client = firstOf(a.client);
+            return {
+              id: a.id,
+              start_time: a.start_time,
+              serviceName: service?.name || 'Serviço',
+              clientName: client?.full_name || 'Cliente',
+            };
+          });
+        setUpcoming(upcomingList);
+      } catch (error) {
+        logger.error('Erro ao carregar dados da home do lojista:', error);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch (error) {
-      logger.error('Erro ao carregar dados:', error);
-      showError('Não foi possível carregar os dados. Verifique sua conexão e tente novamente.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    },
+    // `router` (useRouter) é estável — mantê-lo fora das deps evita recriar
+    // loadData a cada render (o que dispararia o useEffect em loop).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
-  const onRefresh = async () => {
+  // Load inicial (mount) — fonte do carregamento nos testes.
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Refresh silencioso ao reganhar foco (mantém o comportamento da home antiga).
+  useFocusEffect(
+    useCallback(() => {
+      loadData(true);
+    }, [loadData]),
+  );
+
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    try {
-      await loadBusinessAndServices();
-    } catch (error) {
-      // Erro já é tratado dentro de loadBusinessAndServices
-      // Aqui apenas garantimos que o estado seja resetado
-      logger.error('Erro ao atualizar dados:', error);
-    } finally {
-      // O loadBusinessAndServices já reseta o refreshing no finally,
-      // mas garantimos aqui também por segurança
-      setRefreshing(false);
-    }
-  };
+    await loadData(true);
+  }, [loadData]);
 
-  const handleShareProfile = () => {
-    router.push('/(merchant)/home/share');
-  };
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const openNotifications = useCallback(() => setNotifModalVisible(true), []);
+  // Ao fechar o modal, recarrega a contagem — mesmo fluxo da home do cliente.
+  const closeNotifications = useCallback(() => {
+    setNotifModalVisible(false);
+    refreshNotifications();
+  }, [refreshNotifications]);
 
-  const renderServiceCard = ({ item }: { item: Service }) => (
-    <ServiceCategoryCard
-      id={item.id}
-      name={item.name}
-      price={item.price}
-      photos={item.photos}
-      rating={item.rating}
-      reviewCount={item.review_count}
-      category={item.categories?.name || null}
-      onPress={(id) => router.push(`/(merchant)/services/edit/${id}`)}
-    />
+  // Itens do menu (drawer) do lojista — os MESMOS do "Aqui e Agora", acrescidos
+  // de "Compartilhar perfil" (a seção que saiu da home migra para o drawer;
+  // "Serviços" já fazia parte do conjunto).
+  const drawerItems: DrawerItem[] = useMemo(
+    () => [
+      { label: 'Início', route: '/(merchant)/home' },
+      { label: 'Agenda', route: '/(merchant)/dashboard' },
+      { label: 'Serviços', route: '/(merchant)/services' },
+      { label: 'Compartilhar perfil', route: '/(merchant)/home/share' },
+      { label: 'Perfil', route: '/(merchant)/profile' },
+      { label: 'Configurações', route: '/(merchant)/settings' },
+    ],
+    [],
   );
 
   if (loading) {
     return (
-      <ScreenContainer scroll={false} backgroundColor={colors.background}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={styles.loadingText}>Carregando...</Text>
-        </View>
-      </ScreenContainer>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.accent} />
+        <Text style={styles.loadingText}>Carregando...</Text>
+      </View>
     );
   }
 
+  const businessName = businessProfile?.business_name || 'Meu Negócio';
+
   return (
-    <ScreenContainer
-      scroll={true}
-      hasHeader={true}
-      backgroundColor={colors.background}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      header={<AppHeader showBackButton={false} />}
-    >
-      <View style={styles.avatarSection}>
-        {businessProfile?.logo_url ? (
-          <Image
-            source={{ uri: businessProfile.logo_url }}
-            style={styles.avatar}
+    <>
+      <ScreenContainer
+        scroll={true}
+        hasHeader={true}
+        backgroundColor={colors.background}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.accent]}
+            tintColor={colors.accent}
           />
-        ) : (
-          <View style={[styles.avatar, styles.placeholderAvatar]} />
-        )}
-        <View style={styles.businessNameContainer}>
-          <Text style={styles.businessName}>
-            {businessProfile?.business_name || 'Meu Negócio'}
+        }
+        header={
+          <HomeTopBar
+            onMenu={openDrawer}
+            onBell={openNotifications}
+            notificationCount={unreadCount}
+          />
+        }
+      >
+        {/* Avatar: logo 40px (ou iniciais) + nome do negócio. */}
+        <View style={styles.avatarSection}>
+          {businessProfile?.logo_url ? (
+            <Image source={{ uri: businessProfile.logo_url }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Text style={styles.avatarInitials}>{getInitials(businessName)}</Text>
+            </View>
+          )}
+          <Text style={styles.businessName} numberOfLines={1}>
+            {businessName}
           </Text>
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
-        {appointments.length > 0 ? (
-          <ScrollView
-            nestedScrollEnabled
-            scrollEnabled
-            showsVerticalScrollIndicator
-            style={styles.appointmentsScrollArea}
-            contentContainerStyle={styles.appointmentsList}
-          >
-            {appointments.map((item) => {
-              const startDate = new Date(item.start_time);
-              const time = startDate.toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              });
-              const dateLabel = `Data ${startDate.toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: '2-digit',
-              })}`;
-              const serviceName = Array.isArray(item.service)
-                ? item.service[0]?.name
-                : item.service?.name;
+        {/* Card de meta do mês — toque no cabeçalho vai para a tela de métricas. */}
+        <GoalOverview
+          overview={monthOverview}
+          onPress={() => router.push('/(merchant)/settings/metrics')}
+        />
 
-              return (
-                <AppointmentCard
-                  key={item.id}
-                  time={time}
-                  dateLabel={dateLabel}
-                  serviceName={serviceName || 'Serviço'}
-                  showShopName={false}
-                  onPress={() => router.push(`/(merchant)/dashboard/appointment/${item.id}`)}
-                />
-              );
-            })}
-          </ScrollView>
-        ) : (
-          <View style={styles.emptyStateCard}>
-            <Text style={styles.emptyStateText}>
-              Você ainda não tem nenhum agendamento, divulgue seu perfil para receber mais clientes
-            </Text>
+        {/* Grade de KPIs (2 por linha). Ícones do design system (sem assets do Figma). */}
+        <View style={styles.kpiGrid}>
+          <View style={styles.kpiRow}>
+            <KpiCard
+              testID="kpi-agendamentos"
+              style={styles.kpiCard}
+              icon={<Icon name="date-range" size={20} color={colors.brand} />}
+              label="Agendamentos"
+              value={kpis.agendamentos.value}
+              delta={kpis.agendamentos.delta}
+            />
+            <KpiCard
+              testID="kpi-avaliacao"
+              style={styles.kpiCard}
+              icon={<Icon name="star" size={20} color={colors.brand} />}
+              label="Avaliação"
+              value={kpis.avaliacao.value}
+              delta={kpis.avaliacao.delta}
+            />
           </View>
-        )}
-        <CustomButton
-          title="Compartilhar perfil"
-          variant="outline"
-          onPress={handleShareProfile}
-          rightIcon={<IconShare size={24} color={colors.brand} />}
-          style={{ borderRadius: 24 }}
-          width="100%"
-        />
-      </View>
+          <View style={styles.kpiRow}>
+            <KpiCard
+              testID="kpi-indicacoes"
+              style={styles.kpiCard}
+              icon={<Icon name="handshake" size={20} color={colors.brand} />}
+              label="Indicações"
+              value={kpis.indicacoes.value}
+              delta={kpis.indicacoes.delta}
+            />
+            <KpiCard
+              testID="kpi-novos-clientes"
+              style={styles.kpiCard}
+              icon={<Icon name="account-circle" size={20} color={colors.brand} />}
+              label="Novos clientes"
+              value={kpis.novosClientes.value}
+              delta={kpis.novosClientes.delta}
+            />
+          </View>
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Meus Serviços</Text>
-        {services.length > 0 ? (
-          <FlatList
-            data={services}
-            renderItem={renderServiceCard}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.servicesCarousel}
-            initialNumToRender={3}
-            maxToRenderPerBatch={5}
-            windowSize={5}
-            removeClippedSubviews={true}
-          />
-        ) : (
-          <Text style={styles.emptyServicesText}>Nenhum serviço cadastrado</Text>
-        )}
+        {/* Próximos agendamentos — linhas no estilo do Figma; toque → detalhe. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
+          {upcoming.length > 0 ? (
+            <View style={styles.apptList}>
+              {upcoming.map((appt) => {
+                const time = new Date(appt.start_time).toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                });
+                return (
+                  <Pressable
+                    key={appt.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${appt.serviceName}, ${appt.clientName}, ${time}`}
+                    style={styles.apptRow}
+                    onPress={() => router.push(`/(merchant)/dashboard/appointment/${appt.id}`)}
+                  >
+                    <View style={styles.apptHeader}>
+                      <Text style={styles.apptService} numberOfLines={1}>
+                        {appt.serviceName}
+                      </Text>
+                      <Text style={styles.apptClient} numberOfLines={1}>
+                        {appt.clientName}
+                      </Text>
+                    </View>
+                    <View style={styles.apptContent}>
+                      <Icon name="content-cut" size={24} color={colors.brand} />
+                      <Text style={styles.apptTime}>{time}</Text>
+                      <Icon name="chevron-right" size={22} color={colors.neutral400} />
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>
+              Você ainda não tem agendamentos futuros, divulgue seu perfil para receber mais clientes
+            </Text>
+          )}
 
-        <CustomButton
-          title="Cadastrar novo serviço"
-          variant="outline"
-          onPress={() => router.push('/(merchant)/services/create')}
-          style={{ borderRadius: 24, height: 48, marginTop: 16 }}
-          width="100%"
-        />
-      </View>
-    </ScreenContainer>
+          {/* Botão fantasma "Ver todos" → agenda completa (sempre visível). */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ver todos os agendamentos"
+            style={styles.ghostButton}
+            onPress={() => router.push('/(merchant)/dashboard')}
+          >
+            <Text style={styles.ghostButtonText}>Ver todos</Text>
+          </Pressable>
+        </View>
+
+        {/* Receita por serviço (últimos 30 dias). */}
+        <RevenueDonut total={donut.total} segments={donut.segments} />
+
+        {/* TODO(F6): FAB de posts (criação de post é F6) */}
+      </ScreenContainer>
+
+      {/* Menu lateral e modal de notificações — irmãos do ScreenContainer para
+          não viverem dentro do ScrollView. */}
+      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={drawerItems} />
+      <NotificationModal
+        visible={notifModalVisible}
+        onClose={closeNotifications}
+        onNotificationsUpdated={refreshNotifications}
+      />
+    </>
   );
 };
 
 export default MerchantHomeScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.background,
   },
   loadingText: {
     marginTop: 12,
@@ -336,11 +598,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_400Regular',
     color: colors.brand,
   },
+  scrollContent: {
+    paddingBottom: 24,
+    gap: 24,
+  },
+  // ── Avatar ──
   avatarSection: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 24,
   },
   avatar: {
     width: 40,
@@ -348,19 +614,35 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
   },
-  placeholderAvatar: {
-    backgroundColor: '#E0E0E0',
+  avatarFallback: {
+    backgroundColor: colors.surfacePrimaryExtraLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  businessNameContainer: {
-    flex: 1,
+  avatarInitials: {
+    fontFamily: 'Montserrat_700Bold',
+    fontSize: 14,
+    color: colors.brand,
   },
   businessName: {
+    flex: 1,
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: colors.textPrimary,
   },
+  // ── KPIs ──
+  kpiGrid: {
+    gap: 8,
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  kpiCard: {
+    flex: 1,
+  },
+  // ── Seções ──
   section: {
-    marginBottom: 24,
     gap: 16,
   },
   sectionTitle: {
@@ -368,34 +650,62 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_700Bold',
     color: colors.accent,
   },
-  appointmentsList: {
-    gap: 12,
+  // ── Próximos agendamentos ──
+  apptList: {
+    gap: 8,
   },
-  appointmentsScrollArea: {
-    maxHeight: 360,
+  apptRow: {
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.textPrimary,
   },
-  emptyStateCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: '#DBDBDB',
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    padding: 16,
+  apptHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
   },
-  emptyStateText: {
-    fontSize: 16,
+  apptService: {
+    flex: 1,
+    fontFamily: 'Montserrat_600SemiBold',
+    fontSize: 12,
+    color: colors.neutral400,
+  },
+  apptClient: {
     fontFamily: 'Montserrat_400Regular',
+    fontSize: 12,
     color: colors.textPrimary,
-    textAlign: 'left',
   },
-  servicesCarousel: {
-    paddingRight: 24,
+  apptContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    height: 40,
   },
-  emptyServicesText: {
-    fontSize: 14,
+  apptTime: {
+    flex: 1,
     fontFamily: 'Montserrat_400Regular',
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 16,
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  emptyText: {
+    fontFamily: 'Montserrat_400Regular',
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  // ── Botão fantasma "Ver todos" ──
+  ghostButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 24,
+  },
+  ghostButtonText: {
+    fontFamily: 'Montserrat_700Bold',
+    fontSize: 16,
+    color: colors.brand,
   },
 });
