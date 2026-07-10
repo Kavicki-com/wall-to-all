@@ -82,7 +82,6 @@ feature-graphic*.png
 # Android keystores
 *.keystore
 .agents
-__tests__
 
 # Android build artifacts (App Bundles / APKs)
 *.aab

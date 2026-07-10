@@ -49,6 +49,18 @@ const ClientLayout: React.FC = () => {
           ROTAS OCULTAS (não aparecem na TabBar)
           ======================================== */}
 
+        {/* Aqui e Agora - Mapa de merchants próximos (fila) */}
+        <Tabs.Screen
+          name="aqui-agora/index"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen name="aqui-agora/merchant/[id]" options={{ tabBarButton: () => null }} />
+        <Tabs.Screen name="aqui-agora/fura-fila" options={{ tabBarButton: () => null }} />
+        <Tabs.Screen name="aqui-agora/waiting-list" options={{ tabBarButton: () => null }} />
+        <Tabs.Screen name="aqui-agora/senha" options={{ tabBarButton: () => null }} />
+
         {/* Schedule - Fluxo de agendamento */}
         <Tabs.Screen
           name="schedule/service"
