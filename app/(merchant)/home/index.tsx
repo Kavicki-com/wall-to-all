@@ -439,6 +439,7 @@ const MerchantHomeScreen: React.FC = () => {
       { label: 'Início', route: '/(merchant)/home' },
       { label: 'Agenda', route: '/(merchant)/dashboard' },
       { label: 'Serviços', route: '/(merchant)/services' },
+      { label: 'Financeiro', route: '/(merchant)/financeiro' },
       { label: 'Compartilhar perfil', route: '/(merchant)/home/share' },
       { label: 'Perfil', route: '/(merchant)/profile' },
       { label: 'Configurações', route: '/(merchant)/settings' },

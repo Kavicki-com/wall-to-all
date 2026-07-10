@@ -79,7 +79,7 @@ Dependências: `F0 → F1 → F2 → F3 → {F4, F5, F7} → F6 → F8` (F4/F5/F
 | dashboard-update lojista | `2478:111` | seção `2643:8171` |
 | drawers (2 lados) | ver Fase 0 | integração na navegação |
 
-### Fase 3 — Carteira (cliente) + Financeiro (lojista)
+### Fase 3 — Carteira (cliente) + Financeiro (lojista) ✅ implementada (2026-07-10)
 
 **Cliente** (seção `2643:19683`):
 
@@ -170,5 +170,6 @@ Assinatura (seção `2678:149`): subscription-offer `2678:150` · subscription-m
 | `2026-07-06-novo-escopo-master.md` (este) | ✅ criado |
 | Design doc + plano da F0+F1 | ✅ criado; F0+F1 **implementadas** (2026-07-09) — suíte 251/251, typecheck e lint limpos. Pendente: QA em dispositivo (percorrer os 2 fluxos ponta a ponta) + revisão de fidelidade visual vs Figma (`2715:3575`, `2715:3616`). |
 | Plano da F2 (dashboards/home) | ✅ criado; F2 **implementada** (2026-07-10) — suíte 300/300, typecheck e lint (0 erros) limpos. Pendente: QA em dispositivo + fidelidade visual vs Figma (`2715:3426`, `2478:111`). |
+| Plano da F3 (carteira/financeiro) | ✅ criado; F3 **implementada** (2026-07-10) — mock-first (WalletService estendido); suíte 350/350, typecheck e lint (0 erros) limpos. Pendente: QA em dispositivo + fidelidade visual vs Figma (`2715:3681`, `2602:5991`, `2715:3711`). Débitos de fidelidade registrados: cadastro de cartão sem CPF/débito-crédito, chave Pix sem "padrão"/verificação, saque sem resumo de taxa (o mock não modela) — casar com o backend na F8. |
 | Design doc + plano das demais fases | imediatamente antes de cada fase |
 | Plano da F8 (integração) | ao final da F7, com PSP decidido |

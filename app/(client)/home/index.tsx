@@ -239,6 +239,7 @@ const ClientHomeScreen: React.FC = () => {
       { label: 'Início', route: '/(client)/home' },
       { label: 'Meus agendamentos', route: '/(client)/appointments' },
       { label: 'Buscar serviços', route: '/(client)/search' },
+      { label: 'Carteira', route: '/(client)/wallet' },
       { label: 'Perfil', route: '/(client)/profile' },
       { label: 'Configurações', route: '/(client)/settings' },
     ],

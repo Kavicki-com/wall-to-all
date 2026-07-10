@@ -145,6 +145,24 @@ const MerchantLayout: React.FC = () => {
             tabBarButton: () => null,
           }}
         />
+        <Tabs.Screen
+          name="financeiro/index"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="financeiro/withdraw"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="financeiro/new-pix-key"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
       </Tabs>
     </BusinessProfileProvider>
   );
