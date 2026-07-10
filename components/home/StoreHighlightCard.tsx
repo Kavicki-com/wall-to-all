@@ -5,6 +5,7 @@ import { Chip } from '../ui/Chip';
 import { IconPix, IconCreditCard, IconCash } from '../../lib/icons';
 import { formatWorkDays } from '../../lib/workDaysUtils';
 import { priceTier } from '../../lib/dashboardMetrics';
+import { getInitials } from '../../lib/formatters';
 import { colors } from '../../lib/theme';
 import type { Business, AcceptedPaymentMethods } from '../../lib/types';
 
@@ -20,17 +21,6 @@ const CARD_WIDTH = 255;
 // Altura da faixa do hero (imagem) e sobreposição do avatar, também do Figma.
 const HERO_HEIGHT = 122;
 const AVATAR_OVERLAP = 72;
-
-/**
- * Iniciais (até 2) do nome — mesmo padrão das telas F1 (fila / bottom sheet).
- * Usado como fallback do avatar quando o negócio não tem logo.
- */
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-}
 
 /**
  * Card do negócio em destaque na home do cliente (F2 — Dashboards/Home).

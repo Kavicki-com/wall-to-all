@@ -27,3 +27,15 @@ export function formatDistance(distanceKm: number): string {
   }
   return `${distanceKm.toFixed(1).replace('.', ',')} km`;
 }
+
+/**
+ * Iniciais (até 2, maiúsculas) de um nome, para avatares decorativos quando não
+ * há foto: "João Pedro" → "JP", "Você" → "V", "" → "?". Fonte única reutilizada
+ * pelas telas do novo escopo (destaque, stories, fila, solicitação recebida).
+ */
+export function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
