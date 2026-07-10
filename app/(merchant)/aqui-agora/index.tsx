@@ -240,6 +240,7 @@ const MerchantAquiAgoraScreen: React.FC = () => {
       { label: 'Início', route: '/(merchant)/home' },
       { label: 'Agenda', route: '/(merchant)/dashboard' },
       { label: 'Serviços', route: '/(merchant)/services' },
+      { label: 'Financeiro', route: '/(merchant)/financeiro' },
       { label: 'Perfil', route: '/(merchant)/profile' },
       { label: 'Configurações', route: '/(merchant)/settings' },
     ],
