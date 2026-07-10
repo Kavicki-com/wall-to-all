@@ -29,6 +29,20 @@ export function formatDistance(distanceKm: number): string {
 }
 
 /**
+ * Formata reais SEM casas decimais no padrão pt-BR: 6000 → "R$ 6.000". Usado
+ * pelos dashboards (F2), onde os valores são inteiros de reais e a UI não mostra
+ * centavos (difere de `formatCurrency`, que usa 2 casas, e de `formatBRL`, que
+ * recebe centavos).
+ */
+export function formatReais(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+/**
  * Iniciais (até 2, maiúsculas) de um nome, para avatares decorativos quando não
  * há foto: "João Pedro" → "JP", "Você" → "V", "" → "?". Fonte única reutilizada
  * pelas telas do novo escopo (destaque, stories, fila, solicitação recebida).

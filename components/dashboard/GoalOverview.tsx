@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Icon } from '../ui/Icon';
 import { colors } from '../../lib/theme';
+import { formatReais } from '../../lib/formatters';
 import type { MonthOverview } from '../../lib/dashboardMetrics';
 
 export interface GoalOverviewProps {
@@ -9,19 +10,6 @@ export interface GoalOverviewProps {
   overview: MonthOverview | null;
   /** Toque no cabeçalho "Visão do mês" → futura tela de métricas. */
   onPress?: () => void;
-}
-
-/**
- * Formata reais SEM casas decimais no padrão pt-BR: 6000 → "R$ 6.000".
- * Local ao componente porque os valores da meta são inteiros de reais e a UI
- * não mostra centavos (difere de `formatCurrency`, que usa 2 casas).
- */
-function formatReais(value: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 /**
