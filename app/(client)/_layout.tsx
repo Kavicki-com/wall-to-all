@@ -131,6 +131,26 @@ const ClientLayout: React.FC = () => {
           }}
         />
 
+        {/* Carteira - Cartões, chaves Pix e extrato (F3) */}
+        <Tabs.Screen
+          name="wallet/index"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="wallet/new-card"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="wallet/new-pix-key"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+
         {/* Settings - Subrotas */}
         <Tabs.Screen
           name="settings/faq"
