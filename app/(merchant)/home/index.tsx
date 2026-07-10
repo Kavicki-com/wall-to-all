@@ -34,6 +34,7 @@ import { GoalOverview } from '../../../components/dashboard/GoalOverview';
 import { KpiCard } from '../../../components/dashboard/KpiCard';
 import { RevenueDonut } from '../../../components/dashboard/RevenueDonut';
 import { Icon } from '../../../components/ui/Icon';
+import { useToast } from '../../../components/ui/ToastProvider';
 import { Business } from '../../../lib/types';
 
 /**
@@ -49,17 +50,20 @@ import { Business } from '../../../lib/types';
  * para não acoplar a tela de métricas):
  * - business_profiles → perfil do negócio (nome/logo).
  * - appointments (janela mês anterior→mês corrente) → receita/contagem/donut.
- * - appointments (a partir de agora) → "Próximos agendamentos".
- * - appointments (histórico enxuto: client_id + start_time) → "Novos clientes"
- *   (clientes cujo 1º agendamento cai no mês).
+ * - appointments (a partir de agora, exceto cancelados) → "Próximos agendamentos".
+ * - appointments (só os clientes do mês, agendamentos ANTERIORES ao mês) →
+ *   "Novos clientes" (clientes cujo 1º agendamento cai no mês).
  * - reviews → média de avaliação.
  * - referrals → indicações do mês.
  *
- * Definição de RECEITA (única no app): agendamentos com status 'confirmed' ou
- * 'completed' e `service.price` — a mesma usada por `useMerchantMetrics`.
+ * Definição de RECEITA (única no app, alinhada a `useMerchantMetrics`): agendamentos
+ * com status 'confirmed' ou 'completed' e `service.price`. O "Realizado" do mês
+ * corrente considera apenas o que JÁ ocorreu (start_time <= agora) — agendamentos
+ * futuros do mês não inflam a receita realizada (a pacing do GoalOverview depende
+ * disso). A contagem "Agendamentos" usa o mesmo filtro de status.
  */
 
-// Status que contam como receita realizada (mesma definição de useMerchantMetrics).
+// Status que contam como receita/agendamento (mesma definição de useMerchantMetrics).
 const REVENUE_STATUSES = ['confirmed', 'completed'];
 
 // Variação exibida no badge do KpiCard (ou null para escondê-lo).
@@ -76,18 +80,16 @@ type MaybeJoined<T> = T | T[] | null;
 interface MetricsRow {
   start_time: string;
   status: string;
+  client_id: string | null;
   service: MaybeJoined<JoinedService>;
 }
 interface UpcomingRow {
   id: number;
   start_time: string;
   end_time: string;
+  status: string;
   service: MaybeJoined<JoinedService>;
   client: MaybeJoined<{ id: string; full_name: string | null }>;
-}
-interface HistoryRow {
-  client_id: string | null;
-  start_time: string;
 }
 interface ReviewRow {
   rating: number | null;
@@ -125,6 +127,7 @@ function absDelta(delta: { abs: number; up: boolean } | null): Delta {
 const MerchantHomeScreen: React.FC = () => {
   const router = useRouter();
   const { unreadCount, refreshNotifications } = useNotifications();
+  const { showError } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -219,34 +222,29 @@ const MerchantHomeScreen: React.FC = () => {
         const last30Start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
         // 2. Consultas independentes em paralelo.
-        const [metricsRes, upcomingRes, historyRes, reviewsRes, referralsRes] = await Promise.all([
-          // Métricas: janela [mês anterior, fim do mês corrente].
+        const [metricsRes, upcomingRes, reviewsRes, referralsRes] = await Promise.all([
+          // Métricas: janela [mês anterior, fim do mês corrente]. Ordena DESC + teto
+          // alto para que, em lojas movimentadas, o truncamento derrube os meses mais
+          // ANTIGOS (fora da janela útil) e nunca o mês corrente.
           supabase
             .from('appointments')
-            .select('id, start_time, status, service:services(id, name, price)')
+            .select('id, start_time, status, client_id, service:services(id, name, price)')
             .eq('business_id', businessData.id)
             .gte('start_time', startOfPreviousMonth.toISOString())
             .lte('start_time', endOfCurrentMonth.toISOString())
-            .order('start_time', { ascending: true })
-            .limit(500),
-          // Próximos agendamentos (a partir de agora) com nome do cliente.
+            .order('start_time', { ascending: false })
+            .limit(2000),
+          // Próximos agendamentos (a partir de agora, exceto cancelados) com o cliente.
           supabase
             .from('appointments')
             .select(
-              'id, start_time, end_time, service:services(id, name), client:profiles!appointments_client_id_fkey(id, full_name)',
+              'id, start_time, end_time, status, service:services(id, name), client:profiles!appointments_client_id_fkey(id, full_name)',
             )
             .eq('business_id', businessData.id)
             .gte('start_time', now.toISOString())
+            .neq('status', 'canceled')
             .order('start_time', { ascending: true })
             .limit(10),
-          // Histórico enxuto (cliente + data) p/ "Novos clientes" (1º agendamento).
-          // Ascendente + limite: capta o 1º agendamento dos clientes mais antigos.
-          supabase
-            .from('appointments')
-            .select('client_id, start_time')
-            .eq('business_id', businessData.id)
-            .order('start_time', { ascending: true })
-            .limit(2000),
           // Avaliações do negócio (média).
           supabase.from('reviews').select('rating').eq('business_id', businessData.id),
           // Indicações do lojista (usuário) — contagem mensal + delta.
@@ -255,35 +253,42 @@ const MerchantHomeScreen: React.FC = () => {
 
         const metricsRows = (metricsRes.data ?? []) as MetricsRow[];
         const upcomingRows = (upcomingRes.data ?? []) as UpcomingRow[];
-        const historyRows = (historyRes.data ?? []) as HistoryRow[];
         const reviewRows = (reviewsRes.data ?? []) as ReviewRow[];
         const referralRows = (referralsRes.data ?? []) as ReferralRow[];
 
-        // ── Receita, contagem e linhas do donut (partição defensiva no cliente) ──
+        // ── Receita, contagem, donut e clientes do mês (partição no cliente) ──
+        // Só agendamentos 'confirmed'/'completed' contam (cancelados/pendentes fora).
         let currentRevenue = 0;
         let previousRevenue = 0;
         let currentCount = 0;
         let previousCount = 0;
         const donutRows: ServiceRevenueRow[] = [];
+        // Clientes distintos com agendamento no mês (base do "Novos clientes").
+        const currentMonthClientIds = new Set<string>();
+        const previousMonthClientIds = new Set<string>();
 
         for (const row of metricsRows) {
+          if (!REVENUE_STATUSES.includes(row.status)) continue;
           const start = new Date(row.start_time);
           const service = firstOf(row.service);
           const price = service?.price ?? 0;
-          const isRevenue = REVENUE_STATUSES.includes(row.status);
           const inCurrentMonth = start >= startOfCurrentMonth && start <= endOfCurrentMonth;
           const inPreviousMonth = start >= startOfPreviousMonth && start < startOfCurrentMonth;
 
           if (inCurrentMonth) {
             currentCount += 1;
-            if (isRevenue) currentRevenue += price;
+            if (row.client_id) currentMonthClientIds.add(row.client_id);
+            // "Realizado" = apenas o que JÁ ocorreu (start <= agora); agendamentos
+            // futuros do mês não inflam a receita realizada (igual useMerchantMetrics).
+            if (start <= now) currentRevenue += price;
           } else if (inPreviousMonth) {
             previousCount += 1;
-            if (isRevenue) previousRevenue += price;
+            if (row.client_id) previousMonthClientIds.add(row.client_id);
+            previousRevenue += price;
           }
 
           // Donut = receita realizada dos últimos 30 dias, por serviço.
-          if (isRevenue && service?.name && start >= last30Start && start <= now) {
+          if (service?.name && start >= last30Start && start <= now) {
             donutRows.push({ serviceName: service.name, amount: price });
           }
         }
@@ -315,20 +320,38 @@ const MerchantHomeScreen: React.FC = () => {
         }
 
         // ── KPI: Novos clientes (clientes cujo 1º agendamento cai no mês) ──
-        const firstByClient = new Map<string, Date>();
-        for (const row of historyRows) {
-          if (!row.client_id) continue;
-          const when = new Date(row.start_time);
-          const seen = firstByClient.get(row.client_id);
-          if (!seen || when < seen) firstByClient.set(row.client_id, when);
-        }
-        let newClientsCurrent = 0;
-        let newClientsPrevious = 0;
-        for (const first of firstByClient.values()) {
-          if (first >= startOfCurrentMonth && first <= endOfCurrentMonth) newClientsCurrent += 1;
-          else if (first >= startOfPreviousMonth && first < startOfCurrentMonth)
-            newClientsPrevious += 1;
-        }
+        // Em vez de varrer todo o histórico (que truncaria em lojas grandes),
+        // perguntamos APENAS pelos clientes do mês: quais já tinham agendamento
+        // ANTES do início do mês? Quem não tinha é "novo". Consulta limitada ao
+        // conjunto (pequeno) de clientes do mês.
+        const fetchPriorClientIds = async (
+          clientIds: string[],
+          before: Date,
+        ): Promise<Set<string>> => {
+          const prior = new Set<string>();
+          if (clientIds.length === 0) return prior;
+          const { data } = await supabase
+            .from('appointments')
+            .select('client_id')
+            .eq('business_id', businessData.id)
+            .in('client_id', clientIds)
+            .lt('start_time', before.toISOString());
+          for (const r of (data ?? []) as Array<{ client_id: string | null }>) {
+            if (r.client_id) prior.add(r.client_id);
+          }
+          return prior;
+        };
+
+        const [priorCurrent, priorPrevious] = await Promise.all([
+          fetchPriorClientIds([...currentMonthClientIds], startOfCurrentMonth),
+          fetchPriorClientIds([...previousMonthClientIds], startOfPreviousMonth),
+        ]);
+        const newClientsCurrent = [...currentMonthClientIds].filter(
+          (id) => !priorCurrent.has(id),
+        ).length;
+        const newClientsPrevious = [...previousMonthClientIds].filter(
+          (id) => !priorPrevious.has(id),
+        ).length;
 
         setKpis({
           agendamentos: {
@@ -347,7 +370,10 @@ const MerchantHomeScreen: React.FC = () => {
         });
 
         // ── Próximos agendamentos (máx. 3), aplicando reagendamentos aceitos ──
-        const futureRows = upcomingRows.filter((a) => new Date(a.start_time) >= now);
+        // Exclui cancelados (defensivo, além do filtro na consulta).
+        const futureRows = upcomingRows.filter(
+          (a) => new Date(a.start_time) >= now && a.status !== 'canceled',
+        );
         const withReschedules = await applyAcceptedReschedules(futureRows);
         const upcomingList: UpcomingAppointment[] = withReschedules
           .filter((a) => new Date(a.start_time) >= now)
@@ -365,13 +391,15 @@ const MerchantHomeScreen: React.FC = () => {
           });
         setUpcoming(upcomingList);
       } catch (error) {
+        // Falha de carga → avisa o lojista (senão os zeros parecem métricas reais).
         logger.error('Erro ao carregar dados da home do lojista:', error);
+        showError('Não foi possível carregar os dados. Verifique sua conexão e tente novamente.');
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    // `router` (useRouter) é estável — mantê-lo fora das deps evita recriar
+    // `router`/`showError` são estáveis — mantê-los fora das deps evita recriar
     // loadData a cada render (o que dispararia o useEffect em loop).
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -526,6 +554,7 @@ const MerchantHomeScreen: React.FC = () => {
                 return (
                   <Pressable
                     key={appt.id}
+                    testID={`upcoming-appt-${appt.id}`}
                     accessibilityRole="button"
                     accessibilityLabel={`${appt.serviceName}, ${appt.clientName}, ${time}`}
                     style={styles.apptRow}
