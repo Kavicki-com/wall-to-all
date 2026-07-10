@@ -225,6 +225,26 @@ describe('ClientHomeScreen (redesign)', () => {
     expect(screen.getByTestId('story-1')).toBeTruthy();
   });
 
+  it('navega para a loja ao tocar num card de destaque', async () => {
+    render(<ClientHomeScreen />);
+    await screen.findByText('Lojas em destaque');
+
+    // O primeiro card em destaque é o business_profile id 1 (Hothog Barber Shop).
+    fireEvent.press(screen.getAllByTestId('store-highlight-card')[0]);
+    expect(mockPush).toHaveBeenCalledWith('/(client)/store/1');
+  });
+
+  it('mostra o "Preço médio" do card de destaque a partir do preço real do serviço', async () => {
+    render(<ClientHomeScreen />);
+    await screen.findByText('Lojas em destaque');
+
+    // Fixture id 1 tem um serviço de R$ 65 → priceTier([65]) === 2 → dois "$"
+    // acesos. Confirma que o preço chega ao card (o select traz services.price).
+    const lit = screen.getAllByTestId('price-lit');
+    expect(lit.length).toBeGreaterThan(0);
+    expect(lit[0].props.children).toBe('$$');
+  });
+
   it('mostra o cartão tracejado de estado vazio quando não há agendamentos', async () => {
     mockTableData.appointments = [];
     render(<ClientHomeScreen />);

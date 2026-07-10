@@ -127,7 +127,8 @@ const ClientHomeScreen: React.FC = () => {
             ),
             services (
               id,
-              name
+              name,
+              price
             )
           `)
           .range(0, FEATURED_LIMIT - 1),
@@ -440,11 +441,13 @@ const ClientHomeScreen: React.FC = () => {
         <View style={styles.searchBlock}>
           <TouchableOpacity
             testID="home-search-combo"
+            accessibilityRole="button"
+            accessibilityLabel="Procurar serviços"
             activeOpacity={0.9}
             onPress={() => router.push('/(client)/search')}
             style={styles.searchTouchArea}
           >
-            <View pointerEvents="none">
+            <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
               <SearchBar
                 value=""
                 onChangeText={() => { }}
