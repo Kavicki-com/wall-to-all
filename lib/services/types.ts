@@ -93,6 +93,33 @@ export interface PixCharge {
   expiresAt: string;
 }
 
+// ── Chaves Pix, extrato e carteira do lojista (F3) ─────────
+export type PixKeyType = 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
+
+export interface PixKey {
+  id: string;
+  type: PixKeyType;
+  /** Valor JÁ MASCARADO para exibição (privacidade por construção). */
+  maskedValue: string;
+  /** ISO 8601 */
+  createdAt: string;
+}
+
+export type WalletEntryKind = 'service' | 'fura_fila' | 'withdraw';
+
+export interface WalletEntry {
+  id: string;
+  kind: WalletEntryKind;
+  /** "Corte de cabelo masc." | "Furou Fila" | "Saque" */
+  title: string;
+  /** nome do cliente | "Taxa de antecipação Fura Fila" | chave de destino */
+  subtitle: string;
+  /** positivo = crédito, negativo = débito (saque). Em centavos. */
+  amountCents: number;
+  /** ISO 8601 */
+  date: string;
+}
+
 export interface WalletService {
   getCards(): Promise<PaymentCard[]>;
   createPixCharge(amountCents: number, description: string): Promise<PixCharge>;
@@ -101,4 +128,13 @@ export interface WalletService {
     amountCents: number,
     description: string,
   ): Promise<{ status: 'approved' | 'declined' }>;
+  // cliente (F3)
+  addCard(input: { number: string; holderName: string; expiry: string; cvv: string }): Promise<PaymentCard>;
+  getPixKeys(): Promise<PixKey[]>;
+  addPixKey(input: { type: PixKeyType; value: string }): Promise<PixKey>;
+  getStatement(): Promise<WalletEntry[]>;
+  // lojista (F3)
+  getMerchantBalanceCents(): Promise<number>;
+  getMerchantStatement(): Promise<WalletEntry[]>;
+  requestWithdraw(amountCents: number, pixKeyId: string): Promise<void>;
 }
