@@ -15,8 +15,12 @@ import { sortCategories } from '../../../lib/categoryUtils';
 import { useCardWidth } from '../../../lib/responsive';
 import { Cache } from '../../../lib/cache';
 import { logger } from '../../../lib/logger';
-import AppHeader from '../../../components/layout/AppHeader';
-import { BusinessCard } from '../../../components/BusinessCard';
+import HomeTopBar from '../../../components/home/HomeTopBar';
+import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
+import NotificationModal from '../../../components/notifications/NotificationModal';
+import { useNotifications } from '../../../context/NotificationContext';
+import { StoreHighlightCard } from '../../../components/home/StoreHighlightCard';
+import { StoriesRow } from '../../../components/home/StoriesRow';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import ServiceCategoryCard from '../../../components/ServiceCategoryCard';
 import AppointmentCard from '../../../components/appointments/AppointmentCard';
@@ -24,7 +28,7 @@ import SearchBar from '../../../components/SearchBar';
 import { CustomButton } from '../../../components/CustomButton';
 import { Chip } from '../../../components/ui/Chip';
 import { applyAcceptedReschedules } from '../../../lib/utils';
-import { Appointment, BusinessProfile, Service, Category } from '../../../lib/types';
+import { Appointment, BusinessProfile, Business, Service, Category } from '../../../lib/types';
 import { colors } from '../../../lib/theme';
 
 const FEATURED_LIMIT = 10;
@@ -32,17 +36,25 @@ const POPULAR_LIMIT = 10;
 const CATEGORIES_LIMIT = 50;
 const UPCOMING_APPOINTMENTS_LIMIT = 50;
 
+// Largura fixa do StoreHighlightCard (Figma 2715:3469) — usada no getItemLayout
+// do carrossel "Lojas em destaque".
+const HIGHLIGHT_CARD_WIDTH = 255;
+const HIGHLIGHT_GAP = 10;
+
 const ClientHomeScreen: React.FC = () => {
   const router = useRouter();
+  const { unreadCount, refreshNotifications } = useNotifications();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [allFeaturedBusinesses, setAllFeaturedBusinesses] = useState<BusinessProfile[]>([]);
   const [allPopularServices, setAllPopularServices] = useState<Service[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-
-  const businessCardWidth = useCardWidth(1.5, 24, 10);
-  const businessGap = 10;
+  // Menu lateral (AppDrawer) e modal de notificações — donos do estado que a
+  // HomeTopBar (genérica) apenas dispara via callbacks.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
 
   const serviceCardWidth = useCardWidth(2, 24, 14);
   const serviceGap = 14;
@@ -76,7 +88,6 @@ const ClientHomeScreen: React.FC = () => {
       }
 
       // Tentar cache para categorias (apenas se não for refresh)
-      let categoriesData: Category[] | null = null;
       if (!isRefresh) {
         const cachedCategories = await Cache.get<Category[]>('categories');
         if (cachedCategories) {
@@ -116,7 +127,8 @@ const ClientHomeScreen: React.FC = () => {
             ),
             services (
               id,
-              name
+              name,
+              price
             )
           `)
           .range(0, FEATURED_LIMIT - 1),
@@ -211,23 +223,63 @@ const ClientHomeScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const renderBusinessCard = ({ item }: { item: BusinessProfile }) => (
-    <View style={{ marginRight: businessGap }}>
-      <BusinessCard
-        id={item.id}
-        business_name={item.business_name}
-        logo_url={item.logo_url}
-        banner_url={item.banner_url}
-        description={item.description}
-        category={item.categories?.name || null}
-        accepted_payment_methods={item.accepted_payment_methods as any}
-        work_days={item.work_days as any}
-        services={item.services as any}
-        categories={item.categories}
-        width={businessCardWidth}
-        onPress={(id: number) => router.push(`/(client)/store/${id}`)}
-      />
-    </View>
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
+  const openNotifications = useCallback(() => setNotifModalVisible(true), []);
+  // Ao fechar o modal, recarrega a contagem — mesmo fluxo do AppHeader.
+  const closeNotifications = useCallback(() => {
+    setNotifModalVisible(false);
+    refreshNotifications();
+  }, [refreshNotifications]);
+
+  // Itens do menu (drawer) do cliente — rotas já existentes do app.
+  const drawerItems: DrawerItem[] = useMemo(
+    () => [
+      { label: 'Início', route: '/(client)/home' },
+      { label: 'Meus agendamentos', route: '/(client)/appointments' },
+      { label: 'Buscar serviços', route: '/(client)/search' },
+      { label: 'Perfil', route: '/(client)/profile' },
+      { label: 'Configurações', route: '/(client)/settings' },
+    ],
+    [],
+  );
+
+  // Lojas em destaque (BusinessProfile) → shape `Business` que o StoreHighlightCard
+  // consome. Os campos já vêm nas linhas do featured (mesmos que o antigo
+  // renderBusinessCard passava ao BusinessCard).
+  const toBusiness = useCallback(
+    (b: BusinessProfile): Business => ({
+      id: b.id,
+      business_name: b.business_name,
+      logo_url: b.logo_url,
+      description: b.description,
+      address: b.address,
+      banner_url: b.banner_url,
+      accepted_payment_methods: b.accepted_payment_methods,
+      work_days: b.work_days,
+      services: b.services,
+      categories: b.categories,
+    }),
+    [],
+  );
+
+  // Stories: as mesmas lojas em destaque, mapeadas ao shape do StoriesRow.
+  const stories = useMemo(
+    () =>
+      allFeaturedBusinesses.map((b) => ({
+        id: b.id,
+        name: b.business_name,
+        logoUrl: b.logo_url,
+      })),
+    [allFeaturedBusinesses],
+  );
+
+  const renderHighlightCard = ({ item }: { item: BusinessProfile }) => (
+    <StoreHighlightCard
+      business={toBusiness(item)}
+      onPress={() => router.push(`/(client)/store/${item.id}`)}
+    />
   );
 
   const renderServiceCard = ({ item }: { item: Service }) => (
@@ -251,9 +303,6 @@ const ClientHomeScreen: React.FC = () => {
   );
 
   const styles = useMemo(() => StyleSheet.create({
-    container: {
-      flex: 1,
-    },
     loadingContainer: {
       flex: 1,
       justifyContent: 'center',
@@ -263,11 +312,22 @@ const ClientHomeScreen: React.FC = () => {
     scrollContent: {
       paddingBottom: 24,
     },
+    searchBlock: {
+      width: '100%',
+      paddingTop: 10,
+      paddingBottom: 12,
+    },
+    searchTouchArea: {
+      width: '100%',
+    },
     categoriesContainer: {
       marginBottom: 16,
     },
     categoriesContent: {
       gap: 4,
+    },
+    storiesSection: {
+      marginBottom: 16,
     },
     section: {
       marginBottom: 24,
@@ -287,8 +347,23 @@ const ClientHomeScreen: React.FC = () => {
     appointmentCard: {
       paddingVertical: 4,
     },
-    businessesList: {
-      gap: 10,
+    // Estado vazio de "Meus Agendamentos" (Figma 2715:3462): cartão de borda
+    // tracejada em surfaceGrey, raio 16.
+    emptyAppointmentsCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: colors.surfaceGrey,
+      borderRadius: 16,
+      padding: 16,
+    },
+    emptyAppointmentsText: {
+      fontSize: 16,
+      fontFamily: 'Montserrat_400Regular',
+      color: colors.textPrimary,
+    },
+    highlightsList: {
+      gap: HIGHLIGHT_GAP,
       paddingRight: 24,
       paddingBottom: 20,
     },
@@ -303,23 +378,19 @@ const ClientHomeScreen: React.FC = () => {
       textAlign: 'center',
       marginTop: 16,
     },
-    headerArea: {
-      paddingTop: 10,
-      paddingBottom: 10,
-      backgroundColor: colors.background,
-      width: '100%',
-    },
-    searchTouchArea: {
-      width: '100%',
-    },
-    searchWrapper: {
-      width: '100%',
-    },
     footerContainer: {
       backgroundColor: colors.background,
       paddingTop: 10,
       paddingHorizontal: 0,
       paddingBottom: 22,
+    },
+    scheduleButton: {
+      borderRadius: 24,
+      borderWidth: 1,
+      backgroundColor: colors.background,
+      marginVertical: 0,
+      paddingVertical: 14,
+      height: undefined,
     },
   }), []);
 
@@ -332,173 +403,199 @@ const ClientHomeScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer
-      scroll={true}
-      hasHeader={true}
-      backgroundColor={colors.background}
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          colors={[colors.accent]}
-          tintColor={colors.accent}
-        />
-      }
-      header={<AppHeader showBackButton={false} />}
-      footer={
-        <View style={styles.footerContainer}>
-          <CustomButton
-            title="Agendar serviços"
-            variant="outline"
-            onPress={() => router.push('/(client)/search')}
-            width="100%"
-            style={{
-              borderRadius: 30,
-              borderWidth: 1.5,
-              backgroundColor: colors.background,
-              height: undefined,
-              paddingVertical: 14,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.05,
-              shadowRadius: 3.84,
-              elevation: 2,
-              marginVertical: 0,
-            }}
+    <>
+      <ScreenContainer
+        scroll={true}
+        hasHeader={true}
+        backgroundColor={colors.background}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.accent]}
+            tintColor={colors.accent}
           />
-        </View>
-      }
-    >
-      <View style={styles.headerArea}>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => router.push('/(client)/search')}
-          style={styles.searchTouchArea}
-        >
-          <View pointerEvents="none" style={styles.searchWrapper}>
-            <SearchBar
-              value=""
-              onChangeText={() => { }}
-              placeholder="O que você procura?"
-              showFilterButton={true}
-              containerStyle={{ width: '100%', paddingHorizontal: 0 }}
+        }
+        header={
+          <HomeTopBar
+            onMenu={openDrawer}
+            onBell={openNotifications}
+            notificationCount={unreadCount}
+          />
+        }
+        footer={
+          <View style={styles.footerContainer}>
+            <CustomButton
+              title="Agendar serviços"
+              variant="outline"
+              onPress={() => router.push('/(client)/search')}
+              width="100%"
+              style={styles.scheduleButton}
             />
           </View>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoriesContainer}
-        contentContainerStyle={styles.categoriesContent}
+        }
       >
-        {categories.map((category) => (
-          <Chip
-            key={category.id.toString()}
-            label={category.name}
-            variant="outline"
-            onPress={() => {
-              router.push({
-                pathname: '/(client)/search/results',
-                params: { category: category.name },
-              });
-            }}
-            style={{ marginRight: 4 }}
-          />
-        ))}
-      </ScrollView>
+        {/* Bloco de busca: combo "Procurar serviços" + botão de filtro vermelho
+            (56px) — todo o bloco navega para a busca — e as chips de categorias. */}
+        <View style={styles.searchBlock}>
+          <TouchableOpacity
+            testID="home-search-combo"
+            accessibilityRole="button"
+            accessibilityLabel="Procurar serviços"
+            activeOpacity={0.9}
+            onPress={() => router.push('/(client)/search')}
+            style={styles.searchTouchArea}
+          >
+            <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
+              <SearchBar
+                value=""
+                onChangeText={() => { }}
+                placeholder="Procurar serviços"
+                showFilterButton={true}
+                containerStyle={{ width: '100%', paddingHorizontal: 0 }}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
 
-      {appointments.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoriesContainer}
+          contentContainerStyle={styles.categoriesContent}
+        >
+          {categories.map((category) => (
+            <Chip
+              key={category.id.toString()}
+              label={category.name}
+              variant="outline"
+              onPress={() => {
+                router.push({
+                  pathname: '/(client)/search/results',
+                  params: { category: category.name },
+                });
+              }}
+              style={{ marginRight: 4 }}
+            />
+          ))}
+        </ScrollView>
+
+        {/* Stories: as lojas em destaque como anéis circulares. */}
+        {stories.length > 0 && (
+          <View style={styles.storiesSection}>
+            <StoriesRow stores={stories} />
+          </View>
+        )}
+
+        {/* Meus Agendamentos — sempre visível; vazio → cartão tracejado. */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Meus Agendamentos</Text>
-          <ScrollView
-            nestedScrollEnabled
-            scrollEnabled
-            showsVerticalScrollIndicator
-            style={styles.appointmentsScrollArea}
-            contentContainerStyle={styles.appointmentsList}
-          >
-            {appointments.map((item) => {
-              const startDate = new Date(item.start_time);
-              const time = startDate.toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              });
-              const dateLabel = `Data ${startDate.toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: '2-digit',
-              })}`;
+          {appointments.length > 0 ? (
+            <ScrollView
+              nestedScrollEnabled
+              scrollEnabled
+              showsVerticalScrollIndicator
+              style={styles.appointmentsScrollArea}
+              contentContainerStyle={styles.appointmentsList}
+            >
+              {appointments.map((item) => {
+                const startDate = new Date(item.start_time);
+                const time = startDate.toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                });
+                const dateLabel = `Data ${startDate.toLocaleDateString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: '2-digit',
+                })}`;
 
-              return (
-                <AppointmentCard
-                  key={item.id.toString()}
-                  time={time}
-                  dateLabel={dateLabel}
-                  serviceName={item.service?.name || 'Serviço'}
-                  showShopName={false}
-                  onPress={() => router.push(`/(client)/appointments/${item.id}`)}
-                  containerStyle={styles.appointmentCard}
-                />
-              );
-            })}
-          </ScrollView>
+                return (
+                  <AppointmentCard
+                    key={item.id.toString()}
+                    time={time}
+                    dateLabel={dateLabel}
+                    serviceName={item.service?.name || 'Serviço'}
+                    showShopName={false}
+                    onPress={() => router.push(`/(client)/appointments/${item.id}`)}
+                    containerStyle={styles.appointmentCard}
+                  />
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <View style={styles.emptyAppointmentsCard}>
+              <Text style={styles.emptyAppointmentsText}>
+                Você ainda não tem nenhum agendamento, agende um serviço para visualizar eles aqui:
+              </Text>
+            </View>
+          )}
         </View>
-      )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Lojas em destaque</Text>
-        {allFeaturedBusinesses.length > 0 ? (
-          <FlatList
-            data={allFeaturedBusinesses}
-            renderItem={renderBusinessCard}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.businessesList}
-            initialNumToRender={3}
-            maxToRenderPerBatch={5}
-            windowSize={5}
-            removeClippedSubviews={true}
-            getItemLayout={(data, index) => ({
-              length: businessCardWidth + businessGap,
-              offset: (businessCardWidth + businessGap) * index,
-              index,
-            })}
-          />
-        ) : (
-          <Text style={styles.emptyText}>Nenhuma loja em destaque no momento</Text>
-        )}
-      </View>
+        {/* Lojas em destaque — carrossel de StoreHighlightCard (255px). */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Lojas em destaque</Text>
+          {allFeaturedBusinesses.length > 0 ? (
+            <FlatList
+              data={allFeaturedBusinesses}
+              renderItem={renderHighlightCard}
+              keyExtractor={(item) => item.id.toString()}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.highlightsList}
+              initialNumToRender={3}
+              maxToRenderPerBatch={5}
+              windowSize={5}
+              removeClippedSubviews={true}
+              getItemLayout={(data, index) => ({
+                length: HIGHLIGHT_CARD_WIDTH + HIGHLIGHT_GAP,
+                offset: (HIGHLIGHT_CARD_WIDTH + HIGHLIGHT_GAP) * index,
+                index,
+              })}
+            />
+          ) : (
+            <Text style={styles.emptyText}>Nenhuma loja em destaque no momento</Text>
+          )}
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
-        {allPopularServices.length > 0 ? (
-          <FlatList
-            data={allPopularServices}
-            renderItem={renderServiceCard}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.servicesList}
-            initialNumToRender={4}
-            maxToRenderPerBatch={6}
-            windowSize={5}
-            removeClippedSubviews={true}
-            getItemLayout={(data, index) => ({
-              length: serviceCardWidth + serviceGap,
-              offset: (serviceCardWidth + serviceGap) * index,
-              index,
-            })}
-          />
-        ) : (
-          <Text style={styles.emptyText}>Nenhum serviço disponível no momento</Text>
-        )}
-      </View>
-    </ScreenContainer>
+        {/* Serviços mais contratados — carrossel existente (inalterado). */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Serviços mais contratados</Text>
+          {allPopularServices.length > 0 ? (
+            <FlatList
+              data={allPopularServices}
+              renderItem={renderServiceCard}
+              keyExtractor={(item) => item.id.toString()}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.servicesList}
+              initialNumToRender={4}
+              maxToRenderPerBatch={6}
+              windowSize={5}
+              removeClippedSubviews={true}
+              getItemLayout={(data, index) => ({
+                length: serviceCardWidth + serviceGap,
+                offset: (serviceCardWidth + serviceGap) * index,
+                index,
+              })}
+            />
+          ) : (
+            <Text style={styles.emptyText}>Nenhum serviço disponível no momento</Text>
+          )}
+        </View>
+      </ScreenContainer>
+
+      {/* Menu lateral e modal de notificações — irmãos do ScreenContainer para
+          não viverem dentro do ScrollView. */}
+      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={drawerItems} />
+      <NotificationModal
+        visible={notifModalVisible}
+        onClose={closeNotifications}
+        onNotificationsUpdated={refreshNotifications}
+      />
+    </>
   );
 };
 

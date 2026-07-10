@@ -71,7 +71,7 @@ Dependências: `F0 → F1 → F2 → F3 → {F4, F5, F7} → F6 → F8` (F4/F5/F
 | aqui-agora-settings | `2509:458` | |
 | request-bottom-sheet | `2511:486` | |
 
-### Fase 2 — Dashboards/Home novos (cliente + lojista)
+### Fase 2 — Dashboards/Home novos (cliente + lojista) ✅ implementada (2026-07-10)
 
 | Tela | Node ID | Obs |
 |---|---|---|
@@ -169,5 +169,6 @@ Assinatura (seção `2678:149`): subscription-offer `2678:150` · subscription-m
 |---|---|
 | `2026-07-06-novo-escopo-master.md` (este) | ✅ criado |
 | Design doc + plano da F0+F1 | ✅ criado; F0+F1 **implementadas** (2026-07-09) — suíte 251/251, typecheck e lint limpos. Pendente: QA em dispositivo (percorrer os 2 fluxos ponta a ponta) + revisão de fidelidade visual vs Figma (`2715:3575`, `2715:3616`). |
+| Plano da F2 (dashboards/home) | ✅ criado; F2 **implementada** (2026-07-10) — suíte 300/300, typecheck e lint (0 erros) limpos. Pendente: QA em dispositivo + fidelidade visual vs Figma (`2715:3426`, `2478:111`). |
 | Design doc + plano das demais fases | imediatamente antes de cada fase |
 | Plano da F8 (integração) | ao final da F7, com PSP decidido |
