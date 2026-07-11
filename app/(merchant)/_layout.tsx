@@ -122,12 +122,6 @@ const MerchantLayout: React.FC = () => {
           }}
         />
         <Tabs.Screen
-          name="settings/referral"
-          options={{
-            tabBarButton: () => null,
-          }}
-        />
-        <Tabs.Screen
           name="aqui-agora/index"
           options={{
             tabBarButton: () => null,

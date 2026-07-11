@@ -23,15 +23,6 @@ export interface ReviewStats {
     distribution: { [key: number]: number }; // 1-5 stars
 }
 
-export interface ReferralMetric {
-    id: number;
-    name: string;
-    email: string | null;
-    commissionEarned: number;
-    status: string;
-    createdAt: string;
-}
-
 export interface MerchantMetricsData {
     appointments: {
         total: number;
@@ -42,7 +33,6 @@ export interface MerchantMetricsData {
         byPeriod: RevenueByPeriod[];
     };
     reviews: ReviewStats;
-    referrals: ReferralMetric[];
 }
 
 export type PeriodType = 'day' | 'month' | 'year';
@@ -51,7 +41,6 @@ const initialMetrics: MerchantMetricsData = {
     appointments: { total: 0, byPeriod: [] },
     revenue: { total: 0, byPeriod: [] },
     reviews: { average: 0, total: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } },
-    referrals: [],
 };
 
 export function useMerchantMetrics() {
@@ -137,58 +126,6 @@ export function useMerchantMetrics() {
 
             const reviewStats = processReviews(reviewsData || []);
 
-            // 3. Fetch referrals (if user is in affiliate program) - without FK join
-            const { data: referralsData, error: referralsError } = await supabase
-                .from('referrals')
-                .select('id, status, created_at, referred_id')
-                .eq('referrer_id', session.user.id)
-                .order('created_at', { ascending: false });
-
-            if (referralsError) {
-                logger.error('Erro ao buscar referrals:', referralsError);
-            }
-
-            // Fetch profiles for referred users manually
-            let profilesMap = new Map<string, { full_name: string | null; email: string | null }>();
-            if (referralsData && referralsData.length > 0) {
-                const referredIds = referralsData.map(r => r.referred_id);
-                const { data: profilesData, error: profilesError } = await supabase
-                    .from('profiles')
-                    .select('id, full_name, email')
-                    .in('id', referredIds);
-
-                if (profilesError) {
-                    logger.error('Erro ao buscar perfis dos indicados:', profilesError);
-                } else if (profilesData) {
-                    profilesData.forEach(p => {
-                        profilesMap.set(p.id, { full_name: p.full_name, email: p.email });
-                    });
-                }
-            }
-
-            // Fetch commissions for each referral
-            const { data: commissionsData } = await supabase
-                .from('commissions')
-                .select('referral_id, amount, status')
-                .eq('referrer_id', session.user.id);
-
-            const commissionsByReferral = (commissionsData || []).reduce((acc, comm) => {
-                acc[comm.referral_id] = (acc[comm.referral_id] || 0) + Number(comm.amount);
-                return acc;
-            }, {} as { [key: number]: number });
-
-            const referralMetrics: ReferralMetric[] = (referralsData || []).map(ref => {
-                const referredProfile = profilesMap.get(ref.referred_id);
-                return {
-                    id: ref.id,
-                    name: referredProfile?.full_name || 'Usuário',
-                    email: referredProfile?.email || null,
-                    commissionEarned: commissionsByReferral[ref.id] || 0,
-                    status: ref.status || 'pending',
-                    createdAt: ref.created_at || '',
-                };
-            });
-
             setMetrics({
                 appointments: {
                     total: totalAppointments,
@@ -199,7 +136,6 @@ export function useMerchantMetrics() {
                     byPeriod: revenueByPeriod,
                 },
                 reviews: reviewStats,
-                referrals: referralMetrics,
             });
         } catch (error) {
             logger.error('Erro ao buscar métricas:', error);

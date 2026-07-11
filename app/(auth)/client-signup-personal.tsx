@@ -34,12 +34,6 @@ const ClientSignupPersonalScreen: React.FC = () => {
   const [isOAuth, setIsOAuth] = useState(false);
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
 
-  // New referral states
-  const [referralCode, setReferralCode] = useState('');
-  const [isValidatingReferral, setIsValidatingReferral] = useState(false);
-  const [referralError, setReferralError] = useState<string | null>(null);
-  const [referralSuccess, setReferralSuccess] = useState<string | null>(null);
-
   // Field errors
   const [errors, setErrors] = useState<{
     fullName?: string;
@@ -47,7 +41,6 @@ const ClientSignupPersonalScreen: React.FC = () => {
     confirmEmail?: string;
     password?: string;
     confirmPassword?: string;
-    referralCode?: string;
   }>({});
 
   const validateForm = () => {
@@ -166,55 +159,6 @@ const ClientSignupPersonalScreen: React.FC = () => {
     }
   };
 
-  const handleReferralChange = (text: string) => {
-    // Remove espaços e converte para maiúsculo
-    const formatted = text.trim().toUpperCase();
-    setReferralCode(formatted);
-    setReferralError(null);
-    setReferralSuccess(null);
-    setErrors(prev => ({ ...prev, referralCode: undefined }));
-  };
-
-  const handleReferralBlur = async () => {
-    if (!referralCode) return;
-
-    // Se tiver menos de 8 chars, nem valida no banco
-    if (referralCode.length < 8) {
-      setReferralError('Código inválido (muito curto)');
-      return;
-    }
-
-    try {
-      setIsValidatingReferral(true);
-
-      // Import dinâmico para evitar dependência cíclica ou problema de inicialização
-      const { supabase } = await import('../../lib/supabase');
-
-      const { data, error } = await supabase
-        .from('referral_codes')
-        .select('id')
-        .eq('code', referralCode)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (data) {
-        setReferralSuccess('Código válido!');
-        setReferralError(null);
-      } else {
-        setReferralError('Código não encontrado');
-        setReferralSuccess(null);
-      }
-    } catch (err) {
-      logger.warn('[Signup] Erro ao validar código de referral:', err);
-      // Não bloqueia o usuário em caso de erro de rede, apenas avisa
-      setReferralError('Não foi possível validar o código');
-    } finally {
-      setIsValidatingReferral(false);
-    }
-  };
-
   // Carregar dados do rascunho (draft) ou OAuth
   useEffect(() => {
     const loadInitialData = async () => {
@@ -229,10 +173,6 @@ const ClientSignupPersonalScreen: React.FC = () => {
           setEmail(parsed.email || '');
           setConfirmEmail(parsed.email || '');
           setIsOAuth(!!parsed.is_oauth);
-          if (parsed.referral_code) {
-            setReferralCode(parsed.referral_code);
-            // Opcional: validar ao carregar se quiser msostrar o check verde
-          }
 
           if (__DEV__) {
             logger.debug('[ClientSignupPersonal] Dados carregados do draft');
@@ -255,15 +195,6 @@ const ClientSignupPersonalScreen: React.FC = () => {
             logger.debug('[ClientSignupPersonal] OAuth detectado, campos pré-preenchidos');
           }
         }
-
-        // 3. Verificar código de referral salvo via deep link
-        const savedReferralCode = await AsyncStorage.getItem('referral_code');
-        if (savedReferralCode) {
-          setReferralCode(savedReferralCode);
-          // Disparar validação
-          // handleReferralBlur será chamado quando o componente montar ou via efeito separado?
-          // Melhor deixar o usuário ver o código preenchido
-        }
       } catch (error) {
         if (__DEV__) {
           logger.error('[ClientSignupPersonal] Erro ao carregar dados iniciais:', error);
@@ -273,17 +204,6 @@ const ClientSignupPersonalScreen: React.FC = () => {
 
     loadInitialData();
   }, []);
-
-  // Effect para validar o código vindo do deep link automaticamente após carregamento
-  useEffect(() => {
-    if (referralCode && !referralSuccess && !referralError && !isValidatingReferral) {
-      // Pequeno delay para garantir que a renderização inicial ocorreu
-      const timer = setTimeout(() => {
-        handleReferralBlur();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [referralCode]); // Cuidado com loop infinito, as deps garantem que só roda se não tiver status
 
   // Limpar apenas campos sensíveis e erros quando a tela ganha foco
   useFocusEffect(
@@ -327,16 +247,9 @@ const ClientSignupPersonalScreen: React.FC = () => {
         is_oauth: isOAuth,
         oauth_provider: isOAuth ? 'google' : undefined,
         avatar_url: avatarUrl,
-        referral_code: referralCode ? referralCode : undefined,
       };
 
       await AsyncStorage.setItem(draftKey, JSON.stringify(draftData));
-
-      // Se temos um referral code válido e validado, podemos salvar no AsyncStorage global também
-      // para garantir, mas o draft deve ser suficiente
-      if (referralCode && referralSuccess) {
-        await AsyncStorage.setItem('referral_code', referralCode);
-      }
 
       router.push('/(auth)/client-signup-address');
     } catch (e) {
@@ -436,27 +349,6 @@ const ClientSignupPersonalScreen: React.FC = () => {
             />
           </>
         )}
-
-        <View>
-          <CustomInput
-            label="Código de indicação (Opcional)"
-            placeholder="Ex: SEUCODIGO"
-            value={referralCode}
-            onChangeText={handleReferralChange}
-            onBlur={handleReferralBlur}
-            autoCapitalize="characters"
-            maxLength={12}
-            error={referralError || undefined}
-            helperText={referralSuccess || undefined}
-            editable={!isValidatingReferral}
-          />
-          {isValidatingReferral && (
-            <Text style={{ fontSize: 12, color: '#666', marginTop: -8, marginLeft: 4 }}>Validando...</Text>
-          )}
-          {referralSuccess && (
-            <Text style={{ fontSize: 12, color: '#28A745', marginTop: -8, marginLeft: 4 }}>✓ {referralSuccess}</Text>
-          )}
-        </View>
 
         {/* Mensagem informativa para OAuth */}
         {isOAuth && (

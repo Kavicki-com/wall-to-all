@@ -310,28 +310,6 @@ const MerchantSignupLoadingScreen: React.FC = () => {
           logger.error('[MerchantSignupLoading] Erro ao criar/atualizar profile:', profileError);
         }
 
-        // Processar Referral (se houver código)
-        // Fazemos isso após garantir que o profile existe
-        // Mas não bloqueamos o resto do fluxo se falhar (pode ser processado manualmente depois)
-        if (draftData.referral_code) {
-          try {
-            const { error: referralError } = await supabase.rpc('process_referral', {
-              p_referred_id: user.id,
-              p_referral_code: draftData.referral_code
-            });
-
-            if (referralError) {
-              logger.warn('[MerchantSignupLoading] Erro ao processar referral:', referralError);
-            } else {
-              if (__DEV__) {
-                logger.debug('[MerchantSignupLoading] Referral processado com sucesso');
-              }
-            }
-          } catch (refErr) {
-            logger.warn('[MerchantSignupLoading] Exceção ao processar referral:', refErr);
-          }
-        }
-
         // Criar ou atualizar business_profile
         // Agora com constraint UNIQUE em owner_id, podemos usar upsert de forma idiomática
         const { data: businessProfileData, error: businessProfileError } = await supabase
@@ -398,11 +376,7 @@ const MerchantSignupLoadingScreen: React.FC = () => {
         }
 
         // Limpar dados do draft e flags OAuth
-        if (draftData.referral_code) {
-          await AsyncStorage.setItem('last_used_referral_code', draftData.referral_code.toUpperCase());
-        }
         await AsyncStorage.removeItem(draftKey);
-        await AsyncStorage.removeItem('referral_code');
         if (isOAuth) {
           await AsyncStorage.removeItem('oauth_google_signup');
           await AsyncStorage.removeItem('oauth_google_data');

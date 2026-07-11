@@ -1,6 +1,4 @@
 import { logger } from '../logger';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Linking from 'expo-linking';
 
 /**
  * Extrai os parâmetros de autenticação do fragmento (#) da URL
@@ -101,41 +99,5 @@ export const extractAuthParams = (url: string): Record<string, string | boolean>
         }
         return null;
     }
-};
-
-/**
- * Salva o código de referral se presente na URL
- * Suporta formatos: ?ref=CODE ou ?referral=CODE
- */
-export const extractAndSaveReferralCode = async (url: string, isInitialUrl = false): Promise<string | null> => {
-  try {
-    const { queryParams } = Linking.parse(url);
-    const refCode = queryParams?.ref || queryParams?.referral;
-
-    if (refCode && typeof refCode === 'string') {
-      const upperRefCode = refCode.toUpperCase();
-
-      // Se for URL inicial, verificar se é o mesmo código que acabou de ser usado
-      // Isso evita que o código "volte das cinzas" por persistência do getInitialURL
-      if (isInitialUrl) {
-        const lastUsed = await AsyncStorage.getItem('last_used_referral_code');
-        if (lastUsed === upperRefCode) {
-          if (__DEV__) {
-            logger.debug('[DeepLinking] Referral code ignorado (sticky initial URL):', upperRefCode);
-          }
-          return null;
-        }
-      }
-
-      await AsyncStorage.setItem('referral_code', upperRefCode);
-      if (__DEV__) {
-        logger.debug('[DeepLinking] Referral code salvo:', refCode);
-      }
-      return refCode;
-    }
-  } catch (error) {
-    logger.warn('[DeepLinking] Erro ao extrair referral code:', error);
-  }
-  return null;
 };
 
