@@ -19,6 +19,12 @@ describe('computeWithdrawQuote', () => {
       etaLabel: 'Até 24 horas',
     });
   });
+
+  it('throws for a non-positive or non-integer amount', () => {
+    expect(() => computeWithdrawQuote(0)).toThrow();
+    expect(() => computeWithdrawQuote(-100)).toThrow();
+    expect(() => computeWithdrawQuote(10.5)).toThrow();
+  });
 });
 
 describe('MockQiService', () => {

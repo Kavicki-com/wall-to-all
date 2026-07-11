@@ -136,6 +136,8 @@ export interface WalletService {
   // lojista (F3)
   getMerchantBalanceCents(): Promise<number>;
   getMerchantStatement(): Promise<WalletEntry[]>;
+  /** Cotação do saque (taxa/isenção) — mesma régua do QI (F4). */
+  quoteWithdraw(amountCents: number): Promise<WithdrawQuote>;
   requestWithdraw(amountCents: number, pixKeyId: string): Promise<void>;
 }
 

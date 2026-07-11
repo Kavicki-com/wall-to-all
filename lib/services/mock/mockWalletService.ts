@@ -6,7 +6,9 @@ import type {
   PixKeyType,
   WalletEntry,
   WalletService,
+  WithdrawQuote,
 } from '../types';
+import { computeWithdrawQuote } from './withdrawQuote';
 
 /**
  * Latência simulada (ms) para uso no app real.
@@ -280,6 +282,12 @@ export class MockWalletService implements WalletService {
   async getMerchantStatement(): Promise<WalletEntry[]> {
     await this.delay();
     return this.merchantStatement.map((entry) => ({ ...entry }));
+  }
+
+  async quoteWithdraw(amountCents: number): Promise<WithdrawQuote> {
+    await this.delay();
+    // Mesma régua de taxa/isenção do QI (helper compartilhado — decisão #4).
+    return computeWithdrawQuote(amountCents);
   }
 
   async requestWithdraw(amountCents: number, pixKeyId: string): Promise<void> {
