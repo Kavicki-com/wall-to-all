@@ -37,7 +37,9 @@ describe('MockQiService', () => {
       const svc = new MockQiService();
       const summary = await svc.getQiSummary('merchant');
       expect(summary.balanceCents).toBe(8909);
+      expect(summary.totalEarnedCents).toBe(4500);
       expect(summary.indicadosCount).toBe(6);
+      expect(summary.bonusCount).toBe(8);
       expect(summary.nextLevel).toEqual({ name: 'Ouro', target: 30 });
     });
 

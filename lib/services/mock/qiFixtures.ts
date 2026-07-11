@@ -38,15 +38,16 @@ export const FIXTURE_CLIENT_SUMMARY: QiSummary = {
 };
 
 /**
- * Hero do QI do lojista (Figma 2606:5475): saldo R$ 89,09 / 6 indicadas / meta
- * Ouro-30. `totalEarnedCents` (soma dos "Você ganhou" das 6 indicadas) e
- * `bonusCount` são sintéticos — o Figma não fixa esses dois números.
+ * Hero do QI do lojista (Figma 2606:5475): saldo R$ 89,09 e card "Ganhos por
+ * indicação" com Lucro total R$ 45,00 / 6 Indicados / 8 Bônus / meta Ouro-30.
+ * (O lucro total NÃO precisa bater com a soma dos "Você ganhou" das indicadas
+ * — o próprio Figma é inconsistente nisso, como no lado cliente.)
  */
 export const FIXTURE_MERCHANT_SUMMARY: QiSummary = {
   balanceCents: 8909,
-  totalEarnedCents: 4685,
+  totalEarnedCents: 4500,
   indicadosCount: 6,
-  bonusCount: 4,
+  bonusCount: 8,
   nextLevel: { name: 'Ouro', target: 30 },
 };
 
