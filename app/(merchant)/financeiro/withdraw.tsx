@@ -1,5 +1,5 @@
 // F3: dados 100% do WalletService mock; a unificação com o backend é F8.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,16 +32,6 @@ const WithdrawScreen: React.FC = () => {
   const [loaded, setLoaded] = useState(false);
   const [balanceCents, setBalanceCents] = useState(0);
   const [pixKeys, setPixKeys] = useState<PixKey[]>([]);
-
-  // Guarda de montagem para os setState assíncronos (o usuário pode voltar
-  // durante o load) — evita setState após unmount.
-  const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
-      mountedRef.current = false;
-    },
-    [],
-  );
 
   // Carrega saldo + chaves Pix em paralelo no mount; `active`-guard evita
   // setState após desmontar; `loaded` segura o spinner só no primeiro load.
