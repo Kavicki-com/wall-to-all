@@ -62,4 +62,26 @@ describe('QiEarningsCard', () => {
     expect(screen.getByText(/Indique 5 amigos para liberar nível/)).toBeTruthy();
     expect(screen.getByText('Bronze')).toBeTruthy();
   });
+
+  it('limita a barra em 100% quando os indicados excedem a meta', () => {
+    render(
+      <QiEarningsCard summary={{ ...summary, indicadosCount: 45, nextLevel: { name: 'Ouro', target: 30 } }} />,
+    );
+
+    // 45/30 = 1,5 → clampado em 1 → largura "100%".
+    expect(screen.getByTestId('qi-progress-fill').props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ width: '100%' })]),
+    );
+  });
+
+  it('meta <= 0 não quebra: barra fica em 0%', () => {
+    render(
+      <QiEarningsCard summary={{ ...summary, indicadosCount: 3, nextLevel: { name: 'Bronze', target: 0 } }} />,
+    );
+
+    // target 0 → guarda evita divisão por zero → largura "0%".
+    expect(screen.getByTestId('qi-progress-fill').props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ width: '0%' })]),
+    );
+  });
 });

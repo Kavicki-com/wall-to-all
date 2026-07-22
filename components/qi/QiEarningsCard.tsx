@@ -54,7 +54,10 @@ export const QiEarningsCard: React.FC<QiEarningsCardProps> = ({ summary, testID 
       {nextLevel && (
         <>
           <View testID="qi-progress-bar" style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+            <View
+              testID="qi-progress-fill"
+              style={[styles.progressFill, { width: `${progress * 100}%` }]}
+            />
           </View>
           <Text style={styles.legend}>
             {`Indique ${nextLevel.target} amigos para liberar nível `}
@@ -70,7 +73,7 @@ export const QiEarningsCard: React.FC<QiEarningsCardProps> = ({ summary, testID 
 const Stat: React.FC<{ value: string; label: string }> = ({ value, label }) => (
   <View style={styles.stat}>
     <View style={styles.statValueRow}>
-      <Icon name="star" size={12} color={colors.warning} />
+      <Icon name="star" size={12} color={colors.contentWarning} />
       <Text style={styles.statValue}>{value}</Text>
     </View>
     <Text style={styles.statLabel}>{label}</Text>
@@ -79,9 +82,9 @@ const Stat: React.FC<{ value: string; label: string }> = ({ value, label }) => (
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.contentLight,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.surfaceGrey,
+    borderColor: colors.border,
     borderRadius: 16,
     padding: 16,
     gap: 16,
