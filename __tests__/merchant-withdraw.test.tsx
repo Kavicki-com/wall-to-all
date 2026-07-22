@@ -90,6 +90,21 @@ describe('WithdrawScreen (solicitar saque do lojista)', () => {
     await waitFor(() => expect(mockBack).toHaveBeenCalled());
   });
 
+  it('valor válido → exibe o resumo da transferência com taxa de operação e total', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0 });
+    const { findByTestId, findByText, getByTestId } = renderScreen(wallet);
+
+    // Valor abaixo de R$ 200,00 (10000 centavos = R$ 100,00) → taxa de R$ 5,00.
+    fireEvent.changeText(await findByTestId('input-amount'), '10000');
+
+    // A cotação resolve async (latencyMs 0 → microtask); aguarda o resumo.
+    expect(await findByText('Taxa de operação')).toBeTruthy();
+    // Taxa R$ 5,00 e total líquido R$ 95,00 (BRL usa espaço não-quebrável →
+    // casamos por REGEX nos dígitos, nunca pela string literal).
+    expect(getByTestId('summary-fee').props.children).toMatch(/5,00/);
+    expect(getByTestId('summary-total').props.children).toMatch(/95,00/);
+  });
+
   it('falha do serviço → mostra toast de erro e NÃO abre o modal de sucesso', async () => {
     const wallet = new MockWalletService({ latencyMs: 0 });
     const [cpfKey] = await wallet.getPixKeys();
