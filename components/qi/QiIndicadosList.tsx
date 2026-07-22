@@ -125,6 +125,7 @@ export const QiIndicadosList: React.FC<QiIndicadosListProps> = ({
                 key={item}
                 testID={`qi-page-${item}`}
                 accessibilityRole="button"
+                accessibilityLabel={`Página ${item}`}
                 accessibilityState={{ selected: isActive }}
                 onPress={() => onPageChange(item)}
                 style={[styles.pageButton, isActive && styles.pageButtonActive]}

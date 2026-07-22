@@ -28,6 +28,10 @@ function formatEntryDate(iso: string): string {
  * esquerda, ligado por um conector ao próximo (menos no último), e à direita o
  * título em negrito com o valor em verde, o subtítulo e a data formatada.
  * Componente puramente apresentacional.
+ *
+ * Contrato: o chamador (tela de detalhes) só renderiza este componente quando há
+ * lançamentos — `entries` vazio produz um container vazio de propósito (sem
+ * mensagem de vazio própria, diferente do `StatementTimeline` do Financeiro).
  */
 export const QiStatementList: React.FC<QiStatementListProps> = ({ entries, testID }) => (
   <View testID={testID}>

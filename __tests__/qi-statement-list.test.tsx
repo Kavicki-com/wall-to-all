@@ -3,19 +3,21 @@ import { render, screen } from '@testing-library/react-native';
 import { QiStatementList } from '../components/qi/QiStatementList';
 import type { QiStatementEntry } from '../lib/services/types';
 
+// Datas ao MEIO-DIA UTC de propósito: assim a data de calendário exibida é
+// estável em qualquer fuso de CI (evita rolar para o dia anterior/seguinte).
 const pastEntries: QiStatementEntry[] = [
   {
     id: 's1',
     title: 'Agendamento realizado',
     subtitle: 'Carlos Silva',
-    date: '2026-04-12T14:30:00.000Z',
+    date: '2026-04-12T12:00:00.000Z',
     amountCents: 265,
   },
   {
     id: 's2',
     title: 'Agendamento realizado',
     subtitle: 'Anderson Ribeiro',
-    date: '2026-03-11T09:00:00.000Z',
+    date: '2026-03-11T12:00:00.000Z',
     amountCents: 500,
   },
 ];
