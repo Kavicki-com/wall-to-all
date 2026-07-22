@@ -51,7 +51,11 @@ export interface WithdrawFlowProps {
   heroLabel: string;
   balanceCents: number;
   pixKeys: PixKey[];
-  /** Cotação (taxa/total/ETA) do domínio do chamador — recalculada a cada valor válido. */
+  /**
+   * Cotação (taxa/total/ETA) do domínio do chamador — recalculada a cada valor
+   * válido. Lida por ref internamente, então NÃO precisa ser memoizada: mudar a
+   * identidade da função entre renders não redispara a cotação.
+   */
   quote: (amountCents: number) => Promise<WithdrawQuote>;
   onConfirm: (amountCents: number, pixKeyId: string) => Promise<void>;
   /** Rota de cadastro de nova chave do chamador. */
@@ -123,6 +127,12 @@ export const WithdrawFlow: React.FC<WithdrawFlowProps> = ({
     [],
   );
 
+  // `quote` lida por ref: assim o efeito depende só de `amountCents` e um
+  // chamador que passe uma arrow inline (identidade nova a cada render) não
+  // dispara um loop de re-cotação.
+  const quoteRef = useRef(quote);
+  quoteRef.current = quote;
+
   // Recalcula a cotação a cada mudança de valor VÁLIDO (> 0); valor zerado
   // limpa o resumo. `active`-guard descarta respostas fora de ordem quando o
   // usuário digita mais rápido que a cotação resolve.
@@ -134,7 +144,7 @@ export const WithdrawFlow: React.FC<WithdrawFlowProps> = ({
     let active = true;
     (async () => {
       try {
-        const result = await quote(amountCents);
+        const result = await quoteRef.current(amountCents);
         if (active) setQuoteResult(result);
       } catch {
         // Cotação indisponível → resumo oculto (a CTA não depende da cotação).
@@ -144,7 +154,7 @@ export const WithdrawFlow: React.FC<WithdrawFlowProps> = ({
     return () => {
       active = false;
     };
-  }, [amountCents, quote]);
+  }, [amountCents]);
 
   const selectedKey = useMemo(
     () => pixKeys.find((key) => key.id === selectedKeyId) ?? null,
@@ -169,7 +179,7 @@ export const WithdrawFlow: React.FC<WithdrawFlowProps> = ({
     amountCents <= 0 ||
     amountCents > balanceCents ||
     (minWithdrawCents !== undefined && amountCents < minWithdrawCents) ||
-    !selectedKeyId ||
+    !selectedKey ||
     submitting;
 
   // Confirma o saque: guarda contra duplo-submit/submit inválido; mostra o
@@ -177,11 +187,11 @@ export const WithdrawFlow: React.FC<WithdrawFlowProps> = ({
   // volta ao formulário. `finally` destrava o submit (com guarda de montagem).
   const handleConfirm = useCallback(async () => {
     if (disabled) return;
-    // `selectedKeyId` é garantido não-nulo por `disabled`, mas checamos p/ o TS.
-    if (!selectedKeyId) return;
+    // `selectedKey` é garantido não-nulo por `disabled`, mas checamos p/ o TS.
+    if (!selectedKey) return;
     setSubmitting(true);
     try {
-      await onConfirm(amountCents, selectedKeyId);
+      await onConfirm(amountCents, selectedKey.id);
       if (mountedRef.current) setSuccessVisible(true);
     } catch {
       if (mountedRef.current) {
@@ -190,7 +200,7 @@ export const WithdrawFlow: React.FC<WithdrawFlowProps> = ({
     } finally {
       if (mountedRef.current) setSubmitting(false);
     }
-  }, [disabled, selectedKeyId, amountCents, onConfirm, showError]);
+  }, [disabled, selectedKey, amountCents, onConfirm, showError]);
 
   const hasKeys = pixKeys.length > 0;
   // Resumo só com valor > 0 E cotação resolvida (evita card vazio/obsoleto).
