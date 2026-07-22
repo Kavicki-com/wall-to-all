@@ -1,7 +1,7 @@
 // F3: dados 100% do WalletService mock; a unificação com o backend é F8.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWalletService } from '../../../context/ServicesContext';
 import { WithdrawFlow } from '../../../components/wallet/WithdrawFlow';
@@ -33,27 +33,32 @@ const WithdrawScreen: React.FC = () => {
   const [balanceCents, setBalanceCents] = useState(0);
   const [pixKeys, setPixKeys] = useState<PixKey[]>([]);
 
-  // Carrega saldo + chaves Pix em paralelo no mount; `active`-guard evita
-  // setState após desmontar; `loaded` segura o spinner só no primeiro load.
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const [balanceResult, pixResult] = await Promise.all([
-          walletService.getMerchantBalanceCents(),
-          walletService.getPixKeys(),
-        ]);
-        if (!active) return;
-        setBalanceCents(balanceResult);
-        setPixKeys(pixResult);
-      } finally {
-        if (active) setLoaded(true);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [walletService]);
+  // Recarrega saldo + chaves Pix ao FOCAR (mount inclusive): ao voltar do
+  // cadastro de chave (new-pix-key → router.back()) a tela permanece montada, e
+  // só o refoco reflete a chave recém-criada. `active`-guard evita setState após
+  // desfocar/desmontar; `loaded` segura o spinner só no primeiro load (refocos
+  // atualizam os dados sem repor o spinner). Mesmo idioma do Financeiro/index.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const [balanceResult, pixResult] = await Promise.all([
+            walletService.getMerchantBalanceCents(),
+            walletService.getPixKeys(),
+          ]);
+          if (!active) return;
+          setBalanceCents(balanceResult);
+          setPixKeys(pixResult);
+        } finally {
+          if (active) setLoaded(true);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [walletService]),
+  );
 
   const handleBack = useCallback(() => {
     router.back();

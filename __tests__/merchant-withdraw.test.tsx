@@ -25,6 +25,8 @@ const mockPush = jest.fn();
 const mockBack = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: mockBack }),
+  // useFocusEffect roda o callback UMA vez → dispara o load no mount/foco.
+  useFocusEffect: (cb: () => void) => cb(),
 }));
 
 // A tela usa useSafeAreaInsets no header "Voltar"; inset determinístico.
@@ -48,14 +50,18 @@ describe('WithdrawScreen (solicitar saque do lojista)', () => {
     jest.clearAllMocks();
   });
 
-  it('CTA desabilitada com valor 0; com valor acima do saldo continua desabilitada', async () => {
+  it('CTA desabilitada com valor 0; com chave selecionada mas valor acima do saldo continua desabilitada', async () => {
     const wallet = new MockWalletService({ latencyMs: 0 });
+    const [cpfKey] = await wallet.getPixKeys();
     const { findByTestId, getByTestId } = renderScreen(wallet);
 
     // Sem valor digitado (0) → CTA desabilitada.
     const cta = await findByTestId('btn-confirm-withdraw');
     expect(cta.props.accessibilityState.disabled).toBe(true);
 
+    // Seleciona a chave Pix ANTES para isolar a guarda de saldo (sem isso a CTA
+    // já estaria desabilitada pela regra "sem chave", mascarando a de saldo).
+    fireEvent.press(getByTestId(`pix-option-${cpfKey.id}`));
     // Valor MUITO acima do saldo (9999999 centavos = R$ 99.999,99 > R$ 591,20).
     fireEvent.changeText(getByTestId('input-amount'), '9999999');
 
