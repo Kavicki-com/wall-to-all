@@ -17,11 +17,23 @@ export const QI_EMPTY_NEXT_LEVEL: NonNullable<QiSummary['nextLevel']> = {
   target: 5,
 };
 
+/**
+ * Topo da escada de níveis: a meta que os dois resumos exibem ("Indique 30
+ * amigos para liberar nível Ouro") E o limiar que o "Como funciona" mostra
+ * ("30+ indicados ativos"). Fonte única, para as duas telas não se
+ * contradizerem a um toque de distância.
+ */
+export const QI_TOP_LEVEL: NonNullable<QiSummary['nextLevel']> = {
+  name: 'Ouro',
+  target: 30,
+};
+
 /** Regras do programa exibidas no "Como funciona". Taxas espelham withdrawQuote.ts. */
 export const FIXTURE_QI_RULES: QiProgramRules = {
   perServicePct: 10,
   monthlyBonusCents: 500,
   topLevelMultiplier: 2,
+  topLevelThreshold: QI_TOP_LEVEL.target,
   minWithdrawCents: MIN_WITHDRAW_CENTS,
   feeCents: WITHDRAW_FEE_CENTS,
   feeFreeThresholdCents: FEE_FREE_THRESHOLD_CENTS,
@@ -34,7 +46,7 @@ export const FIXTURE_CLIENT_SUMMARY: QiSummary = {
   totalEarnedCents: 4500,
   indicadosCount: 12,
   bonusCount: 8,
-  nextLevel: { name: 'Ouro', target: 30 },
+  nextLevel: { ...QI_TOP_LEVEL },
 };
 
 /**
@@ -48,7 +60,7 @@ export const FIXTURE_MERCHANT_SUMMARY: QiSummary = {
   totalEarnedCents: 4500,
   indicadosCount: 6,
   bonusCount: 8,
-  nextLevel: { name: 'Ouro', target: 30 },
+  nextLevel: { ...QI_TOP_LEVEL },
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;

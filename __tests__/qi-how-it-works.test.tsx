@@ -76,6 +76,16 @@ class HangingQiService extends MockQiService {
   }
 }
 
+/**
+ * Regras com um limiar de nível máximo DIFERENTE da fixture: prova que a dica
+ * do nível Ouro sai de `topLevelThreshold`, e não de um literal na tela.
+ */
+class CustomThresholdQiService extends MockQiService {
+  async getProgramRules(): Promise<QiProgramRules> {
+    return { ...(await super.getProgramRules()), topLevelThreshold: 42 };
+  }
+}
+
 /** Falha só na PRIMEIRA leitura das regras: exercita o "Tentar novamente". */
 class FlakyQiService extends MockQiService {
   private calls = 0;
@@ -133,7 +143,7 @@ describe('QiHowItWorks (como funciona o QI)', () => {
 
   it('"Quanto você ganha?": as 3 linhas vêm das regras do programa', async () => {
     const qi = new MockQiService({ latencyMs: 0 });
-    const { findByText, getByText, getByTestId } = renderWithProviders(
+    const { findByText, getByText, getByTestId, unmount } = renderWithProviders(
       <ClientQiHowItWorksScreen />,
       { qi },
     );
@@ -148,9 +158,20 @@ describe('QiHowItWorks (como funciona o QI)', () => {
     expect(getByText('Bônus mensal')).toBeTruthy();
     expect(getByTestId('qi-earn-monthly-bonus').props.children).toMatch(/\+.*5,00/);
 
-    // topLevelMultiplier 2 → "x2 cashback".
+    // topLevelMultiplier 2 → "x2 cashback"; topLevelThreshold 30 → a dica traz
+    // o MESMO número da meta do card de ganhos do QI ("Indique 30 amigos para
+    // liberar nível Ouro"), que sai da mesma escada de níveis.
     expect(getByText('Nível Ouro')).toBeTruthy();
     expect(getByTestId('qi-earn-top-level').props.children).toMatch(/x2 cashback/);
+    expect(getByText('30+ indicados ativos')).toBeTruthy();
+    unmount();
+
+    // Prova de que o limiar NÃO é literal na tela: com regras de outro limiar,
+    // a dica acompanha as regras.
+    const custom = renderWithProviders(<ClientQiHowItWorksScreen />, {
+      qi: new CustomThresholdQiService({ latencyMs: 0 }),
+    });
+    expect(await custom.findByText('42+ indicados ativos')).toBeTruthy();
   });
 
   it('"Regras de participação": prazo, mínimo e taxa formatados das regras', async () => {

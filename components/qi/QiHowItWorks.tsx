@@ -65,9 +65,9 @@ const EARN_PER_SERVICE_HINT = 'Cada agendamento do indicado'; // 2628:7266 · 26
 const EARN_BONUS_LABEL = 'Bônus mensal'; // 2628:7272 · 2606:5673
 const EARN_BONUS_HINT = 'Quando indicado se mantém ativo'; // 2628:7273 · 2606:5674
 const EARN_TOP_LEVEL_LABEL = 'Nível Ouro'; // 2628:7279 · 2606:5680
-// O limiar do nível Ouro NÃO existe em `QiProgramRules` (o tipo só traz o
-// multiplicador), então esta dica segue literal, como no Figma.
-const EARN_TOP_LEVEL_HINT = '10+ indicados ativos'; // 2628:7280 · 2606:5681
+// Só o SUFIXO é copy: o limiar sai de `rules.topLevelThreshold` (ver a
+// DIVERGÊNCIA 5), nunca literal aqui.
+const EARN_TOP_LEVEL_HINT_SUFFIX = '+ indicados ativos'; // 2628:7280 · 2606:5681
 
 /** Glifos decorativos dos badges das linhas de ganho (copy do Figma, não assets). */
 const EARN_PER_SERVICE_GLYPH = '%'; // 2628:7263 · 2606:5664
@@ -107,7 +107,16 @@ const RULE_UNLIMITED = 'Indicações ilimitadas'; // 2628:7295 · 2606:5700
       alvo em lugar nenhum do Figma. Um Pressable com onPress vazio seria
       enganoso (o leitor de tela o anunciaria como botão e nada aconteceria),
       então ele é TEXTO estático até existir a tela do regulamento.
-      TODO(F8): transformar em botão e navegar para o regulamento. */
+      TODO(F8): transformar em botão e navegar para o regulamento.
+   5. LIMIAR DO NÍVEL OURO. O Figma escreve "10+ indicados ativos" (2628:7280 ·
+      2606:5681), mas 10 é DADO DE DOMÍNIO, e a escada de níveis do próprio app
+      diz outra coisa: o card de ganhos do QI renderiza "Indique 30 amigos para
+      liberar nível Ouro" a partir de `QiSummary.nextLevel`. Deixar o literal do
+      Figma poria as duas telas se contradizendo a um toque de distância, então
+      a dica é montada a partir de `rules.topLevelThreshold`, campo que sai da
+      MESMA fonte da meta do resumo. As outras duas dicas desta seção
+      (EARN_PER_SERVICE_HINT e EARN_BONUS_HINT) seguem literais porque são prosa
+      sem número. */
 
 /** Corpo do estado de erro (a tela sempre oferece o "Voltar" e o retry). */
 const LOAD_ERROR_MESSAGE = 'Não foi possível carregar as regras do programa.';
@@ -375,7 +384,7 @@ export const QiHowItWorks: React.FC<QiHowItWorksProps> = ({ side }) => {
             badgeStyle={styles.earnBadgeInfo}
             glyphStyle={styles.earnGlyphInfo}
             label={EARN_TOP_LEVEL_LABEL}
-            hint={EARN_TOP_LEVEL_HINT}
+            hint={`${rules.topLevelThreshold}${EARN_TOP_LEVEL_HINT_SUFFIX}`}
             value={`x${rules.topLevelMultiplier} cashback`}
             testID="qi-earn-top-level"
           />

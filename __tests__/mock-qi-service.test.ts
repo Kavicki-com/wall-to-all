@@ -177,6 +177,9 @@ describe('MockQiService', () => {
         perServicePct: 10,
         monthlyBonusCents: 500,
         topLevelMultiplier: 2,
+        // Mesmo número da meta do topo da escada (`nextLevel` Ouro/30) dos dois
+        // resumos: o "Como funciona" e o card de ganhos não podem divergir.
+        topLevelThreshold: 30,
         minWithdrawCents: 3000,
         feeCents: 500,
         feeFreeThresholdCents: 20000,

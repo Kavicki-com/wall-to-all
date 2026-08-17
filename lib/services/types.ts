@@ -177,6 +177,14 @@ export interface QiProgramRules {
   perServicePct: number;         // 10
   monthlyBonusCents: number;     // 500
   topLevelMultiplier: number;    // 2 (Ouro → x2 cashback)
+  /**
+   * Quantidade de indicados ativos que libera o NÍVEL MÁXIMO da escada (Ouro).
+   * É o mesmo limiar que o topo da escada expressa em `QiSummary.nextLevel`
+   * ("Indique N amigos para liberar nível Ouro"): o card de ganhos do QI e a
+   * tela "Como funciona" falam do mesmo número e não podem divergir, por isso
+   * ele vive nas regras do programa em vez de literal em tela.
+   */
+  topLevelThreshold: number;     // 30
   minWithdrawCents: number;      // 3000
   feeCents: number;              // 500
   feeFreeThresholdCents: number; // 20000

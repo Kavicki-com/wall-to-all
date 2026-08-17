@@ -163,6 +163,17 @@ export const QiIndicacaoDetails: React.FC<QiIndicacaoDetailsProps> = ({ side, id
         if (!active) return;
         // Erro definido pela especificação: avisa e devolve o usuário à lista.
         // Não há o que retentar num id que não existe.
+        // TODO(F8): o `Promise.all` acima junta as DUAS leituras num único
+        // catch, então uma falha só do EXTRATO ejetaria o usuário de uma tela
+        // válida com a mensagem de indicação inexistente. Hoje isso é
+        // INALCANÇÁVEL: as duas leituras só rejeitam para id desconhecido e
+        // recebem o mesmo id, logo ou as duas falham ou nenhuma. Com backend
+        // real é preciso (a) separar as falhas e ejetar apenas quando
+        // `getIndicacao` rejeitar, e (b) definir o que a seção "Extrato" mostra
+        // quando só ela falha: um estado próprio de "não foi possível carregar
+        // o extrato", distinto do vazio (dizer "nenhum lançamento" quando não
+        // se sabe seria mentira). Nenhum dos dois está desenhado no Figma nem
+        // definido na especificação, por isso o comportamento fica como está.
         showError(LOAD_ERROR_MESSAGE);
         router.back();
       } finally {
@@ -190,10 +201,16 @@ export const QiIndicacaoDetails: React.FC<QiIndicacaoDetailsProps> = ({ side, id
     </Pressable>
   );
 
+  // Nos estados NÃO carregados o hero (que absorve o inset) não existe, e sem
+  // top bar o corpo é o topo da tela: sem este compensador o "Voltar", única
+  // saída desses estados, ficaria sob a status bar num aparelho com notch.
+  // Mesma solução da tela irmã "Como funciona".
+  const topPadding = { paddingTop: insets.top + 20 };
+
   if (!loaded) {
     return (
       <View style={styles.root}>
-        <View style={styles.stateBody}>
+        <View style={[styles.stateBody, topPadding]}>
           {backButton}
           <View style={styles.stateCenter}>
             <ActivityIndicator size="large" color={colors.brand} />
@@ -208,7 +225,7 @@ export const QiIndicacaoDetails: React.FC<QiIndicacaoDetailsProps> = ({ side, id
     // enquanto a tela existir ela precisa mostrar algo com saída própria.
     return (
       <View style={styles.root}>
-        <View style={styles.stateBody}>
+        <View style={[styles.stateBody, topPadding]}>
           {backButton}
           <View style={styles.stateCenter}>
             <Text style={styles.errorText}>{NOT_FOUND_MESSAGE}</Text>
@@ -318,9 +335,10 @@ const styles = StyleSheet.create({
   },
   // ── Estados de carga e de erro (com o "Voltar") ────────────
   stateBody: {
+    // O paddingTop NÃO mora aqui: ele soma o inset superior e é aplicado em
+    // linha (topPadding), já que estes estados não têm hero nem top bar acima.
     flex: 1,
     paddingHorizontal: 20, // Figma padding/ml (igual ao corpo carregado)
-    paddingTop: 20,
   },
   stateCenter: {
     flex: 1,
