@@ -42,6 +42,14 @@ export interface QiScreenProps {
   indicadosEmptyMessage: string;
 }
 
+// Grupo de rotas de cada lado: as sub-telas do QI são espelhadas por grupo.
+// Record exaustivo de propósito: um valor novo de QiSide quebra a compilação
+// aqui em vez de cair silenciosamente num grupo existente.
+const QI_ROUTE_GROUP: Record<QiSide, '(client)' | '(merchant)'> = {
+  client: '(client)',
+  merchant: '(merchant)',
+};
+
 /**
  * Casca COMPARTILHADA da tela do programa QI (F4). As duas metades do app são
  * espelhos: as rotas `app/(client)/qi/index.tsx` e `app/(merchant)/qi/index.tsx`
@@ -79,8 +87,7 @@ export const QiScreen: React.FC<QiScreenProps> = ({
   const router = useRouter();
   const qiService = useQiService();
 
-  // Grupo de rotas do lado: as sub-telas do QI são espelhadas por grupo.
-  const group = side === 'client' ? '(client)' : '(merchant)';
+  const group = QI_ROUTE_GROUP[side];
 
   // O AppDrawer é dono do estado aqui (a HomeTopBar só dispara `onMenu`).
   const [drawerOpen, setDrawerOpen] = useState(false);

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -27,8 +27,8 @@ import type {
 } from '../../../lib/dashboardMetrics';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import HomeTopBar from '../../../components/home/HomeTopBar';
-import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
-import { MERCHANT_DRAWER_ITEMS } from '../../../components/layout/merchantDrawerItems';
+import { AppDrawer } from '../../../components/layout/AppDrawer';
+import { MERCHANT_HOME_DRAWER_ITEMS } from '../../../components/layout/merchantDrawerItems';
 import NotificationModal from '../../../components/notifications/NotificationModal';
 import { useNotifications } from '../../../context/NotificationContext';
 import { GoalOverview } from '../../../components/dashboard/GoalOverview';
@@ -432,19 +432,6 @@ const MerchantHomeScreen: React.FC = () => {
     refreshNotifications();
   }, [refreshNotifications]);
 
-  // Itens do menu (drawer) do lojista: a lista comum compartilhada
-  // (merchantDrawerItems, com "QI" depois de "Financeiro"), acrescida de
-  // "Compartilhar perfil" logo após o "QI" (a seção que saiu da home migra
-  // para o drawer; só esta tela tem esse item, por isso a composição local).
-  const drawerItems: DrawerItem[] = useMemo(() => {
-    const qiIndex = MERCHANT_DRAWER_ITEMS.findIndex((item) => item.label === 'QI');
-    return [
-      ...MERCHANT_DRAWER_ITEMS.slice(0, qiIndex + 1),
-      { label: 'Compartilhar perfil', route: '/(merchant)/home/share' },
-      ...MERCHANT_DRAWER_ITEMS.slice(qiIndex + 1),
-    ];
-  }, []);
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -601,7 +588,8 @@ const MerchantHomeScreen: React.FC = () => {
 
       {/* Menu lateral e modal de notificações — irmãos do ScreenContainer para
           não viverem dentro do ScrollView. */}
-      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={drawerItems} />
+      {/* Variante da home (com "Compartilhar perfil"), composta no módulo da lista. */}
+      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={MERCHANT_HOME_DRAWER_ITEMS} />
       <NotificationModal
         visible={notifModalVisible}
         onClose={closeNotifications}

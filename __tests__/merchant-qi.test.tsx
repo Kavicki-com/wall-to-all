@@ -140,6 +140,16 @@ describe('MerchantQiScreen (QI do lojista)', () => {
     expect(mockPush).toHaveBeenCalledWith('/(merchant)/qi/withdraw');
   });
 
+  it('"Como funciona o QI" navega para a tela de explicação do lojista', async () => {
+    const qi = new MockQiService({ latencyMs: 0 });
+    const { findByTestId, getByTestId } = renderWithProviders(<MerchantQiScreen />, { qi });
+
+    await findByTestId('btn-how-it-works');
+    fireEvent.press(getByTestId('btn-how-it-works'));
+
+    expect(mockPush).toHaveBeenCalledWith('/(merchant)/qi/how-it-works');
+  });
+
   it('abre o drawer ao pressionar o menu (o item "QI" fica visível)', async () => {
     const qi = new MockQiService({ latencyMs: 0 });
     const { findByTestId, getByTestId, queryByText, findByText } = renderWithProviders(
