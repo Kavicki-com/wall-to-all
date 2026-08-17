@@ -23,14 +23,14 @@ export interface QiWithdrawScreenProps {
 const HIT_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
 
 // Grupo de rotas de cada lado, mesmo mapa (e mesmo racional) do `QiScreen`:
-// Record exaustivo de propósito — um valor novo de QiSide quebra a compilação
+// Record exaustivo de propósito: um valor novo de QiSide quebra a compilação
 // aqui em vez de cair silenciosamente num grupo existente.
 const QI_ROUTE_GROUP: Record<QiSide, '(client)' | '(merchant)'> = {
   client: '(client)',
   merchant: '(merchant)',
 };
 
-/** Rótulo do hero, literal do Figma 2628:6376 (ver a DIVERGÊNCIA 4). */
+/** Rótulo do hero, literal do Figma (2628:6376 e 🆕 2715:3714); ver a nota 4. */
 const HERO_LABEL = 'Saldo disponível';
 
 /** Corpo do estado de erro (a tela sempre oferece o "Voltar" e o retry). */
@@ -44,7 +44,7 @@ const LOAD_ERROR_MESSAGE = 'Não foi possível carregar os dados do saque.';
    1. TOP BAR. O node do QI abre com a top bar navy do app (2628:6374), cujo
       único controle é o menu do AppDrawer, e ela NÃO é renderizada aqui. A top
       bar com o menu é das telas-hub; sub-telas empurradas na pilha, como esta,
-      usam o "Voltar" fantasma como afordância de saída — precedente em
+      usam o "Voltar" fantasma como afordância de saída, com precedente em
       `components/wallet/PixKeyForm.tsx:162` e nas telas irmãs do QI. O "Voltar"
       aparece nos TRÊS estados (carga, erro e formulário), e como não há top bar
       o cabeçalho é o topo da tela e absorve o inset superior.
@@ -57,12 +57,15 @@ const LOAD_ERROR_MESSAGE = 'Não foi possível carregar os dados do saque.';
       mínimo a partir das regras.
    3. SEGUNDO BOTÃO. O bloco de ações traz DUAS instâncias de botão (2628:6429 e
       2628:6430, a segunda "Cancelar saque"); só a confirmação é renderizada,
-      porque cancelar é exatamente o que o "Voltar" já faz — dois controles para
+      porque cancelar é exatamente o que o "Voltar" já faz: dois controles para
       a mesma saída seriam ruído (mesma decisão do 🆕).
-   4. RÓTULO DO HERO. O node do QI escreve "Saldo disponível" (2628:6376), e é
-      esse o rótulo usado aqui, embora a tela-mãe do QI chame o mesmo saldo de
-      "Saldo Cashback". O valor exibido é o do QI (`getQiSummary(side)`), não o
-      da carteira/Financeiro: os dois saldos são independentes.
+   4. RÓTULO DO HERO: NÃO é divergência do Figma, e sim do vocabulário do QI. O
+      node do QI (2628:6376) e o 🆕 (2715:3714) escrevem "Saldo disponível", e é
+      exatamente esse o rótulo usado aqui: a tela CONCORDA com o design. A
+      divergência é interna, contra a tela-mãe do QI, que chama o MESMO saldo de
+      "Saldo Cashback"; uniformizar os dois é decisão de produto, não de
+      implementação. O valor exibido é o do QI (`getQiSummary(side)`), não o da
+      carteira/Financeiro: os dois saldos são independentes.
    Os estados de carga e o modal do QI (loading 2628:7300 · 2628:6464, modal
    2628:7299 · 2628:6463) são espelhos exatos entre os lados e já vivem no
    `WithdrawFlow` (overlay "Por favor, aguarde....." e modal "Saque solicitado");
@@ -129,9 +132,11 @@ export const QiWithdrawScreen: React.FC<QiWithdrawScreenProps> = ({ side }) => {
       setRules(rulesResult);
       setPixKeys(pixResult);
     } catch (error) {
-      // Sem este catch a rejeição escaparia como unhandled rejection: `summary`
-      // segue nulo e o gate abaixo mostra o estado de erro (com "Tentar
-      // novamente") em vez de prender o usuário no spinner.
+      // Sem este catch a rejeição escaparia como unhandled rejection. No
+      // primeiro load `summary` fica nulo e o gate abaixo mostra o estado de
+      // erro (com "Tentar novamente") em vez de prender o usuário no spinner;
+      // num refoco (o caso provável: voltar de `qi/new-pix-key`), os últimos
+      // dados bons seguem na tela e a falha só é registrada.
       handleError(error, 'general');
     } finally {
       if (runIdRef.current === runId) {
@@ -145,10 +150,6 @@ export const QiWithdrawScreen: React.FC<QiWithdrawScreenProps> = ({ side }) => {
     useCallback(() => {
       void load();
       return () => {
-        // É o valor do MOMENTO DA LIMPEZA que interessa: copiar o token na
-        // montagem invalidaria o errado quando um retry já tivesse avançado o
-        // contador. O ref não aponta para nenhum nó renderizado.
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- ver acima
         runIdRef.current++;
       };
     }, [load]),

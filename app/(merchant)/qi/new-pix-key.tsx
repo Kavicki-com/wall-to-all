@@ -10,9 +10,13 @@ import { PixKeyForm } from '../../../components/wallet/PixKeyForm';
  * recarrega as chaves, e a recém-criada já aparece selecionável).
  *
  * A chave pertence ao WalletService, não ao QI (decisão de arquitetura da fase:
- * a mesma chave Pix vale em todo o app). Esta rota existe em separado da
- * `financeiro/new-pix-key` só para que o `onSaved`/"Voltar" retorne ao saque do
- * QI, e não ao Financeiro.
+ * a mesma chave Pix vale em todo o app). Ainda assim esta rota existe em
+ * separado da `financeiro/new-pix-key`, e NÃO é pelo retorno: `router.back()`
+ * desempilha o histórico e voltaria ao saque do QI de qualquer forma. É porque
+ * no `_layout.tsx` cada `Tabs.Screen` é uma rota singleton, com estado próprio:
+ * reusar a do Financeiro faria os dois fluxos compartilharem identidade e
+ * estado de rota. Ter rota própria também permite divergir header/copy depois
+ * sem tocar no Financeiro.
  */
 const NewPixKeyScreen: React.FC = () => {
   const router = useRouter();

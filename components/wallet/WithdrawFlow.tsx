@@ -47,7 +47,12 @@ function formatAmountDigits(cents: number): string {
 const HIT_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
 
 export interface WithdrawFlowProps {
-  /** "Saldo disponível" (Financeiro) | "Saldo Cashback" (QI). */
+  /**
+   * Rótulo do saldo no hero. Hoje os DOIS chamadores passam "Saldo disponível"
+   * (Financeiro e QI, cada um seguindo o próprio node do Figma), mas segue como
+   * prop: o saldo exibido é o do domínio de quem chama, e os dois podem divergir
+   * de vocabulário sem tocar neste componente.
+   */
   heroLabel: string;
   balanceCents: number;
   pixKeys: PixKey[];
@@ -62,7 +67,7 @@ export interface WithdrawFlowProps {
   onAddPixKey: () => void;
   /** Fechamento do modal de sucesso (tipicamente `router.back()`). */
   onSuccessClose: () => void;
-  /** Valor mínimo de saque em centavos (QI passa 3000); omitido = sem mínimo (Financeiro). */
+  /** Mínimo em centavos (o QI passa `rules.minWithdrawCents`); omitido = sem mínimo (Financeiro). */
   minWithdrawCents?: number;
   testID?: string;
 }
