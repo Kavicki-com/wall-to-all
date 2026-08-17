@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Jest: require() em fábricas jest.mock (não convertível para import) */
 /**
  * Testes de comportamento da tela do QI do CLIENTE (F4 — Task 8, Figma nodes
  * 2628:6934 completo e 2628:7044 vazio).
  *
  * A tela consome `useQiService()` (via ServicesProvider) e navega com
  * `expo-router`. Mockamos, no escopo do módulo: `expo-router` (useRouter →
- * mockPush/mockBack; useFocusEffect roda o callback UMA vez → dispara o load no
+ * mockPush/mockBack; useFocusEffect executa como efeito → dispara o load no
  * foco/mount) e `react-native-safe-area-context` (só useSafeAreaInsets, usado
  * pela HomeTopBar). O serviço vem de um `MockQiService({ latencyMs: 0 })` fresco
  * injetado via `renderWithProviders(..., { qi })`.
@@ -21,17 +22,25 @@ import { Share } from 'react-native';
 import { fireEvent, within } from '@testing-library/react-native';
 import { renderWithProviders } from './test-utils';
 import { MockQiService } from '../lib/services/mock/mockQiService';
+import { QI_INVITE_URL } from '../lib/qi/shareMessage';
 import type { QiIndicacao, QiSide, QiSummary } from '../lib/services/types';
 
 // ── Mocks de escopo de módulo (içados pelo Jest acima dos imports) ──────────
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: mockBack }),
-  // useFocusEffect roda o callback uma vez → dispara o load no mount/foco.
-  useFocusEffect: (cb: () => void) => cb(),
-}));
+jest.mock('expo-router', () => {
+  const React = require('react');
+  return {
+    useRouter: () => ({ push: mockPush, back: mockBack }),
+    // useFocusEffect fiel ao runtime: executa como EFEITO (dispara o load no
+    // foco/mount e só re-executa quando o callback memoizado muda), honrando o
+    // cleanup. Rodar `cb()` direto no corpo do render re-disparava a carga a
+    // cada render (laço carga → render → carga) e enchia a saída de avisos de
+    // act().
+    useFocusEffect: (cb: () => void) => React.useEffect(cb, [cb]),
+  };
+});
 
 // HomeTopBar usa useSafeAreaInsets; inset determinístico (igual às demais telas).
 jest.mock('react-native-safe-area-context', () => ({
@@ -65,11 +74,12 @@ const SUBTITLE_EMPTY = 'Convide amigos e receba cashback no PIX';
  * volta a responder como o mock normal depois de `recover()`. Cobre o ramo de
  * erro da carga E a recuperação pelo "Tentar novamente".
  *
- * Por que um interruptor e não um "falha só na 1ª chamada": o mock de
- * `useFocusEffect` deste arquivo roda o callback a CADA render, então a falha do
- * primeiro load já dispara um novo load no render seguinte. Um stub que falhasse
- * uma única vez se curaria sozinho antes de o usuário tocar em "Tentar
- * novamente", e a asserção do estado de erro viraria corrida.
+ * Por que um interruptor e não um "falha só na 1ª chamada": o estado de erro
+ * precisa ficar estável até o teste decidir recuperar o serviço. Com uma falha
+ * única, qualquer carga extra (um refoco, um efeito refeito por mudança de
+ * deps) curaria a tela sozinha antes do toque em "Tentar novamente", e a
+ * asserção do estado de erro viraria corrida. Com o interruptor, o press no
+ * botão é o único caminho observável de recuperação.
  */
 class RecoverableQiService extends MockQiService {
   private failing = true;
@@ -235,7 +245,11 @@ describe('ClientQiScreen (QI do cliente)', () => {
     fireEvent.press(getByTestId('qi-code-share'));
 
     expect(shareSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringContaining('QI-HOG23-3892') }),
+      expect.objectContaining({
+        message: expect.stringContaining('QI-HOG23-3892'),
+        // O `url` separado deixa a share sheet do iOS oferecer as ações de link.
+        url: QI_INVITE_URL,
+      }),
     );
   });
 

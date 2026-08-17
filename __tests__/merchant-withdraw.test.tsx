@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Jest: require() em fábricas jest.mock (não convertível para import) */
 /**
  * Testes de comportamento do saque do LOJISTA (F3 — Carteira/Financeiro, Task 9,
  * Figma nodes 2715:3711 saque, 2622:5836 loading, 2622:5847 modal de sucesso).
@@ -23,11 +24,18 @@ import { MockWalletService } from '../lib/services/mock/mockWalletService';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: mockBack }),
-  // useFocusEffect roda o callback UMA vez → dispara o load no mount/foco.
-  useFocusEffect: (cb: () => void) => cb(),
-}));
+jest.mock('expo-router', () => {
+  const React = require('react');
+  return {
+    useRouter: () => ({ push: mockPush, back: mockBack }),
+    // useFocusEffect fiel ao runtime: executa como EFEITO (dispara o load no
+    // foco/mount e só re-executa quando o callback memoizado muda), honrando o
+    // cleanup. Rodar `cb()` direto no corpo do render re-disparava a carga a
+    // cada render (laço carga → render → carga) e enchia a saída de avisos de
+    // act().
+    useFocusEffect: (cb: () => void) => React.useEffect(cb, [cb]),
+  };
+});
 
 // A tela usa useSafeAreaInsets no header "Voltar"; inset determinístico.
 jest.mock('react-native-safe-area-context', () => ({
@@ -84,9 +92,7 @@ describe('WithdrawScreen (solicitar saque do lojista)', () => {
 
     fireEvent.press(getByTestId('btn-confirm-withdraw'));
 
-    await waitFor(() =>
-      expect(withdrawSpy).toHaveBeenCalledWith(10000, cpfKey.id),
-    );
+    await waitFor(() => expect(withdrawSpy).toHaveBeenCalledWith(10000, cpfKey.id));
 
     // Modal de sucesso aparece.
     expect(await findByText('Saque solicitado')).toBeTruthy();
