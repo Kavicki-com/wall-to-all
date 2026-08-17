@@ -31,6 +31,7 @@ import { AppDrawer } from '../../../components/layout/AppDrawer';
 import { MERCHANT_HOME_DRAWER_ITEMS } from '../../../components/layout/merchantDrawerItems';
 import NotificationModal from '../../../components/notifications/NotificationModal';
 import { useNotifications } from '../../../context/NotificationContext';
+import { useQiService } from '../../../context/ServicesContext';
 import { GoalOverview } from '../../../components/dashboard/GoalOverview';
 import { KpiCard } from '../../../components/dashboard/KpiCard';
 import { RevenueDonut } from '../../../components/dashboard/RevenueDonut';
@@ -55,7 +56,7 @@ import { Business } from '../../../lib/types';
  * - appointments (só os clientes do mês, agendamentos ANTERIORES ao mês) →
  *   "Novos clientes" (clientes cujo 1º agendamento cai no mês).
  * - reviews → média de avaliação.
- * - referrals → indicações do mês.
+ * - QI: `getQiSummary('merchant')` do QiService (mock da F4) → KPI "Indicações".
  *
  * Definição de RECEITA (única no app, alinhada a `useMerchantMetrics`): agendamentos
  * com status 'confirmed' ou 'completed' e `service.price`. O "Realizado" do mês
@@ -95,9 +96,6 @@ interface UpcomingRow {
 interface ReviewRow {
   rating: number | null;
 }
-interface ReferralRow {
-  created_at: string | null;
-}
 
 // Item já normalizado da lista "Próximos agendamentos".
 interface UpcomingAppointment {
@@ -119,7 +117,7 @@ function pctDelta(delta: { pct: number; up: boolean } | null): Delta {
   return { text: `${delta.pct > 0 ? '+' : ''}${delta.pct}%`, up: delta.up };
 }
 
-// Variação absoluta (ex.: "+3") — usada em "Indicações" e "Novos clientes".
+// Variação absoluta (ex.: "+3"), usada em "Novos clientes".
 function absDelta(delta: { abs: number; up: boolean } | null): Delta {
   if (delta === null) return null;
   return { text: `${delta.abs > 0 ? '+' : ''}${delta.abs}`, up: delta.up };
@@ -129,6 +127,7 @@ const MerchantHomeScreen: React.FC = () => {
   const router = useRouter();
   const { unreadCount, refreshNotifications } = useNotifications();
   const { showError } = useToast();
+  const qiService = useQiService();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -222,8 +221,8 @@ const MerchantHomeScreen: React.FC = () => {
         );
         const last30Start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-        // 2. Consultas independentes em paralelo.
-        const [metricsRes, upcomingRes, reviewsRes, referralsRes] = await Promise.all([
+        // 2. Consultas independentes em paralelo (Supabase + resumo do QI).
+        const [metricsRes, upcomingRes, reviewsRes, qiSummary] = await Promise.all([
           // Métricas: janela [mês anterior, fim do mês corrente]. Ordena DESC + teto
           // alto para que, em lojas movimentadas, o truncamento derrube os meses mais
           // ANTIGOS (fora da janela útil) e nunca o mês corrente.
@@ -248,14 +247,13 @@ const MerchantHomeScreen: React.FC = () => {
             .limit(10),
           // Avaliações do negócio (média).
           supabase.from('reviews').select('rating').eq('business_id', businessData.id),
-          // Indicações do lojista (usuário) — contagem mensal + delta.
-          supabase.from('referrals').select('created_at').eq('referrer_id', user.id),
+          // Resumo do QI do lojista (F4): alimenta o KPI "Indicações".
+          qiService.getQiSummary('merchant'),
         ]);
 
         const metricsRows = (metricsRes.data ?? []) as MetricsRow[];
         const upcomingRows = (upcomingRes.data ?? []) as UpcomingRow[];
         const reviewRows = (reviewsRes.data ?? []) as ReviewRow[];
-        const referralRows = (referralsRes.data ?? []) as ReferralRow[];
 
         // ── Receita, contagem, donut e clientes do mês (partição no cliente) ──
         // Só agendamentos 'confirmed'/'completed' contam (cancelados/pendentes fora).
@@ -309,17 +307,6 @@ const MerchantHomeScreen: React.FC = () => {
             ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
             : '—';
 
-        // ── KPI: Indicações (indicações do mês vs mês anterior) ──
-        let referralsCurrent = 0;
-        let referralsPrevious = 0;
-        for (const ref of referralRows) {
-          if (!ref.created_at) continue;
-          const created = new Date(ref.created_at);
-          if (created >= startOfCurrentMonth && created <= endOfCurrentMonth) referralsCurrent += 1;
-          else if (created >= startOfPreviousMonth && created < startOfCurrentMonth)
-            referralsPrevious += 1;
-        }
-
         // ── KPI: Novos clientes (clientes cujo 1º agendamento cai no mês) ──
         // Em vez de varrer todo o histórico (que truncaria em lojas grandes),
         // perguntamos APENAS pelos clientes do mês: quais já tinham agendamento
@@ -361,8 +348,10 @@ const MerchantHomeScreen: React.FC = () => {
           },
           avaliacao: { value: ratingValue, delta: null },
           indicacoes: {
-            value: String(referralsCurrent),
-            delta: absDelta(computeDelta(referralsCurrent, referralsPrevious)),
+            // Vem do resumo do QI (mock): total de indicadas do lojista.
+            value: String(qiSummary.indicadosCount),
+            // TODO(F8): o mock do QI não modela série mensal; sem variação por ora.
+            delta: null,
           },
           novosClientes: {
             value: String(newClientsCurrent),
@@ -401,9 +390,10 @@ const MerchantHomeScreen: React.FC = () => {
       }
     },
     // `router`/`showError` são estáveis — mantê-los fora das deps evita recriar
-    // loadData a cada render (o que dispararia o useEffect em loop).
+    // loadData a cada render (o que dispararia o useEffect em loop). `qiService`
+    // entra nas deps: é usado na carga e é estável (memoizado no ServicesProvider).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [qiService],
   );
 
   // Load inicial (mount) — fonte do carregamento nos testes.
