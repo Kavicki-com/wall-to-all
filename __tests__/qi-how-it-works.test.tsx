@@ -26,16 +26,14 @@ import type { QiProgramRules, QiSide } from '../lib/services/types';
 
 // ── Mocks de escopo de módulo (içados pelo Jest acima dos imports) ──────────
 
-const mockPush = jest.fn();
 const mockBack = jest.fn();
 jest.mock('expo-router', () => {
-  // Referência estável (ver o cabeçalho). Os métodos DELEGAM para os mocks em
-  // vez de referenciá-los direto: a fábrica roda no primeiro require de
-  // 'expo-router', quando os `const mockPush/mockBack` ainda estão na zona
-  // morta temporal (hoisting do jest.mock); só o corpo das arrows, avaliado
-  // depois, os enxerga.
+  // Referência estável (ver o cabeçalho). O método DELEGA para o mock em vez de
+  // referenciá-lo direto: a fábrica roda no primeiro require de 'expo-router',
+  // quando o `const mockBack` ainda está na zona morta temporal (hoisting do
+  // jest.mock); só o corpo da arrow, avaliado depois, o enxerga. A tela só
+  // navega para trás, então o router mock não expõe `push`.
   const router = {
-    push: (...args: unknown[]) => mockPush(...args),
     back: (...args: unknown[]) => mockBack(...args),
   };
   return { useRouter: () => router };
@@ -238,8 +236,9 @@ describe('QiHowItWorks (como funciona o QI)', () => {
       { qi },
     );
 
-    // 1ª leitura falha: erro com saída preservada.
+    // 1ª leitura falha: erro com a mensagem do corpo e a saída preservada.
     expect(await findByTestId('btn-retry')).toBeTruthy();
+    expect(await findByText('Não foi possível carregar as regras do programa.')).toBeTruthy();
     expect(getByTestId('btn-back')).toBeTruthy();
 
     fireEvent.press(getByTestId('btn-retry'));

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Share,
 } from 'react-native';
+import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQiService } from '../../context/ServicesContext';
@@ -124,8 +125,8 @@ const LOAD_ERROR_MESSAGE = 'Não foi possível carregar as regras do programa.';
 /** Uma das 3 linhas do card "Quanto você ganha?" (2628:7261, 7268, 7275). */
 const EarnRow: React.FC<{
   glyph: string;
-  glyphStyle: object;
-  badgeStyle: object;
+  glyphStyle: StyleProp<TextStyle>;
+  badgeStyle: StyleProp<ViewStyle>;
   label: string;
   hint: string;
   value: string;

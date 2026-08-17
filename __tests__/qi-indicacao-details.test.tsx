@@ -5,9 +5,9 @@
  * A tela consome `useQiService()` (via ServicesProvider), `useToast()` (via
  * ToastProvider) e navega com `expo-router`, lendo o `[id]` da rota por
  * `useLocalSearchParams`. Mockamos, no escopo do módulo: `expo-router`
- * (useRouter → mockPush/mockBack, useLocalSearchParams → `mockParams`, ajustado
- * por teste) e `react-native-safe-area-context` (useSafeAreaInsets, usado pelo
- * hero navy, que aqui é o topo da tela).
+ * (useRouter → mockBack, useLocalSearchParams → `mockParams`, ajustado por
+ * teste) e `react-native-safe-area-context` (useSafeAreaInsets, usado pelo hero
+ * navy e pelos estados não carregados, que aqui são o topo da tela).
  *
  * O objeto do `useRouter()` é um SINGLETON estável de propósito: a tela carrega
  * num `useEffect` que tem `router` nas dependências (o catch navega de volta),
@@ -18,7 +18,7 @@
  * literal (formatadores irmãos usam espaço não-quebrável).
  */
 import React from 'react';
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { renderWithProviders } from './test-utils';
 import { ToastProvider } from '../components/ui/ToastProvider';
 import { MockQiService } from '../lib/services/mock/mockQiService';
@@ -26,18 +26,17 @@ import type { QiIndicacao, QiSide } from '../lib/services/types';
 
 // ── Mocks de escopo de módulo (içados pelo Jest acima dos imports) ──────────
 
-const mockPush = jest.fn();
 const mockBack = jest.fn();
 // Parâmetros da rota, reatribuídos por teste antes do render.
 let mockParams: { id?: string } = {};
 jest.mock('expo-router', () => {
   // Referência estável (ver o cabeçalho): a tela usa `router` nas deps do
-  // efeito. Os métodos DELEGAM para os mocks em vez de referenciá-los direto:
-  // a fábrica é executada no primeiro require de 'expo-router', quando os
-  // `const mockPush/mockBack` ainda estão na zona morta temporal (hoisting do
-  // jest.mock). Só o corpo das arrows, avaliado depois, os enxerga.
+  // efeito. O método DELEGA para o mock em vez de referenciá-lo direto: a
+  // fábrica é executada no primeiro require de 'expo-router', quando o
+  // `const mockBack` ainda está na zona morta temporal (hoisting do
+  // jest.mock). Só o corpo da arrow, avaliado depois, o enxerga. A tela só
+  // navega para trás, então o router mock não expõe `push`.
   const router = {
-    push: (...args: unknown[]) => mockPush(...args),
     back: (...args: unknown[]) => mockBack(...args),
   };
   return {
@@ -77,6 +76,23 @@ class TodayActivityQiService extends MockQiService {
 class HangingQiService extends MockQiService {
   getIndicacao(): Promise<QiIndicacao> {
     return new Promise<QiIndicacao>(() => {});
+  }
+}
+
+/**
+ * Registra CADA leitura da indicação (lado + id). A tela carrega num efeito que
+ * tem `router` e `showError` nas dependências: hoje eles são estáveis por
+ * empréstimo (o ToastProvider memoiza `showError`, o `useRouter` devolve um
+ * singleton), mas se alguém desmemoizar o provider a tela entra em laço de
+ * requisições sem quebrar nenhuma asserção de conteúdo. A lista prova o lado E
+ * a contagem.
+ */
+class RecordingQiService extends MockQiService {
+  readonly loads: Array<[QiSide, string]> = [];
+
+  async getIndicacao(side: QiSide, id: string): Promise<QiIndicacao> {
+    this.loads.push([side, id]);
+    return super.getIndicacao(side, id);
   }
 }
 
@@ -178,10 +194,28 @@ describe('QiIndicacaoDetails (detalhes da indicação)', () => {
   it('id inexistente: mostra toast de erro e volta pela pilha de navegação', async () => {
     mockParams = { id: 'qi-c-99' };
     const qi = new MockQiService({ latencyMs: 0 });
-    const { findByText } = renderClient(qi);
+    const { findByText, getByText } = renderClient(qi);
 
     expect(await findByText('Não foi possível carregar esta indicação.')).toBeTruthy();
+    // O corpo do estado sem dados tem texto PRÓPRIO (distinto do toast) e
+    // preserva a saída, para o caso de a tela seguir montada.
+    expect(getByText('Indicação não encontrada.')).toBeTruthy();
+    expect(getByText('Voltar')).toBeTruthy();
     await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
+  });
+
+  it('carga única: o efeito não recarrega a cada render', async () => {
+    const qi = new RecordingQiService({ latencyMs: 0 });
+    const { findByText } = renderClient(qi);
+
+    await findByText('Lucas Almeida');
+    // Espaço para renders adicionais: com `router`/`showError` instáveis nas
+    // deps do efeito, a lista cresceria em vez de ficar em uma leitura só.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(qi.loads).toEqual([['client', 'qi-c-01']]);
   });
 
   it('estado de carga: mantém a saída da tela ("Voltar")', async () => {

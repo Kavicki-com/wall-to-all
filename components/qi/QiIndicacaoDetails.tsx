@@ -291,7 +291,9 @@ export const QiIndicacaoDetails: React.FC<QiIndicacaoDetailsProps> = ({ side, id
 
           {/* Card "Informações" (2628:7166). */}
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>{INFO_TITLE}</Text>
+            <Text style={styles.infoTitle} accessibilityRole="header">
+              {INFO_TITLE}
+            </Text>
             <InfoRow
               label={INFO_INDICATED_AT_LABEL}
               iso={indicacao.indicatedAt}
@@ -311,7 +313,9 @@ export const QiIndicacaoDetails: React.FC<QiIndicacaoDetailsProps> = ({ side, id
 
           {/* Seção "Extrato" (2628:7177): timeline do QiStatementList. */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{STATEMENT_TITLE}</Text>
+            <Text style={styles.sectionTitle} accessibilityRole="header">
+              {STATEMENT_TITLE}
+            </Text>
             {entries.length > 0 ? (
               <QiStatementList entries={entries} testID="qi-statement-list" />
             ) : (
