@@ -15,7 +15,8 @@ import type { QueueSettings, QueueStatus, QueueTicket } from '../../../lib/servi
 import { Icon } from '../../../components/ui/Icon';
 import { IconMenu } from '../../../lib/icons';
 import { Toggle } from '../../../components/ui/Toggle';
-import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
+import { AppDrawer } from '../../../components/layout/AppDrawer';
+import { MERCHANT_DRAWER_ITEMS } from '../../../components/layout/merchantDrawerItems';
 import { RequestBottomSheet } from '../../../components/aqui-agora/RequestBottomSheet';
 import { colors } from '../../../lib/theme';
 import { LIVE_MERCHANT_ID } from '../../../lib/services/mock/queueFixtures';
@@ -234,19 +235,6 @@ const MerchantAquiAgoraScreen: React.FC = () => {
     setIncomingRequest(null);
   }, [incomingRequest, queueService]);
 
-  // Itens do menu (drawer) do lojista — rotas já existentes do app.
-  const drawerItems: DrawerItem[] = useMemo(
-    () => [
-      { label: 'Início', route: '/(merchant)/home' },
-      { label: 'Agenda', route: '/(merchant)/dashboard' },
-      { label: 'Serviços', route: '/(merchant)/services' },
-      { label: 'Financeiro', route: '/(merchant)/financeiro' },
-      { label: 'Perfil', route: '/(merchant)/profile' },
-      { label: 'Configurações', route: '/(merchant)/settings' },
-    ],
-    [],
-  );
-
   return (
     <View style={styles.container}>
       {/* Top bar navy — apenas o hambúrguer, abre o AppDrawer. */}
@@ -437,7 +425,8 @@ const MerchantAquiAgoraScreen: React.FC = () => {
         </ScrollView>
       )}
 
-      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={drawerItems} />
+      {/* Itens do drawer: constante compartilhada do lojista (inclui "QI"). */}
+      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={MERCHANT_DRAWER_ITEMS} />
 
       {/* Sheet de solicitação recebida — invisível até uma NOVA solicitação
           chegar pela assinatura da fila. Aceitar mantém o cliente na fila;

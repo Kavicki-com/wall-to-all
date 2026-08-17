@@ -157,6 +157,38 @@ const MerchantLayout: React.FC = () => {
             tabBarButton: () => null,
           }}
         />
+
+        {/* QI - Programa de indicações (cashback) F4 */}
+        <Tabs.Screen
+          name="qi/index"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="qi/indicacao/[id]"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="qi/how-it-works"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="qi/withdraw"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="qi/new-pix-key"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
       </Tabs>
     </BusinessProfileProvider>
   );

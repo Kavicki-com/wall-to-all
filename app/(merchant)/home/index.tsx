@@ -28,6 +28,7 @@ import type {
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import HomeTopBar from '../../../components/home/HomeTopBar';
 import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
+import { MERCHANT_DRAWER_ITEMS } from '../../../components/layout/merchantDrawerItems';
 import NotificationModal from '../../../components/notifications/NotificationModal';
 import { useNotifications } from '../../../context/NotificationContext';
 import { GoalOverview } from '../../../components/dashboard/GoalOverview';
@@ -431,21 +432,18 @@ const MerchantHomeScreen: React.FC = () => {
     refreshNotifications();
   }, [refreshNotifications]);
 
-  // Itens do menu (drawer) do lojista — os MESMOS do "Aqui e Agora", acrescidos
-  // de "Compartilhar perfil" (a seção que saiu da home migra para o drawer;
-  // "Serviços" já fazia parte do conjunto).
-  const drawerItems: DrawerItem[] = useMemo(
-    () => [
-      { label: 'Início', route: '/(merchant)/home' },
-      { label: 'Agenda', route: '/(merchant)/dashboard' },
-      { label: 'Serviços', route: '/(merchant)/services' },
-      { label: 'Financeiro', route: '/(merchant)/financeiro' },
+  // Itens do menu (drawer) do lojista: a lista comum compartilhada
+  // (merchantDrawerItems, com "QI" depois de "Financeiro"), acrescida de
+  // "Compartilhar perfil" logo após o "QI" (a seção que saiu da home migra
+  // para o drawer; só esta tela tem esse item, por isso a composição local).
+  const drawerItems: DrawerItem[] = useMemo(() => {
+    const qiIndex = MERCHANT_DRAWER_ITEMS.findIndex((item) => item.label === 'QI');
+    return [
+      ...MERCHANT_DRAWER_ITEMS.slice(0, qiIndex + 1),
       { label: 'Compartilhar perfil', route: '/(merchant)/home/share' },
-      { label: 'Perfil', route: '/(merchant)/profile' },
-      { label: 'Configurações', route: '/(merchant)/settings' },
-    ],
-    [],
-  );
+      ...MERCHANT_DRAWER_ITEMS.slice(qiIndex + 1),
+    ];
+  }, []);
 
   if (loading) {
     return (
