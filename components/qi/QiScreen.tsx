@@ -19,6 +19,7 @@ import { QiCodeCard } from './QiCodeCard';
 import { QiIndicadosList } from './QiIndicadosList';
 import { Icon } from '../ui/Icon';
 import { buildQiShareMessage, QI_INVITE_URL } from '../../lib/qi/shareMessage';
+import { qiRoute } from '../../lib/qi/routes';
 import { handleError } from '../../lib/errorHandler';
 import { formatBRL } from '../../lib/formatters';
 import { colors } from '../../lib/theme';
@@ -41,14 +42,6 @@ export interface QiScreenProps {
   /** Mensagem da seção de indicados sem indicações (copy do Figma de cada lado). */
   indicadosEmptyMessage: string;
 }
-
-// Grupo de rotas de cada lado: as sub-telas do QI são espelhadas por grupo.
-// Record exaustivo de propósito: um valor novo de QiSide quebra a compilação
-// aqui em vez de cair silenciosamente num grupo existente.
-const QI_ROUTE_GROUP: Record<QiSide, '(client)' | '(merchant)'> = {
-  client: '(client)',
-  merchant: '(merchant)',
-};
 
 /**
  * Casca COMPARTILHADA da tela do programa QI (F4). As duas metades do app são
@@ -86,8 +79,6 @@ export const QiScreen: React.FC<QiScreenProps> = ({
 }) => {
   const router = useRouter();
   const qiService = useQiService();
-
-  const group = QI_ROUTE_GROUP[side];
 
   // O AppDrawer é dono do estado aqui (a HomeTopBar só dispara `onMenu`).
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -287,7 +278,7 @@ export const QiScreen: React.FC<QiScreenProps> = ({
               testID="btn-withdraw"
               accessibilityRole="button"
               accessibilityLabel="Solicitar saque"
-              onPress={() => router.push(`/${group}/qi/withdraw`)}
+              onPress={() => router.push(qiRoute(side, 'withdraw'))}
               style={styles.withdrawButton}
             >
               <Text style={styles.withdrawLabel}>Solicitar Saque</Text>
@@ -321,7 +312,7 @@ export const QiScreen: React.FC<QiScreenProps> = ({
               page={page}
               totalPages={totalPages}
               emptyMessage={indicadosEmptyMessage}
-              onPressItem={(id) => router.push(`/${group}/qi/indicacao/${id}`)}
+              onPressItem={(id) => router.push(qiRoute(side, `indicacao/${id}`))}
               onPageChange={handlePageChange}
               testID="qi-indicados-list"
             />
@@ -340,7 +331,7 @@ export const QiScreen: React.FC<QiScreenProps> = ({
             testID="btn-how-it-works"
             accessibilityRole="button"
             accessibilityLabel="Como funciona o QI"
-            onPress={() => router.push(`/${group}/qi/how-it-works`)}
+            onPress={() => router.push(qiRoute(side, 'how-it-works'))}
             style={styles.ghostButton}
           >
             <Text style={styles.ghostButtonText}>Como funciona o QI</Text>

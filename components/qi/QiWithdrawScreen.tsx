@@ -8,6 +8,7 @@ import { useQiService, useWalletService } from '../../context/ServicesContext';
 import { WithdrawFlow } from '../wallet/WithdrawFlow';
 import { Icon } from '../ui/Icon';
 import { handleError } from '../../lib/errorHandler';
+import { qiRoute } from '../../lib/qi/routes';
 import type { PixKey, QiProgramRules, QiSide, QiSummary } from '../../lib/services/types';
 import { colors } from '../../lib/theme';
 
@@ -21,14 +22,6 @@ export interface QiWithdrawScreenProps {
 }
 
 const HIT_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
-
-// Grupo de rotas de cada lado, mesmo mapa (e mesmo racional) do `QiScreen`:
-// Record exaustivo de propósito: um valor novo de QiSide quebra a compilação
-// aqui em vez de cair silenciosamente num grupo existente.
-const QI_ROUTE_GROUP: Record<QiSide, '(client)' | '(merchant)'> = {
-  client: '(client)',
-  merchant: '(merchant)',
-};
 
 /** Rótulo do hero, literal do Figma (2628:6376 e 🆕 2715:3714); ver a nota 4. */
 const HERO_LABEL = 'Saldo disponível';
@@ -105,8 +98,6 @@ export const QiWithdrawScreen: React.FC<QiWithdrawScreenProps> = ({ side }) => {
   const insets = useSafeAreaInsets();
   const qiService = useQiService();
   const walletService = useWalletService();
-
-  const group = QI_ROUTE_GROUP[side];
 
   const [loaded, setLoaded] = useState(false);
   // Recarga disparada pelo "Tentar novamente": desabilita o botão e mostra
@@ -222,7 +213,7 @@ export const QiWithdrawScreen: React.FC<QiWithdrawScreenProps> = ({ side }) => {
         quote={(cents) => qiService.quoteWithdraw(cents)}
         onConfirm={(cents, keyId) => qiService.requestQiWithdraw(side, cents, keyId)}
         minWithdrawCents={rules.minWithdrawCents}
-        onAddPixKey={() => router.push(`/${group}/qi/new-pix-key`)}
+        onAddPixKey={() => router.push(qiRoute(side, 'new-pix-key'))}
         onSuccessClose={handleBack}
       />
     );
