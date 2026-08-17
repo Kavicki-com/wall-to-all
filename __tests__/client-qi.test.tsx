@@ -104,6 +104,25 @@ class RecoverableQiService extends MockQiService {
   }
 }
 
+/**
+ * Stub cujas leituras NUNCA resolvem: prende a tela no estado de carga para se
+ * poder afirmar o que ele oferece ao usuário. Promessas pendentes não deixam
+ * handles abertos (nada de timers), então o Jest encerra normalmente.
+ */
+class HangingQiService extends MockQiService {
+  getQiSummary(): Promise<QiSummary> {
+    return new Promise<QiSummary>(() => {});
+  }
+
+  getQiCode(): Promise<string> {
+    return new Promise<string>(() => {});
+  }
+
+  listIndicacoes(): Promise<{ items: QiIndicacao[]; page: number; totalPages: number }> {
+    return new Promise<{ items: QiIndicacao[]; page: number; totalPages: number }>(() => {});
+  }
+}
+
 describe('ClientQiScreen (QI do cliente)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -256,6 +275,30 @@ describe('ClientQiScreen (QI do cliente)', () => {
 
     // Saldo do mock (7409 centavos) → "R$ 74,09" (regex nos dígitos).
     expect(await findByText(/74,09/)).toBeTruthy();
+  });
+
+  it('estado de erro: mantém a saída da tela (menu e "Voltar")', async () => {
+    const qi = new RecoverableQiService({ latencyMs: 0 });
+    const { findByTestId, getByTestId } = renderWithProviders(<ClientQiScreen />, { qi });
+
+    // Falha persistente (nunca chamamos recover): mesmo assim há como sair.
+    await findByTestId('btn-retry');
+    expect(getByTestId('topbar-menu')).toBeTruthy();
+
+    fireEvent.press(getByTestId('btn-back'));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('estado de carga: mantém a saída da tela (menu e "Voltar")', async () => {
+    const qi = new HangingQiService({ latencyMs: 0 });
+    const { findByTestId, getByTestId } = renderWithProviders(<ClientQiScreen />, { qi });
+
+    // A carga nunca resolve: o usuário não pode ficar preso no spinner.
+    await findByTestId('btn-back');
+    expect(getByTestId('topbar-menu')).toBeTruthy();
+
+    fireEvent.press(getByTestId('btn-back'));
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
   it('abre o drawer ao pressionar o menu (o item "QI" fica visível)', async () => {
