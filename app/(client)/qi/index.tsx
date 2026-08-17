@@ -13,7 +13,8 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useQiService } from '../../../context/ServicesContext';
 import type { QiIndicacao, QiSummary } from '../../../lib/services/types';
 import { HomeTopBar } from '../../../components/home/HomeTopBar';
-import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
+import { AppDrawer } from '../../../components/layout/AppDrawer';
+import { CLIENT_DRAWER_ITEMS } from '../../../components/layout/clientDrawerItems';
 import { QiEarningsCard } from '../../../components/qi/QiEarningsCard';
 import { QiCodeCard } from '../../../components/qi/QiCodeCard';
 import { QiIndicadosList } from '../../../components/qi/QiIndicadosList';
@@ -25,18 +26,6 @@ import { colors } from '../../../lib/theme';
 
 // Este lado é sempre o do cliente (a tela do lojista é uma rota irmã).
 const SIDE = 'client' as const;
-
-// Itens do menu (drawer) do cliente — os MESMOS da home, acrescidos de "QI"
-// (esta tela). Constante de módulo: não realoca a cada render.
-const DRAWER_ITEMS: DrawerItem[] = [
-  { label: 'Início', route: '/(client)/home' },
-  { label: 'Meus agendamentos', route: '/(client)/appointments' },
-  { label: 'Buscar serviços', route: '/(client)/search' },
-  { label: 'Carteira', route: '/(client)/wallet' },
-  { label: 'QI', route: '/(client)/qi' },
-  { label: 'Perfil', route: '/(client)/profile' },
-  { label: 'Configurações', route: '/(client)/settings' },
-];
 
 // Subtítulo do card de código — muda entre o estado completo e o vazio (Figma
 // nodes 2628:6975 completo / 2628:7084 vazio).
@@ -53,7 +42,7 @@ const INDICADOS_EMPTY_MESSAGE =
  * dirigidos pelos dados (um resumo zerado + lista vazia = estado "em branco").
  *
  * Mesma casca das telas do novo escopo: HomeTopBar navy (menu → AppDrawer com os
- * itens do cliente + "QI"). Abaixo, um hero navy com o Saldo Cashback e o botão
+ * itens do cliente, "QI" incluso). Abaixo, um hero navy com o Saldo Cashback e o botão
  * "Solicitar Saque", um "Voltar" fantasma, o card "Ganhos por indicação"
  * (QiEarningsCard), a seção "Compartilhe seu código" (QiCodeCard) e a seção
  * "Amigos indicados" (QiIndicadosList paginada), encerrando num link fantasma
@@ -342,7 +331,7 @@ const ClientQiScreen: React.FC = () => {
       </View>
 
       {/* Menu lateral — irmão da View raiz para não viver dentro do ScrollView. */}
-      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={DRAWER_ITEMS} />
+      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={CLIENT_DRAWER_ITEMS} />
     </>
   );
 };

@@ -16,7 +16,8 @@ import { useCardWidth } from '../../../lib/responsive';
 import { Cache } from '../../../lib/cache';
 import { logger } from '../../../lib/logger';
 import HomeTopBar from '../../../components/home/HomeTopBar';
-import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
+import { AppDrawer } from '../../../components/layout/AppDrawer';
+import { CLIENT_DRAWER_ITEMS } from '../../../components/layout/clientDrawerItems';
 import NotificationModal from '../../../components/notifications/NotificationModal';
 import { useNotifications } from '../../../context/NotificationContext';
 import { StoreHighlightCard } from '../../../components/home/StoreHighlightCard';
@@ -232,20 +233,6 @@ const ClientHomeScreen: React.FC = () => {
     setNotifModalVisible(false);
     refreshNotifications();
   }, [refreshNotifications]);
-
-  // Itens do menu (drawer) do cliente — rotas já existentes do app.
-  const drawerItems: DrawerItem[] = useMemo(
-    () => [
-      { label: 'Início', route: '/(client)/home' },
-      { label: 'Meus agendamentos', route: '/(client)/appointments' },
-      { label: 'Buscar serviços', route: '/(client)/search' },
-      { label: 'Carteira', route: '/(client)/wallet' },
-      { label: 'QI', route: '/(client)/qi' },
-      { label: 'Perfil', route: '/(client)/profile' },
-      { label: 'Configurações', route: '/(client)/settings' },
-    ],
-    [],
-  );
 
   // Lojas em destaque (BusinessProfile) → shape `Business` que o StoreHighlightCard
   // consome. Os campos já vêm nas linhas do featured (mesmos que o antigo
@@ -591,7 +578,7 @@ const ClientHomeScreen: React.FC = () => {
 
       {/* Menu lateral e modal de notificações — irmãos do ScreenContainer para
           não viverem dentro do ScrollView. */}
-      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={drawerItems} />
+      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={CLIENT_DRAWER_ITEMS} />
       <NotificationModal
         visible={notifModalVisible}
         onClose={closeNotifications}
