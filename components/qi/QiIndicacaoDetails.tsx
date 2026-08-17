@@ -43,15 +43,18 @@ const TODAY_LABEL = 'Hoje'; // 2628:7176 · 2606:5572
 const STATEMENT_TITLE = 'Extrato'; // 2628:7180 · 2606:6690
 
 /* DIVERGÊNCIA deliberada do Figma (documentada p/ o revisor):
-   1. TOP BAR. Os dois nodes abrem com a top bar navy do app (2628:7150 ·
-      2606:6576), cujo único controle é o menu (AppDrawer). Esta tela é uma
-      SUB-tela alcançada por push a partir do QI, e a especificação da Task 11
-      define suas rotas como wrappers que só injetam `side` e `id`: não há por
-      onde receber os itens do menu de cada lado sem duplicar a decisão que o
-      QiScreen já tomou (drawerItems por prop). Renderizar a top bar sem itens
-      deixaria um menu morto, pior que não tê-lo. A saída da tela é o "Voltar"
-      fantasma, que aparece em TODOS os estados; o hero passa a ser o topo e
-      respeita o inset superior (useSafeAreaInsets).
+   1. TOP BAR. Os dois nodes do Figma ABREM com a top bar navy do app
+      (2628:7150 · 2606:6576), cujo único controle é o menu do AppDrawer, e ela
+      NÃO é renderizada aqui. A omissão é deliberada e segue o modelo de
+      navegação do app: a top bar com o menu (HomeTopBar) é das telas-hub;
+      sub-telas empurradas na pilha, como esta, usam o "Voltar" fantasma como
+      afordância de saída, e ele aparece em TODOS os estados. O precedente está
+      documentado em `components/wallet/PixKeyForm.tsx:162` ("Sub-tela
+      navegável: usa o 'Voltar' fantasma [...], sem a top bar navy do Figma").
+      A estrutura que a especificação da Task 11 descreve para esta tela começa
+      no hero e não cita top bar, ao contrário da Task 8, que lista a
+      `HomeTopBar` explicitamente para a tela-hub do QI. Sem ela, o hero passa a
+      ser o topo e respeita o inset superior (useSafeAreaInsets).
    2. STATUS "Inativa". O Figma só desenha a indicação ativa (2628:7159). O tipo
       `QiIndicacao['status']` tem 'inactive' e a fixture o exercita (Ricardo
       Melo), então o rótulo negativo é decisão nossa, no feminino do próprio
@@ -344,9 +347,12 @@ const styles = StyleSheet.create({
     rowGap: 16, // Figma gap/m
   },
   identity: {
+    // Alinhada à ESQUERDA como no Figma: o `avatar-friend` começa em x=24
+    // (2628:7153 · 2606:6571), colado na margem do hero, com o nome à direita.
+    // A `stats-row` logo abaixo é que centraliza, mas por outro motivo (3
+    // colunas de largura igual), então ela NÃO herda este alinhamento.
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     columnGap: 8, // Figma gap/s
   },
   avatar: {
@@ -371,7 +377,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_700Bold',
     fontSize: 16,
     color: colors.contentLight,
-    textAlign: 'center',
   },
   statsRow: {
     flexDirection: 'row',

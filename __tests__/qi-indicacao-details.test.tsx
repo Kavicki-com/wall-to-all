@@ -35,7 +35,7 @@ jest.mock('expo-router', () => {
   // efeito. Os métodos DELEGAM para os mocks em vez de referenciá-los direto:
   // a fábrica é executada no primeiro require de 'expo-router', quando os
   // `const mockPush/mockBack` ainda estão na zona morta temporal (hoisting do
-  // jest.mock) — só o corpo das arrows, avaliado depois, os enxerga.
+  // jest.mock). Só o corpo das arrows, avaliado depois, os enxerga.
   const router = {
     push: (...args: unknown[]) => mockPush(...args),
     back: (...args: unknown[]) => mockBack(...args),
@@ -132,7 +132,7 @@ describe('QiIndicacaoDetails (detalhes da indicação)', () => {
     expect(getByText('Primeiro agendamento')).toBeTruthy();
     expect(getByText('Última atividade')).toBeTruthy();
 
-    // Fixture: indicada em 2026-02-12 e 1º agendamento 3 dias depois — as duas
+    // Fixture: indicada em 2026-02-12 e 1º agendamento 3 dias depois, as duas
     // ao MEIO-DIA UTC, então a data de calendário é estável em qualquer fuso.
     expect(getByTestId('qi-info-indicated-at').props.children).toBe('12/02/2026');
     expect(getByTestId('qi-info-first-appointment').props.children).toBe('15/02/2026');

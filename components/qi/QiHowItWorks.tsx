@@ -78,16 +78,19 @@ const EARN_TOP_LEVEL_GLYPH = '♔'; // 2628:7277 · 2606:5678
 const RULE_UNLIMITED = 'Indicações ilimitadas'; // 2628:7295 · 2606:5700
 
 /* DIVERGÊNCIA deliberada do Figma (documentada p/ o revisor):
-   1. TOP BAR. Os dois nodes abrem com a top bar navy do app (2628:7227 ·
-      2606:5775), cujo único controle é o menu (AppDrawer). Esta tela é uma
-      SUB-tela alcançada por push a partir do QI, e a especificação da Task 11
-      define suas rotas como wrappers que só injetam `side`: não há por onde
-      receber os itens do menu de cada lado sem duplicar a decisão que o
-      QiScreen já tomou (drawerItems por prop). Renderizar a top bar sem itens
-      deixaria um menu morto, pior que não tê-lo. A saída da tela é o "Voltar"
-      fantasma, que aparece em TODOS os estados; o corpo passa a ser o topo e
-      respeita o inset superior (useSafeAreaInsets). MESMA decisão (e mesma
-      justificativa) da tela irmã de detalhes da indicação.
+   1. TOP BAR. Os dois nodes do Figma ABREM com a top bar navy do app
+      (2628:7227 · 2606:5775), cujo único controle é o menu do AppDrawer, e ela
+      NÃO é renderizada aqui. A omissão é deliberada e segue o modelo de
+      navegação do app: a top bar com o menu (HomeTopBar) é das telas-hub;
+      sub-telas empurradas na pilha, como esta, usam o "Voltar" fantasma como
+      afordância de saída, e ele aparece em TODOS os estados. O precedente está
+      documentado em `components/wallet/PixKeyForm.tsx:162` ("Sub-tela
+      navegável: usa o 'Voltar' fantasma [...], sem a top bar navy do Figma").
+      A estrutura que a especificação da Task 11 descreve para esta tela começa
+      no cabeçalho "Programa QI" e não cita top bar, ao contrário da Task 8, que
+      lista a `HomeTopBar` explicitamente para a tela-hub do QI. Sem ela, o
+      corpo passa a ser o topo e respeita o inset superior (useSafeAreaInsets).
+      MESMA decisão (e mesmo racional) da tela irmã de detalhes da indicação.
    2. REGRA DA TAXA. O Figma escreve "Saques ilimitados sem taxas" (2628:7292 ·
       2606:5696), o que CONTRADIZ as regras do serviço: `feeCents` é 500 e a
       isenção só vale a partir de `feeFreeThresholdCents` (R$ 200,00), a mesma
