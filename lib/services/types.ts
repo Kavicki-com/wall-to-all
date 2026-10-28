@@ -136,5 +136,75 @@ export interface WalletService {
   // lojista (F3)
   getMerchantBalanceCents(): Promise<number>;
   getMerchantStatement(): Promise<WalletEntry[]>;
+  /** Cotação do saque (taxa/isenção) — mesma régua do QI (F4). */
+  quoteWithdraw(amountCents: number): Promise<WithdrawQuote>;
   requestWithdraw(amountCents: number, pixKeyId: string): Promise<void>;
+}
+
+// ── QI: programa de indicações com cashback (F4) ───────────
+export type QiSide = 'client' | 'merchant';
+
+export interface QiSummary {
+  balanceCents: number;      // "Saldo Cashback" do hero
+  totalEarnedCents: number;  // "Lucro total"
+  indicadosCount: number;
+  bonusCount: number;
+  /** Meta do próximo nível ("Indique 5 amigos para liberar nível Bronze"); null = nível máximo. */
+  nextLevel: { name: string; target: number } | null;
+}
+
+export interface QiIndicacao {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  earnedCents: number;               // "Você ganhou"
+  status: 'active' | 'inactive';     // "Status da conta" (Ativa)
+  indicatedAt: string;               // ISO — "Indicada em"
+  firstAppointmentAt: string | null; // ISO — "Primeiro agendamento"
+  lastActivityAt: string | null;     // ISO — "Última atividade"
+  appointmentsCount: number;
+}
+
+export interface QiStatementEntry {
+  id: string;
+  title: string;      // "Agendamento realizado"
+  subtitle: string;   // nome do cliente do agendamento
+  date: string;       // ISO
+  amountCents: number;
+}
+
+export interface QiProgramRules {
+  perServicePct: number;         // 10
+  monthlyBonusCents: number;     // 500
+  topLevelMultiplier: number;    // 2 (Ouro → x2 cashback)
+  /**
+   * Quantidade de indicados ativos que libera o NÍVEL MÁXIMO da escada (Ouro).
+   * É o mesmo limiar que o topo da escada expressa em `QiSummary.nextLevel`
+   * ("Indique N amigos para liberar nível Ouro"): o card de ganhos do QI e a
+   * tela "Como funciona" falam do mesmo número e não podem divergir, por isso
+   * ele vive nas regras do programa em vez de literal em tela.
+   */
+  topLevelThreshold: number;     // 30
+  minWithdrawCents: number;      // 3000
+  feeCents: number;              // 500
+  feeFreeThresholdCents: number; // 20000
+  creditWindowHours: number;     // 24
+}
+
+export interface WithdrawQuote {
+  amountCents: number;
+  feeCents: number;
+  totalCents: number; // amount - fee
+  etaLabel: string;   // "Até 24 horas"
+}
+
+export interface QiService {
+  getQiSummary(side: QiSide): Promise<QiSummary>;
+  getQiCode(side: QiSide): Promise<string>; // "QI-HOG23-3892"
+  listIndicacoes(side: QiSide, page: number): Promise<{ items: QiIndicacao[]; page: number; totalPages: number }>;
+  getIndicacao(side: QiSide, id: string): Promise<QiIndicacao>;
+  getIndicacaoStatement(side: QiSide, id: string): Promise<QiStatementEntry[]>;
+  getProgramRules(): Promise<QiProgramRules>;
+  quoteWithdraw(amountCents: number): Promise<WithdrawQuote>;
+  requestQiWithdraw(side: QiSide, amountCents: number, pixKeyId: string): Promise<void>;
 }

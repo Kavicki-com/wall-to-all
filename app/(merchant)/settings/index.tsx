@@ -199,7 +199,7 @@ const SettingsScreen: React.FC = () => {
             {/* Programa de Associados */}
             <TouchableOpacity
               style={styles.optionItem}
-              onPress={() => router.push('/(merchant)/settings/referral')}
+              onPress={() => router.push('/(merchant)/qi')}
               activeOpacity={0.7}
             >
               <IconGroup size={24} color={colors.brand} />

@@ -122,12 +122,6 @@ const MerchantLayout: React.FC = () => {
           }}
         />
         <Tabs.Screen
-          name="settings/referral"
-          options={{
-            tabBarButton: () => null,
-          }}
-        />
-        <Tabs.Screen
           name="aqui-agora/index"
           options={{
             tabBarButton: () => null,
@@ -159,6 +153,38 @@ const MerchantLayout: React.FC = () => {
         />
         <Tabs.Screen
           name="financeiro/new-pix-key"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+
+        {/* QI - Programa de indicações (cashback) F4 */}
+        <Tabs.Screen
+          name="qi/index"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="qi/indicacao/[id]"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="qi/how-it-works"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="qi/withdraw"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="qi/new-pix-key"
           options={{
             tabBarButton: () => null,
           }}

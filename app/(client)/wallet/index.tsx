@@ -11,22 +11,12 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useWalletService } from '../../../context/ServicesContext';
 import type { PaymentCard, PixKey, WalletEntry } from '../../../lib/services/types';
 import { HomeTopBar } from '../../../components/home/HomeTopBar';
-import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
+import { AppDrawer } from '../../../components/layout/AppDrawer';
+import { CLIENT_DRAWER_ITEMS } from '../../../components/layout/clientDrawerItems';
 import { CardsStack } from '../../../components/payment/CardsStack';
 import { PixKeySection } from '../../../components/wallet/PixKeySection';
 import { StatementTimeline } from '../../../components/wallet/StatementTimeline';
 import { colors } from '../../../lib/theme';
-
-// Itens do menu (drawer) do cliente — espelham a lista da home + "Carteira".
-// Constante de módulo (estáticos): não realoca a cada render.
-const DRAWER_ITEMS: DrawerItem[] = [
-  { label: 'Início', route: '/(client)/home' },
-  { label: 'Meus agendamentos', route: '/(client)/appointments' },
-  { label: 'Buscar serviços', route: '/(client)/search' },
-  { label: 'Carteira', route: '/(client)/wallet' },
-  { label: 'Perfil', route: '/(client)/profile' },
-  { label: 'Configurações', route: '/(client)/settings' },
-];
 
 /**
  * Carteira do cliente (Figma node 2715:3681).
@@ -138,7 +128,7 @@ const ClientWalletScreen: React.FC = () => {
       </View>
 
       {/* Menu lateral — irmão da View raiz para não viver dentro do ScrollView. */}
-      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={DRAWER_ITEMS} />
+      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={CLIENT_DRAWER_ITEMS} />
     </>
   );
 };

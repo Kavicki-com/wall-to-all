@@ -23,11 +23,18 @@ import { MockWalletService } from '../lib/services/mock/mockWalletService';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: mockBack }),
-  // useFocusEffect roda o callback uma vez → dispara o load no mount/foco.
-  useFocusEffect: (cb: () => void) => cb(),
-}));
+jest.mock('expo-router', () => {
+  const React = require('react');
+  return {
+    useRouter: () => ({ push: mockPush, back: mockBack }),
+    // useFocusEffect fiel ao runtime: executa como EFEITO (dispara o load no
+    // foco/mount e só re-executa quando o callback memoizado muda), honrando o
+    // cleanup. Rodar `cb()` direto no corpo do render re-disparava a carga a
+    // cada render (laço carga → render → carga) e enchia a saída de avisos de
+    // act().
+    useFocusEffect: (cb: () => void) => React.useEffect(cb, [cb]),
+  };
+});
 
 // HomeTopBar usa useSafeAreaInsets; inset determinístico (igual às demais telas).
 jest.mock('react-native-safe-area-context', () => ({

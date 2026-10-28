@@ -18,7 +18,7 @@ export {
 } from './deepLink/sessionFlags';
 
 // Re-export URL parser
-export { extractAuthParams, extractAndSaveReferralCode } from './deepLink/deepLinkParser';
+export { extractAuthParams } from './deepLink/deepLinkParser';
 
 // Re-export auth token processor
 export { processAuthTokensFromUrl } from './deepLink/authTokenProcessor';

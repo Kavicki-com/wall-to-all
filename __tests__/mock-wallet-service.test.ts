@@ -213,7 +213,45 @@ describe('MockWalletService', () => {
     });
   });
 
+  describe('quoteWithdraw', () => {
+    it('applies the R$ 5,00 fee below the fee-free threshold', async () => {
+      const svc = new MockWalletService();
+      await expect(svc.quoteWithdraw(10000)).resolves.toEqual({
+        amountCents: 10000,
+        feeCents: 500,
+        totalCents: 9500,
+        etaLabel: 'Até 24 horas',
+      });
+    });
+
+    it('waives the fee at the R$ 200,00 threshold', async () => {
+      const svc = new MockWalletService();
+      await expect(svc.quoteWithdraw(20000)).resolves.toEqual({
+        amountCents: 20000,
+        feeCents: 0,
+        totalCents: 20000,
+        etaLabel: 'Até 24 horas',
+      });
+    });
+
+    it('rejects a non-positive or non-integer amount', async () => {
+      const svc = new MockWalletService();
+      await expect(svc.quoteWithdraw(0)).rejects.toThrow();
+      await expect(svc.quoteWithdraw(-100)).rejects.toThrow();
+      await expect(svc.quoteWithdraw(10.5)).rejects.toThrow();
+    });
+  });
+
   describe('requestWithdraw', () => {
+    // Regressão (decisão #4 do plano F4): o saque do Financeiro segue SEM
+    // valor mínimo — o mínimo de R$ 30,00 existe só no QI.
+    it('keeps working without a minimum: a 100-cent withdraw succeeds', async () => {
+      const svc = new MockWalletService();
+      const [pixKey] = await svc.getPixKeys();
+      await svc.requestWithdraw(100, pixKey.id);
+      await expect(svc.getMerchantBalanceCents()).resolves.toBe(59120 - 100);
+    });
+
     it('debits the balance and adds a negative withdraw entry', async () => {
       const svc = new MockWalletService();
       const [pixKey] = await svc.getPixKeys();

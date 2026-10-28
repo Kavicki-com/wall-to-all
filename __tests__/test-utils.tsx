@@ -3,17 +3,19 @@ import { render, RenderOptions } from '@testing-library/react-native';
 import { ServicesProvider } from '../context/ServicesContext';
 import { MockQueueService } from '../lib/services/mock/mockQueueService';
 import { MockWalletService } from '../lib/services/mock/mockWalletService';
-import type { QueueService, WalletService } from '../lib/services/types';
+import { MockQiService } from '../lib/services/mock/mockQiService';
+import type { QiService, QueueService, WalletService } from '../lib/services/types';
 
 /**
  * Harness compartilhado dos testes de tela da F1 (reusado pelas Tasks 15-23).
  *
  * `renderWithProviders(ui, options?)` envolve `ui` no `ServicesProvider` para
- * que `useQueueService()` / `useWalletService()` funcionem, injetando mocks com
- * **latência 0** (via a prop opcional `services` do provider). Assim as
- * operações resolvem numa microtask — nada de `setTimeout(300)` nem fake timers
- * —, mantendo os testes rápidos e determinísticos. Retorna o resultado do RTL
- * acrescido das instâncias injetadas (`queue`, `wallet`) para asserções diretas.
+ * que `useQueueService()` / `useWalletService()` / `useQiService()` funcionem,
+ * injetando mocks com **latência 0** (via a prop opcional `services` do
+ * provider). Assim as operações resolvem numa microtask — nada de
+ * `setTimeout(300)` nem fake timers —, mantendo os testes rápidos e
+ * determinísticos. Retorna o resultado do RTL acrescido das instâncias
+ * injetadas (`queue`, `wallet`, `qi`) para asserções diretas.
  *
  * Após cada teste, o harness descarta (dispose) QUALQUER serviço que exponha um
  * método `dispose()` — tanto os criados por default quanto as sobreposições
@@ -34,11 +36,14 @@ export interface RenderWithProvidersOptions extends Omit<RenderOptions, 'wrapper
   queue?: QueueService;
   /** Sobrepõe o WalletService injetado (default: `MockWalletService` latência 0). */
   wallet?: WalletService;
+  /** Sobrepõe o QiService injetado (default: `MockQiService` latência 0). */
+  qi?: QiService;
 }
 
 export type RenderWithProvidersResult = ReturnType<typeof render> & {
   queue: QueueService;
   wallet: WalletService;
+  qi: QiService;
 };
 
 // Serviços a descartar após cada teste — criados por default OU injetados. Um
@@ -51,7 +56,7 @@ interface Disposable {
 
 const disposables = new Set<Disposable>();
 
-function trackDisposable(service: QueueService | WalletService): void {
+function trackDisposable(service: QueueService | WalletService | QiService): void {
   if (typeof (service as Partial<Disposable>).dispose === 'function') {
     disposables.add(service as unknown as Disposable);
   }
@@ -68,18 +73,20 @@ export function renderWithProviders(
   ui: ReactElement,
   options: RenderWithProvidersOptions = {},
 ): RenderWithProvidersResult {
-  const { queue: queueOverride, wallet: walletOverride, ...renderOptions } = options;
+  const { queue: queueOverride, wallet: walletOverride, qi: qiOverride, ...renderOptions } = options;
   const queue: QueueService = queueOverride ?? new MockQueueService({ latencyMs: 0 });
   const wallet: WalletService = walletOverride ?? new MockWalletService({ latencyMs: 0 });
+  const qi: QiService = qiOverride ?? new MockQiService({ latencyMs: 0 });
   trackDisposable(queue);
   trackDisposable(wallet);
+  trackDisposable(qi); // no-op hoje (MockQiService não tem dispose) — duck-typed p/ futuro.
 
   // Referência estável do objeto de serviços (não recriado a cada render do wrapper).
-  const services = { queue, wallet };
+  const services = { queue, wallet, qi };
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <ServicesProvider services={services}>{children}</ServicesProvider>
   );
 
   const result = render(ui, { wrapper: Wrapper, ...renderOptions });
-  return { ...result, queue, wallet };
+  return { ...result, queue, wallet, qi };
 }

@@ -7,7 +7,9 @@
  * um query-builder encadeável que resolve dados por tabela via `mockTableData`,
  * com `.single()` p/ o perfil), `expo-router` (useRouter → mockPush,
  * useFocusEffect → no-op), `react-native-safe-area-context`, o NotificationContext,
- * o NotificationModal (stub) e o ToastProvider (showError).
+ * o NotificationModal (stub) e o ToastProvider (showError). Como o KPI
+ * "Indicações" vem de `useQiService().getQiSummary('merchant')` (F4), os renders
+ * usam `renderWithProviders` (ServicesProvider com mocks de latência 0).
  *
  * Além do render das seções, os testes GUARDAM os bugs de métrica corrigidos na
  * revisão: "Realizado" NÃO conta agendamentos futuros do mês; a contagem
@@ -18,7 +20,8 @@
  * valor casam por REGEX nos dígitos (com "R$"), nunca pela string literal.
  */
 import React from 'react';
-import { render, fireEvent, screen, within } from '@testing-library/react-native';
+import { fireEvent, screen, within } from '@testing-library/react-native';
+import { renderWithProviders } from './test-utils';
 
 // ── Mocks de escopo de módulo (içados pelo Jest acima dos imports) ──────────
 
@@ -197,7 +200,6 @@ function seedFixtures() {
     },
   ];
   mockTableData.reviews = [{ rating: 5 }, { rating: 4 }];
-  mockTableData.referrals = [{ created_at: iso(currentMonthPast) }];
   mockTableData.appointment_reschedules = [];
 }
 
@@ -209,7 +211,7 @@ describe('MerchantHomeScreen (redesign)', () => {
   });
 
   it('GoalOverview: "Realizado" reflete só o passado (agendamento futuro do mês não infla)', async () => {
-    render(<MerchantHomeScreen />);
+    renderWithProviders(<MerchantHomeScreen />);
     await screen.findByText('Visão do mês');
 
     // Há receita do mês anterior (R$ 200) → NÃO é o estado neutro.
@@ -222,7 +224,7 @@ describe('MerchantHomeScreen (redesign)', () => {
   });
 
   it('KPIs: "Avaliação" 4.5 e "Agendamentos" 2 (cancelado não conta)', async () => {
-    render(<MerchantHomeScreen />);
+    renderWithProviders(<MerchantHomeScreen />);
     await screen.findByText('Visão do mês');
 
     // Avaliação = média de [5, 4] = 4.5.
@@ -231,8 +233,19 @@ describe('MerchantHomeScreen (redesign)', () => {
     expect(within(screen.getByTestId('kpi-agendamentos')).getByText('2')).toBeTruthy();
   });
 
+  it('KPI "Indicações": exibe o indicadosCount do resumo QI do lojista (6), sem delta', async () => {
+    renderWithProviders(<MerchantHomeScreen />);
+    await screen.findByText('Visão do mês');
+
+    const indicacoes = within(screen.getByTestId('kpi-indicacoes'));
+    // 6 = FIXTURE_MERCHANT_SUMMARY.indicadosCount do MockQiService.
+    expect(indicacoes.getByText('6')).toBeTruthy();
+    // O mock não modela série mensal (TODO(F8) na tela): sem badge de variação.
+    expect(indicacoes.queryByTestId('kpi-delta')).toBeNull();
+  });
+
   it('Próximos agendamentos: lista o agendamento, navega para o detalhe e "Ver todos"', async () => {
-    render(<MerchantHomeScreen />);
+    renderWithProviders(<MerchantHomeScreen />);
 
     // O cliente do agendamento futuro aparece; o cancelado futuro NÃO.
     expect(await screen.findByText('Maria Oliveira')).toBeTruthy();
@@ -248,7 +261,7 @@ describe('MerchantHomeScreen (redesign)', () => {
   });
 
   it('abre o drawer ao pressionar o menu (item "Configurações" fica visível)', async () => {
-    render(<MerchantHomeScreen />);
+    renderWithProviders(<MerchantHomeScreen />);
     await screen.findByText('Visão do mês');
 
     // Drawer fechado: o item não está visível.
@@ -260,7 +273,7 @@ describe('MerchantHomeScreen (redesign)', () => {
   });
 
   it('renderiza o RevenueDonut ("Receita por serviço")', async () => {
-    render(<MerchantHomeScreen />);
+    renderWithProviders(<MerchantHomeScreen />);
 
     expect(await screen.findByText('Receita por serviço')).toBeTruthy();
   });

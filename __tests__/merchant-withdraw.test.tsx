@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Jest: require() em fábricas jest.mock (não convertível para import) */
 /**
  * Testes de comportamento do saque do LOJISTA (F3 — Carteira/Financeiro, Task 9,
  * Figma nodes 2715:3711 saque, 2622:5836 loading, 2622:5847 modal de sucesso).
@@ -23,9 +24,18 @@ import { MockWalletService } from '../lib/services/mock/mockWalletService';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: mockBack }),
-}));
+jest.mock('expo-router', () => {
+  const React = require('react');
+  return {
+    useRouter: () => ({ push: mockPush, back: mockBack }),
+    // useFocusEffect fiel ao runtime: executa como EFEITO (dispara o load no
+    // foco/mount e só re-executa quando o callback memoizado muda), honrando o
+    // cleanup. Rodar `cb()` direto no corpo do render re-disparava a carga a
+    // cada render (laço carga → render → carga) e enchia a saída de avisos de
+    // act().
+    useFocusEffect: (cb: () => void) => React.useEffect(cb, [cb]),
+  };
+});
 
 // A tela usa useSafeAreaInsets no header "Voltar"; inset determinístico.
 jest.mock('react-native-safe-area-context', () => ({
@@ -48,14 +58,18 @@ describe('WithdrawScreen (solicitar saque do lojista)', () => {
     jest.clearAllMocks();
   });
 
-  it('CTA desabilitada com valor 0; com valor acima do saldo continua desabilitada', async () => {
+  it('CTA desabilitada com valor 0; com chave selecionada mas valor acima do saldo continua desabilitada', async () => {
     const wallet = new MockWalletService({ latencyMs: 0 });
+    const [cpfKey] = await wallet.getPixKeys();
     const { findByTestId, getByTestId } = renderScreen(wallet);
 
     // Sem valor digitado (0) → CTA desabilitada.
     const cta = await findByTestId('btn-confirm-withdraw');
     expect(cta.props.accessibilityState.disabled).toBe(true);
 
+    // Seleciona a chave Pix ANTES para isolar a guarda de saldo (sem isso a CTA
+    // já estaria desabilitada pela regra "sem chave", mascarando a de saldo).
+    fireEvent.press(getByTestId(`pix-option-${cpfKey.id}`));
     // Valor MUITO acima do saldo (9999999 centavos = R$ 99.999,99 > R$ 591,20).
     fireEvent.changeText(getByTestId('input-amount'), '9999999');
 
@@ -78,9 +92,7 @@ describe('WithdrawScreen (solicitar saque do lojista)', () => {
 
     fireEvent.press(getByTestId('btn-confirm-withdraw'));
 
-    await waitFor(() =>
-      expect(withdrawSpy).toHaveBeenCalledWith(10000, cpfKey.id),
-    );
+    await waitFor(() => expect(withdrawSpy).toHaveBeenCalledWith(10000, cpfKey.id));
 
     // Modal de sucesso aparece.
     expect(await findByText('Saque solicitado')).toBeTruthy();
@@ -88,6 +100,21 @@ describe('WithdrawScreen (solicitar saque do lojista)', () => {
     // Fechar o modal volta para a tela anterior.
     fireEvent.press(getByTestId('btn-withdraw-done'));
     await waitFor(() => expect(mockBack).toHaveBeenCalled());
+  });
+
+  it('valor válido → exibe o resumo da transferência com taxa de operação e total', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0 });
+    const { findByTestId, findByText, getByTestId } = renderScreen(wallet);
+
+    // Valor abaixo de R$ 200,00 (10000 centavos = R$ 100,00) → taxa de R$ 5,00.
+    fireEvent.changeText(await findByTestId('input-amount'), '10000');
+
+    // A cotação resolve async (latencyMs 0 → microtask); aguarda o resumo.
+    expect(await findByText('Taxa de operação')).toBeTruthy();
+    // Taxa R$ 5,00 e total líquido R$ 95,00 (BRL usa espaço não-quebrável →
+    // casamos por REGEX nos dígitos, nunca pela string literal).
+    expect(getByTestId('summary-fee').props.children).toMatch(/5,00/);
+    expect(getByTestId('summary-total').props.children).toMatch(/95,00/);
   });
 
   it('falha do serviço → mostra toast de erro e NÃO abre o modal de sucesso', async () => {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, ReactNode } from 'react';
-import type { QueueService, WalletService } from '../lib/services/types';
+import type { QiService, QueueService, WalletService } from '../lib/services/types';
 import {
   MockQueueService,
   SIMULATED_LATENCY_MS as QUEUE_LATENCY_MS,
@@ -8,10 +8,15 @@ import {
   MockWalletService,
   SIMULATED_LATENCY_MS as WALLET_LATENCY_MS,
 } from '../lib/services/mock/mockWalletService';
+import {
+  MockQiService,
+  SIMULATED_LATENCY_MS as QI_LATENCY_MS,
+} from '../lib/services/mock/mockQiService';
 
 interface ServicesContextType {
   queue: QueueService;
   wallet: WalletService;
+  qi: QiService;
 }
 
 // Default undefined + guard no hook: consumir fora do provider deve lançar.
@@ -30,7 +35,7 @@ interface ServicesProviderProps {
 }
 
 /**
- * Injeta as implementações de serviço (fila e carteira) na árvore de
+ * Injeta as implementações de serviço (fila, carteira e QI) na árvore de
  * componentes. É o ÚNICO lugar que opta pela latência simulada realista:
  * instancia os mocks com `SIMULATED_LATENCY_MS` para dar ao app rodando delays
  * de rede plausíveis, enquanto os testes unitários constroem os mocks direto
@@ -44,6 +49,7 @@ interface ServicesProviderProps {
 export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, services }) => {
   const queueRef = useRef<MockQueueService | null>(null);
   const walletRef = useRef<MockWalletService | null>(null);
+  const qiRef = useRef<MockQiService | null>(null);
 
   // NOTA: as instâncias default são criadas aqui no render (lazy via ref) e o
   // dispose() da fila roda no cleanup do useEffect abaixo. Esse acoplamento
@@ -55,6 +61,8 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   if (!services && queueRef.current === null) {
     queueRef.current = new MockQueueService({ latencyMs: QUEUE_LATENCY_MS });
     walletRef.current = new MockWalletService({ latencyMs: WALLET_LATENCY_MS });
+    // O MockQiService não tem timers persistentes — dispensa dispose no unmount.
+    qiRef.current = new MockQiService({ latencyMs: QI_LATENCY_MS });
   }
 
   useEffect(() => {
@@ -66,14 +74,15 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   }, []);
 
   const value = useMemo<ServicesContextType>(
-    () => services ?? { queue: queueRef.current!, wallet: walletRef.current! },
+    () =>
+      services ?? { queue: queueRef.current!, wallet: walletRef.current!, qi: qiRef.current! },
     [services],
   );
 
   return <ServicesContext.Provider value={value}>{children}</ServicesContext.Provider>;
 };
 
-/** Retorna `{ queue, wallet }`. Lança se usado fora do ServicesProvider. */
+/** Retorna `{ queue, wallet, qi }`. Lança se usado fora do ServicesProvider. */
 export const useServices = (): ServicesContextType => {
   const context = useContext(ServicesContext);
   if (context === undefined) {
@@ -87,3 +96,6 @@ export const useQueueService = (): QueueService => useServices().queue;
 
 /** Atalho para o WalletService. Herda o guard de useServices. */
 export const useWalletService = (): WalletService => useServices().wallet;
+
+/** Atalho para o QiService. Herda o guard de useServices. */
+export const useQiService = (): QiService => useServices().qi;

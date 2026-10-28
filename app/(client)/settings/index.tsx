@@ -222,7 +222,7 @@ const SettingsScreen: React.FC = () => {
             {/* Indique e Ganhe */}
             <TouchableOpacity
               style={styles.optionItem}
-              onPress={() => router.push('/(client)/settings/referral')}
+              onPress={() => router.push('/(client)/qi')}
               activeOpacity={0.7}
             >
               <IconGroup size={24} color={colors.brand} />

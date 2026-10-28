@@ -17,7 +17,6 @@ import {
     PeriodFilter,
     MetricsChart,
     ReviewSummary,
-    ReferralList,
 } from '../../../components/metrics';
 
 const MetricsScreen: React.FC = () => {
@@ -107,13 +106,6 @@ const MetricsScreen: React.FC = () => {
                             variant="warning"
                             subtitle={`${metrics.reviews.total} avaliação${metrics.reviews.total !== 1 ? 'ões' : ''}`}
                         />
-                        <MetricsCard
-                            title="Indicações"
-                            value={metrics.referrals.length}
-                            icon="group"
-                            variant="info"
-                            subtitle="Programa de associados"
-                        />
                     </View>
                 </View>
 
@@ -142,9 +134,6 @@ const MetricsScreen: React.FC = () => {
 
                 {/* Reviews Summary */}
                 <ReviewSummary stats={metrics.reviews} />
-
-                {/* Referrals List */}
-                <ReferralList referrals={metrics.referrals} />
 
                 {/* Bottom spacing */}
                 <View style={styles.bottomSpacing} />

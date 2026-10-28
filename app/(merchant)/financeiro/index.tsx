@@ -14,7 +14,8 @@ import { useWalletService } from '../../../context/ServicesContext';
 import { useNotifications } from '../../../context/NotificationContext';
 import type { PixKey, WalletEntry } from '../../../lib/services/types';
 import { HomeTopBar } from '../../../components/home/HomeTopBar';
-import { AppDrawer, DrawerItem } from '../../../components/layout/AppDrawer';
+import { AppDrawer } from '../../../components/layout/AppDrawer';
+import { MERCHANT_DRAWER_ITEMS } from '../../../components/layout/merchantDrawerItems';
 import NotificationModal from '../../../components/notifications/NotificationModal';
 import { PixKeySection } from '../../../components/wallet/PixKeySection';
 import { StatementTimeline } from '../../../components/wallet/StatementTimeline';
@@ -26,17 +27,6 @@ import { RevenueDonut } from '../../../components/dashboard/RevenueDonut';
 import { groupRevenueByService, type RevenueSegment } from '../../../lib/dashboardMetrics';
 import { formatBRL } from '../../../lib/formatters';
 import { colors } from '../../../lib/theme';
-
-// Itens do menu (drawer) do lojista — os MESMOS da home/aqui-agora, acrescidos
-// de "Financeiro" (esta tela). Constante de módulo: não realoca a cada render.
-const DRAWER_ITEMS: DrawerItem[] = [
-  { label: 'Início', route: '/(merchant)/home' },
-  { label: 'Agenda', route: '/(merchant)/dashboard' },
-  { label: 'Serviços', route: '/(merchant)/services' },
-  { label: 'Financeiro', route: '/(merchant)/financeiro' },
-  { label: 'Perfil', route: '/(merchant)/profile' },
-  { label: 'Configurações', route: '/(merchant)/settings' },
-];
 
 // Quantidade de lançamentos exibida antes de expandir o extrato completo.
 const STATEMENT_PREVIEW = 4;
@@ -270,7 +260,8 @@ const MerchantFinanceiroScreen: React.FC = () => {
 
       {/* Menu lateral e modal de notificações — irmãos da View raiz para não
           viverem dentro do ScrollView. */}
-      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={DRAWER_ITEMS} />
+      {/* Itens do drawer: constante compartilhada do lojista (inclui "QI"). */}
+      <AppDrawer visible={drawerOpen} onClose={closeDrawer} items={MERCHANT_DRAWER_ITEMS} />
       <NotificationModal
         visible={notifModalVisible}
         onClose={closeNotifications}
