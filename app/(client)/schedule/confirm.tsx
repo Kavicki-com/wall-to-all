@@ -14,11 +14,8 @@ import AppHeader from '../../../components/layout/AppHeader';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import { CustomButton } from '../../../components/CustomButton';
 import ScheduleConfirmCard from '../../../components/ui/ScheduleConfirmCard';
-import { validateTime, validateDate } from '../../../lib/validations';
 import { safeGoBack } from '../../../lib/router-utils';
-import { checkAppointmentConflicts } from '../../../lib/utils';
-import { notifyAppointmentRequested } from '../../../lib/notifications';
-import { logger } from '../../../lib/logger';
+import { BookingError, createAppointment } from '../../../lib/booking/createAppointment';
 import { Service as FullService, BusinessProfile } from '../../../lib/types';
 import { colors } from '../../../lib/theme';
 
@@ -128,169 +125,33 @@ const ScheduleConfirmScreen: React.FC = () => {
   };
 
   const handleConfirm = async () => {
+    if (!params.businessId || !params.serviceId || !params.date || !params.time || !service) {
+      showError('Dados incompletos');
+      return;
+    }
+    const businessIdNum = parseInt(params.businessId, 10);
+    if (isNaN(businessIdNum)) {
+      showError('ID do negócio inválido');
+      return;
+    }
+    const serviceIdNum = parseInt(params.serviceId, 10);
+    if (isNaN(serviceIdNum)) {
+      showError('ID do serviço inválido');
+      return;
+    }
+
     try {
       setSubmitting(true);
-
-      const now = new Date();
-      const startDate = params.date && params.time ? new Date(`${params.date}T${params.time}:00`) : null;
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        showError('Usuário não autenticado');
-        setSubmitting(false);
-        return;
-      }
-
-      if (!params.businessId || !params.serviceId || !params.date || !params.time || !service) {
-        showError('Dados incompletos');
-        setSubmitting(false);
-        return;
-      }
-
-      // Validar formato de horário
-      if (!validateTime(params.time)) {
-        showWarning('O formato do horário é inválido. Use o formato HH:mm.');
-        setSubmitting(false);
-        return;
-      }
-
-      // Validar data
-      if (startDate && !validateDate(startDate, false)) {
-        showWarning('Selecione uma data futura para o agendamento.');
-        setSubmitting(false);
-        return;
-      }
-
-      if (startDate && startDate.getTime() < now.getTime()) {
-        showWarning('Selecione um horário futuro para o agendamento.');
-        setSubmitting(false);
-        return;
-      }
-
-      // Calcular start_time e end_time
-      const startTime = startDate ? startDate.toISOString() : `${params.date}T${params.time}:00`;
-      const durationMinutes = service.duration_minutes || 60; // Default 1 hora se não especificado
-      const normalizedStartDate = startDate ?? new Date(startTime);
-      const endDate = new Date(normalizedStartDate.getTime() + durationMinutes * 60000);
-      const endTime = endDate.toISOString();
-      const businessIdNum = parseInt(params.businessId, 10);
-      if (isNaN(businessIdNum)) {
-        showError('ID do negócio inválido');
-        setSubmitting(false);
-        return;
-      }
-
-      const { hasConflict, error: conflictError } = await checkAppointmentConflicts(
-        businessIdNum,
-        startTime,
-        endTime
-      );
-
-      if (conflictError) {
-        const processed = handleError(conflictError, 'appointment');
-        showError(processed.userMessage);
-        setSubmitting(false);
-        return;
-      }
-
-      if (hasConflict) {
-        showWarning('Selecione outro horário, este já está ocupado.');
-        setSubmitting(false);
-        return;
-      }
-      const serviceIdNum = parseInt(params.serviceId, 10);
-      if (isNaN(serviceIdNum)) {
-        showError('ID do serviço inválido');
-        setSubmitting(false);
-        return;
-      }
-
-      const { data: appointmentData, error } = await supabase
-        .from('appointments')
-        .insert({
-          client_id: user.id,
-          business_id: businessIdNum,
-          service_id: serviceIdNum,
-          start_time: startTime,
-          end_time: endTime,
-          status: 'pending',
-          payment_method: paymentMethod,
-          client_notes: observations || null,
-        })
-        .select()
-        .single();
-      if (error) {
-        const processed = handleError(error, 'appointment');
-        showError(processed.userMessage);
-        setSubmitting(false);
-        return;
-      }
-
-      // Buscar dados do cliente e do merchant para enviar notificação
-      if (appointmentData) {
-        try {
-          logger.debug('Agendamento criado, buscando dados para notificação...');
-
-          // Buscar dados do cliente
-          const { data: clientData, error: clientError } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .single();
-
-          if (clientError) {
-            logger.error('Erro ao buscar dados do cliente:', clientError);
-          }
-
-          // Buscar owner_id do negócio
-          const { data: businessData, error: businessError } = await supabase
-            .from('business_profiles')
-            .select('owner_id')
-            .eq('id', businessIdNum)
-            .single();
-
-          if (businessError) {
-            logger.error('Erro ao buscar dados do negócio:', businessError);
-          }
-
-          const clientName = clientData?.full_name || 'Cliente';
-          const merchantId = businessData?.owner_id;
-
-          logger.debug('Dados para notificação:', {
-            clientName,
-            merchantId,
-            serviceName: service?.name,
-            appointmentId: appointmentData.id,
-          });
-
-          if (merchantId && service && appointmentData.id) {
-            // appointmentData.id já é number conforme os tipos do Supabase
-            const appointmentId = appointmentData.id;
-
-            logger.debug('Enviando notificação para merchant:', merchantId);
-            await notifyAppointmentRequested(
-              merchantId,
-              appointmentId,
-              clientName,
-              service.name,
-              startTime
-            );
-          } else {
-            logger.warn('Dados incompletos para enviar notificação:', {
-              hasMerchantId: !!merchantId,
-              hasService: !!service,
-              hasAppointmentId: !!appointmentData.id,
-            });
-          }
-        } catch (notifError) {
-          // Não bloquear o fluxo se a notificação falhar
-          // Erros de RLS ou outros problemas de notificação não são críticos
-          logger.warn('Erro ao enviar notificação de agendamento (não crítico):', notifError);
-        }
-      }
+      await createAppointment({
+        businessId: businessIdNum,
+        serviceId: serviceIdNum,
+        serviceName: service.name,
+        durationMinutes: service.duration_minutes,
+        date: params.date,
+        time: params.time,
+        paymentMethod,
+        observations,
+      });
 
       // Exibir modal de sucesso após um pequeno delay para garantir que o estado seja atualizado
       setSubmitting(false);
@@ -299,8 +160,17 @@ const ScheduleConfirmScreen: React.FC = () => {
         setShowSuccessModal(true);
       }, 100);
     } catch (error) {
-      const processed = handleError(error, 'appointment');
-      showError(processed.userMessage);
+      if (error instanceof BookingError) {
+        // Falhas de validação viram aviso; autenticação e gravação, erro.
+        if (error.code === 'unauthenticated' || error.code === 'insert_failed') {
+          showError(error.message);
+        } else {
+          showWarning(error.message);
+        }
+      } else {
+        const processed = handleError(error, 'appointment');
+        showError(processed.userMessage);
+      }
       setSubmitting(false);
     }
   };
