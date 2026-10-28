@@ -83,9 +83,7 @@ describe('CardSelectionBottomSheet', () => {
       />,
     );
     // O sheet usa accessibilityViewIsModal, que esconde o backdrop irmão das queries.
-    fireEvent.press(
-      screen.getByTestId('card-selection-backdrop', { includeHiddenElements: true }),
-    );
+    fireEvent.press(screen.getByTestId('card-selection-backdrop', { includeHiddenElements: true }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

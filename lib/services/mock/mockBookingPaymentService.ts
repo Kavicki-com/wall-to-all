@@ -1,8 +1,4 @@
-import type {
-  BookingPayment,
-  BookingPaymentInput,
-  BookingPaymentService,
-} from '../bookingTypes';
+import type { BookingPayment, BookingPaymentInput, BookingPaymentService } from '../bookingTypes';
 
 /**
  * Latência simulada (ms) para uso no app real. Mesmo design do

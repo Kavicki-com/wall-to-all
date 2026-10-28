@@ -62,9 +62,7 @@ describe('MockBookingPaymentService', () => {
 
   it('rejects paid with cash', async () => {
     const service = new MockBookingPaymentService();
-    await expect(
-      service.recordPayment(1, { ...ON_SITE_CASH, status: 'paid' }),
-    ).rejects.toThrow();
+    await expect(service.recordPayment(1, { ...ON_SITE_CASH, status: 'paid' })).rejects.toThrow();
   });
 
   it('rejects paid card without last4', async () => {
