@@ -42,6 +42,10 @@ function slotTranslateY(testID: string): number | undefined {
   return style.transform?.find((t) => 'translateY' in t)?.translateY;
 }
 
+function slotZIndex(testID: string): number {
+  return (StyleSheet.flatten(screen.getByTestId(testID).props.style) as { zIndex: number }).zIndex;
+}
+
 describe('CardBrandFlag', () => {
   it('renders the visa mark with its brand testID and accessibilityLabel', () => {
     render(<CardBrandFlag brand="visa" />);
@@ -131,6 +135,23 @@ describe('CardsStack', () => {
     const offsets = [0, 1, 2].map((i) => slotTranslateY(`cards-stack-card-${i}`));
     expect(offsets[0]).toBeCloseTo(0); // ativo não desloca (-0 é aceitável)
     expect(new Set(offsets).size).toBe(3); // cada profundidade tem offset distinto
+  });
+
+  it('keeps the exact F1 offsets when activeIndex is 0', () => {
+    render(<CardsStack cards={[visaCard, masterCard, eloCard]} activeIndex={0} />);
+    [0, 1, 2].forEach((i) => {
+      expect(slotTranslateY(`cards-stack-card-${i}`)).toBeCloseTo(-i * 22);
+    });
+  });
+
+  it('gives every card a unique depth with an interior activeIndex', () => {
+    render(<CardsStack cards={[visaCard, masterCard, eloCard]} activeIndex={1} />);
+    const ids = [0, 1, 2].map((i) => `cards-stack-card-${i}`);
+    const offsets = ids.map(slotTranslateY);
+    const zIndexes = ids.map(slotZIndex);
+    expect(new Set(offsets).size).toBe(3);
+    expect(new Set(zIndexes).size).toBe(3);
+    expect(Math.max(...zIndexes)).toBe(zIndexes[1]);
   });
 
   it('fires onSelect with the tapped card and its index', () => {
