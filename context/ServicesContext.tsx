@@ -12,11 +12,17 @@ import {
   MockQiService,
   SIMULATED_LATENCY_MS as QI_LATENCY_MS,
 } from '../lib/services/mock/mockQiService';
+import type { BookingPaymentService } from '../lib/services/bookingTypes';
+import {
+  MockBookingPaymentService,
+  SIMULATED_LATENCY_MS as BOOKING_LATENCY_MS,
+} from '../lib/services/mock/mockBookingPaymentService';
 
 interface ServicesContextType {
   queue: QueueService;
   wallet: WalletService;
   qi: QiService;
+  booking: BookingPaymentService;
 }
 
 // Default undefined + guard no hook: consumir fora do provider deve lançar.
@@ -50,6 +56,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   const queueRef = useRef<MockQueueService | null>(null);
   const walletRef = useRef<MockWalletService | null>(null);
   const qiRef = useRef<MockQiService | null>(null);
+  const bookingRef = useRef<MockBookingPaymentService | null>(null);
 
   // NOTA: as instâncias default são criadas aqui no render (lazy via ref) e o
   // dispose() da fila roda no cleanup do useEffect abaixo. Esse acoplamento
@@ -63,6 +70,8 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
     walletRef.current = new MockWalletService({ latencyMs: WALLET_LATENCY_MS });
     // O MockQiService não tem timers persistentes — dispensa dispose no unmount.
     qiRef.current = new MockQiService({ latencyMs: QI_LATENCY_MS });
+    // Registro de pagamento dos agendamentos (F5): só um Map, dispensa dispose.
+    bookingRef.current = new MockBookingPaymentService({ latencyMs: BOOKING_LATENCY_MS });
   }
 
   useEffect(() => {
@@ -75,14 +84,19 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
 
   const value = useMemo<ServicesContextType>(
     () =>
-      services ?? { queue: queueRef.current!, wallet: walletRef.current!, qi: qiRef.current! },
+      services ?? {
+        queue: queueRef.current!,
+        wallet: walletRef.current!,
+        qi: qiRef.current!,
+        booking: bookingRef.current!,
+      },
     [services],
   );
 
   return <ServicesContext.Provider value={value}>{children}</ServicesContext.Provider>;
 };
 
-/** Retorna `{ queue, wallet, qi }`. Lança se usado fora do ServicesProvider. */
+/** Retorna `{ queue, wallet, qi, booking }`. Lança se usado fora do ServicesProvider. */
 export const useServices = (): ServicesContextType => {
   const context = useContext(ServicesContext);
   if (context === undefined) {
@@ -99,3 +113,6 @@ export const useWalletService = (): WalletService => useServices().wallet;
 
 /** Atalho para o QiService. Herda o guard de useServices. */
 export const useQiService = (): QiService => useServices().qi;
+
+/** Atalho para o BookingPaymentService. Herda o guard de useServices. */
+export const useBookingPaymentService = (): BookingPaymentService => useServices().booking;
