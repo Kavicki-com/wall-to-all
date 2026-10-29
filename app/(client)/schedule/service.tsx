@@ -158,19 +158,19 @@ const ScheduleServiceScreen: React.FC = () => {
           onPressBack={() => safeGoBack('/(client)/home')}
         />
       }
-      footer={selectedService ? (
+      footer={
+        // Figma 2663:7937: CTA sempre visível; sem serviço escolhido fica desabilitado.
         <View style={styles.footerContainer}>
           <CustomButton
-            compact
             title="Continuar"
             onPress={handleContinue}
             variant="primary"
+            disabled={selectedService === null}
             accessibilityLabel="Continuar para seleção de data"
             accessibilityHint="Toque para continuar e selecionar a data do agendamento"
-
           />
         </View>
-      ) : undefined}
+      }
     >
       <Text style={styles.sectionTitle}>Serviços disponíveis</Text>
       {services.length === 0 ? (
