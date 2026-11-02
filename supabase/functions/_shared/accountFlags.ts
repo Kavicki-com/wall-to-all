@@ -35,3 +35,17 @@ export function accountFlags(account: StripeAccountShape): AccountFlags {
     requirementsDue: [...new Set(due)],
   };
 }
+
+/** Estado da conta de recebimento como o app enxerga (`PayoutAccountStatus`). */
+export type PayoutAccountStatus = 'active' | 'pending' | 'none';
+
+/**
+ * `active` só com `payouts_enabled` (é o que libera o saque); conta existente
+ * com pendências é `pending`; sem conta, ou desconectada, é `none`.
+ */
+export function payoutAccountStatus(
+  row: { payoutsEnabled: boolean; disconnected: boolean } | null,
+): PayoutAccountStatus {
+  if (!row || row.disconnected) return 'none';
+  return row.payoutsEnabled ? 'active' : 'pending';
+}
