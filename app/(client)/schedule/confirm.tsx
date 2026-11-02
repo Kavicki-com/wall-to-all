@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
@@ -12,12 +12,17 @@ import { PaymentPixBottomSheet } from '../../../components/payment/PaymentPixBot
 import { PaymentProcessingSheet } from '../../../components/payment/PaymentProcessingSheet';
 import { CardSelectionBottomSheet } from '../../../components/payment/CardSelectionBottomSheet';
 import { safeGoBack } from '../../../lib/router-utils';
-import { BookingError, createAppointment } from '../../../lib/booking/createAppointment';
+import {
+  BookingError,
+  createAppointment,
+  notifyAppointmentCreated,
+} from '../../../lib/booking/createAppointment';
+import type { AppointmentDraft, CreatedAppointment } from '../../../lib/booking/createAppointment';
 import { priceToCents } from '../../../lib/booking/money';
 import { useBookingPaymentService, useWalletService } from '../../../context/ServicesContext';
 import { logger } from '../../../lib/logger';
 import { Service as FullService, BusinessProfile } from '../../../lib/types';
-import type { PaymentCard } from '../../../lib/services/types';
+import type { PaymentCard, PaymentRequestContext } from '../../../lib/services/types';
 import type { BookingPaymentInput, BookingPaymentMethod } from '../../../lib/services/bookingTypes';
 import { colors } from '../../../lib/theme';
 
@@ -34,6 +39,18 @@ const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 type PaymentOutcome = Omit<BookingPaymentInput, 'amountCents'>;
 
 const NO_CARD = { cardLast4: null, cardBrand: null } as const;
+
+/** Agendamento reservado (criado `pending`, sem notificar) aguardando pagamento. */
+interface Reservation {
+  draft: AppointmentDraft;
+  created: CreatedAppointment;
+}
+
+/** Uma cobrança por agendamento: a mesma chave em toda nova tentativa. */
+const bookingContext = (appointmentId: number): PaymentRequestContext => ({
+  purpose: { kind: 'booking', appointmentId },
+  idempotencyKey: `booking:${appointmentId}`,
+});
 
 const ScheduleConfirmScreen: React.FC = () => {
   const router = useRouter();
@@ -58,6 +75,24 @@ const ScheduleConfirmScreen: React.FC = () => {
   const [pixSheetVisible, setPixSheetVisible] = useState(false);
   const [cardSheetVisible, setCardSheetVisible] = useState(false);
   const [processing, setProcessing] = useState(false);
+  // F8: reserva viva e se ela já foi paga. Ref (não state): os callbacks e o
+  // efeito de saída leem o valor atual; o sheet Pix lê ao abrir (re-render).
+  const reservationRef = useRef<Reservation | null>(null);
+  const paidRef = useRef(false);
+  const bookingRef = useRef(booking);
+  bookingRef.current = booking;
+
+  // Saiu da tela com a reserva não paga (voltou após a recusa): libera o
+  // horário e cancela a cobrança pendente.
+  useEffect(() => {
+    return () => {
+      const reservation = reservationRef.current;
+      if (!reservation || paidRef.current) return;
+      bookingRef.current
+        .cancelUnpaid(reservation.created.id)
+        .catch((error) => logger.warn('Erro ao liberar a reserva não paga:', error));
+    };
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -162,76 +197,129 @@ const ScheduleConfirmScreen: React.FC = () => {
   const payNowDisabled =
     submitting || paymentMethod === 'cash' || (paymentMethod === 'card' && !selectedCard);
 
-  /**
-   * Grava o agendamento (Supabase) e registra o resultado do pagamento (mock).
-   * Chamado DEPOIS da cobrança aprovada, ou direto no "Pagar na hora".
-   */
-  const finalizeBooking = async (outcome: PaymentOutcome): Promise<void> => {
+  /** Rascunho do agendamento a partir dos params; null (com toast) se incompleto. */
+  const buildDraft = (method: BookingPaymentMethod): AppointmentDraft | null => {
     if (!params.businessId || !params.serviceId || !params.date || !params.time || !service) {
       showError('Dados incompletos');
-      return;
+      return null;
     }
     const businessIdNum = parseInt(params.businessId, 10);
     if (isNaN(businessIdNum)) {
       showError('ID do negócio inválido');
-      return;
+      return null;
     }
     const serviceIdNum = parseInt(params.serviceId, 10);
     if (isNaN(serviceIdNum)) {
       showError('ID do serviço inválido');
+      return null;
+    }
+    return {
+      businessId: businessIdNum,
+      serviceId: serviceIdNum,
+      serviceName: service.name,
+      durationMinutes: service.duration_minutes,
+      date: params.date,
+      time: params.time,
+      paymentMethod: method,
+      observations,
+    };
+  };
+
+  const showBookingError = (error: unknown) => {
+    if (error instanceof BookingError) {
+      // Falhas de validação viram aviso; autenticação e gravação, erro.
+      if (error.code === 'unauthenticated' || error.code === 'insert_failed') {
+        showError(error.message);
+      } else {
+        showWarning(error.message);
+      }
+    } else {
+      const processed = handleError(error, 'appointment');
+      showError(processed.userMessage);
+    }
+  };
+
+  const openSuccessModal = () => {
+    setSubmitting(false);
+    setProcessing(false);
+    // Pequeno atraso para o sheet fechar antes do modal abrir (dois Modals).
+    setTimeout(() => {
+      setShowSuccessModal(true);
+    }, 100);
+  };
+
+  /**
+   * F8 (design § 7): reserva o horário ANTES de cobrar, sem notificar. Falhou,
+   * nada foi cobrado. Uma reserva por tela: novas tentativas reaproveitam.
+   */
+  const reserve = async (method: BookingPaymentMethod): Promise<Reservation | null> => {
+    if (reservationRef.current) return reservationRef.current;
+    const draft = buildDraft(method);
+    if (!draft) return null;
+    try {
+      const created = await createAppointment(draft, { notify: false });
+      const reservation = { draft, created };
+      reservationRef.current = reservation;
+      return reservation;
+    } catch (error) {
+      showBookingError(error);
+      return null;
+    }
+  };
+
+  /** Desistência antes de pagar: cancela a cobrança e libera o horário. */
+  const releaseReservation = async (): Promise<void> => {
+    const reservation = reservationRef.current;
+    if (!reservation || paidRef.current) return;
+    reservationRef.current = null;
+    try {
+      await booking.cancelUnpaid(reservation.created.id);
+    } catch (error) {
+      // O servidor também libera reservas abandonadas depois do prazo.
+      logger.warn('Erro ao liberar a reserva não paga:', error);
+    }
+  };
+
+  /** Pagamento aprovado: confere o registro, notifica (mock) e abre o modal. */
+  const completeBooking = async (
+    reservation: Reservation,
+    outcome: PaymentOutcome,
+  ): Promise<void> => {
+    try {
+      await booking.recordPayment(reservation.created.id, { ...outcome, amountCents: priceCents });
+    } catch (recordError) {
+      logger.warn('Pagamento do agendamento não confirmado:', recordError);
+      setSubmitting(false);
+      setProcessing(false);
+      showError('Ainda não identificamos o pagamento. Tente de novo em instantes.');
       return;
     }
-
-    try {
-      setSubmitting(true);
-      const created = await createAppointment({
-        businessId: businessIdNum,
-        serviceId: serviceIdNum,
-        serviceName: service.name,
-        durationMinutes: service.duration_minutes,
-        date: params.date,
-        time: params.time,
-        paymentMethod: outcome.method,
-        observations,
-      });
-
-      try {
-        await booking.recordPayment(created.id, { ...outcome, amountCents: priceCents });
-      } catch (recordError) {
-        // O agendamento já existe; sem registro o detalhe cai no payment_method.
-        logger.warn('Erro ao registrar pagamento do agendamento:', recordError);
-      }
-
-      setSubmitting(false);
-      setProcessing(false);
-      // Pequeno atraso para o sheet fechar antes do modal abrir (dois Modals).
-      setTimeout(() => {
-        setShowSuccessModal(true);
-      }, 100);
-    } catch (error) {
-      if (error instanceof BookingError) {
-        // Falhas de validação viram aviso; autenticação e gravação, erro.
-        if (error.code === 'unauthenticated' || error.code === 'insert_failed') {
-          showError(error.message);
-        } else {
-          showWarning(error.message);
-        }
-      } else {
-        const processed = handleError(error, 'appointment');
-        showError(processed.userMessage);
-      }
-      setSubmitting(false);
-      setProcessing(false);
+    paidRef.current = true;
+    if (!booking.serverNotifiesOnPayment) {
+      // Sem webhook (mock): o aviso ao lojista sai daqui, já com o pagamento ok.
+      void notifyAppointmentCreated(reservation.draft, reservation.created);
     }
+    openSuccessModal();
   };
 
   const payWithCard = async () => {
     if (!selectedCard) return;
     setSubmitting(true);
     setProcessing(true);
+    const reservation = await reserve('card');
+    if (!reservation) {
+      setProcessing(false);
+      setSubmitting(false);
+      return;
+    }
     try {
       const [result] = await Promise.all([
-        wallet.payWithCard(selectedCard.id, priceCents, description),
+        wallet.payWithCard(
+          selectedCard.id,
+          priceCents,
+          description,
+          bookingContext(reservation.created.id),
+        ),
         delay(PROCESSING_MIN_MS),
       ]);
       if (result.status !== 'approved') {
@@ -247,7 +335,7 @@ const ScheduleConfirmScreen: React.FC = () => {
       showError(processed.userMessage);
       return;
     }
-    await finalizeBooking({
+    await completeBooking(reservation, {
       status: 'paid',
       method: 'card',
       cardLast4: selectedCard.last4,
@@ -255,10 +343,17 @@ const ScheduleConfirmScreen: React.FC = () => {
     });
   };
 
+  const openPix = async () => {
+    setSubmitting(true);
+    const reservation = await reserve('pix');
+    setSubmitting(false);
+    if (reservation) setPixSheetVisible(true);
+  };
+
   const handlePayNow = () => {
     if (payNowDisabled) return;
     if (paymentMethod === 'pix') {
-      setPixSheetVisible(true);
+      void openPix();
       return;
     }
     void payWithCard();
@@ -266,12 +361,44 @@ const ScheduleConfirmScreen: React.FC = () => {
 
   const handlePixPaid = () => {
     setPixSheetVisible(false);
-    void finalizeBooking({ status: 'paid', method: 'pix', ...NO_CARD });
+    const reservation = reservationRef.current;
+    if (!reservation) return;
+    void completeBooking(reservation, { status: 'paid', method: 'pix', ...NO_CARD });
   };
 
-  const handlePayOnSite = () => {
+  const handlePixClose = () => {
+    setPixSheetVisible(false);
+    void releaseReservation();
+  };
+
+  /** "Pagar na hora": sem cobrança online; cria o agendamento já notificando. */
+  const handlePayOnSite = async () => {
     if (submitting) return;
-    void finalizeBooking({ status: 'pay_on_site', method: paymentMethod, ...NO_CARD });
+    const method = paymentMethod;
+    const draft = buildDraft(method);
+    if (!draft) return;
+    setSubmitting(true);
+    // Reserva de uma tentativa online anterior: libera antes de criar de novo.
+    await releaseReservation();
+    try {
+      const created = await createAppointment(draft);
+      paidRef.current = true;
+      try {
+        await booking.recordPayment(created.id, {
+          status: 'pay_on_site',
+          method,
+          amountCents: priceCents,
+          ...NO_CARD,
+        });
+      } catch (recordError) {
+        // O agendamento já existe; sem registro o detalhe cai no payment_method.
+        logger.warn('Erro ao registrar pagamento do agendamento:', recordError);
+      }
+      openSuccessModal();
+    } catch (error) {
+      showBookingError(error);
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -310,7 +437,7 @@ const ScheduleConfirmScreen: React.FC = () => {
           observations={observations}
           onChangeObservations={setObservations}
           onPayNow={handlePayNow}
-          onPayOnSite={handlePayOnSite}
+          onPayOnSite={() => void handlePayOnSite()}
           submitting={submitting}
           payNowDisabled={payNowDisabled}
         />
@@ -320,8 +447,13 @@ const ScheduleConfirmScreen: React.FC = () => {
         visible={pixSheetVisible}
         amountCents={priceCents}
         description={description}
+        context={
+          pixSheetVisible && reservationRef.current
+            ? bookingContext(reservationRef.current.created.id)
+            : undefined
+        }
         onSuccess={handlePixPaid}
-        onClose={() => setPixSheetVisible(false)}
+        onClose={handlePixClose}
       />
 
       <CardSelectionBottomSheet

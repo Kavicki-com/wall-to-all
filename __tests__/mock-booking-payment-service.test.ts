@@ -106,3 +106,9 @@ describe('MockBookingPaymentService.cancelUnpaid (F8)', () => {
     expect(await svc.getPayment(78)).toMatchObject({ status: 'paid' });
   });
 });
+
+describe('MockBookingPaymentService.serverNotifiesOnPayment (F8)', () => {
+  it('é false: sem webhook no mock, a tela notifica o lojista', () => {
+    expect(new MockBookingPaymentService().serverNotifiesOnPayment).toBe(false);
+  });
+});

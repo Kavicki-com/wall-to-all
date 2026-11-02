@@ -30,6 +30,12 @@ export interface BookingPayment {
 export type BookingPaymentInput = Omit<BookingPayment, 'appointmentId' | 'paidAt'>;
 
 export interface BookingPaymentService {
+  /**
+   * F8: `true` quando o servidor (webhook) avisa o lojista do agendamento pago
+   * online. `false` no mock, onde não há webhook: a tela notifica depois da
+   * aprovação.
+   */
+  readonly serverNotifiesOnPayment: boolean;
   /** Idempotente por appointmentId (regrava). Rejeita amount <= 0, 'paid' com 'cash', e 'paid' + 'card' sem last4. */
   recordPayment(appointmentId: number, payment: BookingPaymentInput): Promise<BookingPayment>;
   getPayment(appointmentId: number): Promise<BookingPayment | null>;

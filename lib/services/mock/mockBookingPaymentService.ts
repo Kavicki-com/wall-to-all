@@ -19,6 +19,8 @@ export interface MockBookingPaymentServiceOptions {
  * aceitável enquanto o pagamento é mock (a F8 troca por tabela + PSP).
  */
 export class MockBookingPaymentService implements BookingPaymentService {
+  /** Sem webhook no mock: a tela notifica o lojista (F8). */
+  readonly serverNotifiesOnPayment = false;
   private readonly latencyMs: number;
   private readonly payments = new Map<number, BookingPayment>();
 

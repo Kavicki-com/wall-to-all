@@ -75,7 +75,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   const queueRef = useRef<MockQueueService | null>(null);
   const walletRef = useRef<WalletService | null>(null);
   const qiRef = useRef<MockQiService | null>(null);
-  const bookingRef = useRef<MockBookingPaymentService | null>(null);
+  const bookingRef = useRef<BookingPaymentService | null>(null);
   const feedRef = useRef<MockFeedService | null>(null);
   const subscriptionRef = useRef<MockSubscriptionService | null>(null);
   const stampsRef = useRef<MockProfileStampsService | null>(null);
@@ -89,21 +89,24 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   // Só cria os singletons quando nenhum serviço é injetado.
   if (!services && queueRef.current === null) {
     queueRef.current = new MockQueueService({ latencyMs: QUEUE_LATENCY_MS });
-    // F8: carteira real só com EXPO_PUBLIC_PAYMENTS_PROVIDER=stripe e
-    // publishable key válida; sem isso, o mock de sempre.
+    // F8: carteira e agendamento reais só com EXPO_PUBLIC_PAYMENTS_PROVIDER=stripe
+    // e publishable key válida; sem isso, os mocks de sempre.
     if (getStripeConfig().provider === 'stripe') {
       // `require` só neste ramo: no modo mock o app (e o jest) não carrega o
-      // supabase-js nem o SDK da Stripe por causa da carteira.
+      // supabase-js nem o SDK da Stripe por causa dos pagamentos.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const stripe = require('../lib/services/stripe/stripeWalletService') as typeof import('../lib/services/stripe/stripeWalletService');
-      walletRef.current = new stripe.StripeWalletService();
+      const wallet = require('../lib/services/stripe/stripeWalletService') as typeof import('../lib/services/stripe/stripeWalletService');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const booking = require('../lib/services/stripe/stripeBookingPaymentService') as typeof import('../lib/services/stripe/stripeBookingPaymentService');
+      walletRef.current = new wallet.StripeWalletService();
+      bookingRef.current = new booking.StripeBookingPaymentService();
     } else {
       walletRef.current = new MockWalletService({ latencyMs: WALLET_LATENCY_MS });
+      // Registro de pagamento dos agendamentos (F5): só um Map, dispensa dispose.
+      bookingRef.current = new MockBookingPaymentService({ latencyMs: BOOKING_LATENCY_MS });
     }
     // O MockQiService não tem timers persistentes — dispensa dispose no unmount.
     qiRef.current = new MockQiService({ latencyMs: QI_LATENCY_MS });
-    // Registro de pagamento dos agendamentos (F5): só um Map, dispensa dispose.
-    bookingRef.current = new MockBookingPaymentService({ latencyMs: BOOKING_LATENCY_MS });
     // Feed (F6): estado em memória sem timers, dispensa dispose.
     feedRef.current = new MockFeedService({ latencyMs: FEED_LATENCY_MS });
     // Assinatura do lojista (F7): estado em memória sem timers, dispensa dispose.

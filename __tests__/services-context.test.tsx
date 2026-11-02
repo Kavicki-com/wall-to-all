@@ -16,6 +16,8 @@ import { MockFeedService } from '../lib/services/mock/mockFeedService';
 import { renderWithProviders } from './test-utils';
 import { MockWalletService } from '../lib/services/mock/mockWalletService';
 import { StripeWalletService } from '../lib/services/stripe/stripeWalletService';
+import { MockBookingPaymentService } from '../lib/services/mock/mockBookingPaymentService';
+import { StripeBookingPaymentService } from '../lib/services/stripe/stripeBookingPaymentService';
 import { getStripeConfig } from '../lib/payments/stripeConfig';
 
 // O StripeWalletService importa o cliente real; aqui só a classe importa.
@@ -213,6 +215,29 @@ describe('ServicesProvider', () => {
         </ServicesProvider>,
       );
       expect(wallet).toBeInstanceOf(MockWalletService);
+    });
+
+    it('agendamento: mock por default e Stripe com provider stripe', () => {
+      const BookingProbe = ({ onBooking }: { onBooking: (b: unknown) => void }) => {
+        onBooking(useBookingPaymentService());
+        return <Text>booking</Text>;
+      };
+      let booking: unknown;
+      const first = render(
+        <ServicesProvider>
+          <BookingProbe onBooking={(b) => (booking = b)} />
+        </ServicesProvider>,
+      );
+      expect(booking).toBeInstanceOf(MockBookingPaymentService);
+      first.unmount();
+
+      mockedGetStripeConfig.mockReturnValue({ provider: 'stripe', publishableKey: 'pk_test_x' });
+      render(
+        <ServicesProvider>
+          <BookingProbe onBooking={(b) => (booking = b)} />
+        </ServicesProvider>,
+      );
+      expect(booking).toBeInstanceOf(StripeBookingPaymentService);
     });
 
     it('com provider stripe usa o StripeWalletService', () => {

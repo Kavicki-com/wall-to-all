@@ -11,7 +11,7 @@ import {
 import { Svg, Rect } from 'react-native-svg';
 import * as Clipboard from 'expo-clipboard';
 import { useWalletService } from '../../context/ServicesContext';
-import type { PixCharge } from '../../lib/services/types';
+import type { PaymentRequestContext, PixCharge } from '../../lib/services/types';
 import { colors } from '../../lib/theme';
 import { formatBRL } from '../../lib/formatters';
 
@@ -19,6 +19,8 @@ export interface PaymentPixBottomSheetProps {
   visible: boolean;
   amountCents: number;
   description: string;
+  /** F8: finalidade e chave da cobrança (obrigatório na carteira Stripe). */
+  context?: PaymentRequestContext;
   /** Chamado quando o usuário confirma que pagou (o pai fecha o sheet + segue o fluxo). */
   onSuccess: () => void;
   /** Fecha o sheet (backdrop/arrasto). */
@@ -107,10 +109,16 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
   visible,
   amountCents,
   description,
+  context,
   onSuccess,
   onClose,
 }) => {
   const wallet = useWalletService();
+  // O pai recria o objeto a cada render: a cobrança só é refeita quando a
+  // chave muda; o contexto mais recente vem pela ref.
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const contextKey = context?.idempotencyKey;
   const [charge, setCharge] = useState<PixCharge | null>(null);
   const [copied, setCopied] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -132,7 +140,7 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
     setCopied(false);
     setProcessing(false);
     wallet
-      .createPixCharge(amountCents, description)
+      .createPixCharge(amountCents, description, contextRef.current)
       .then((result) => {
         if (active) setCharge(result);
       })
@@ -149,7 +157,7 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
         processingTimeout.current = null;
       }
     };
-  }, [visible, wallet, amountCents, description]);
+  }, [visible, wallet, amountCents, description, contextKey]);
 
   const handleCopy = useCallback(async () => {
     if (!charge) return;

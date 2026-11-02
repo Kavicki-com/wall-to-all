@@ -10,11 +10,17 @@
  * findBy.
  */
 import React from 'react';
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { renderWithProviders } from './test-utils';
 import { ToastProvider } from '../components/ui/ToastProvider';
 import { MockWalletService } from '../lib/services/mock/mockWalletService';
-import { BookingError, createAppointment } from '../lib/booking/createAppointment';
+import { MockBookingPaymentService } from '../lib/services/mock/mockBookingPaymentService';
+import type { BookingPaymentService } from '../lib/services/bookingTypes';
+import {
+  BookingError,
+  createAppointment,
+  notifyAppointmentCreated,
+} from '../lib/booking/createAppointment';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
@@ -81,26 +87,44 @@ jest.mock('../lib/supabase', () => {
 
 jest.mock('../lib/booking/createAppointment', () => {
   const actual = jest.requireActual('../lib/booking/createAppointment');
-  return { ...actual, createAppointment: jest.fn() };
+  return { ...actual, createAppointment: jest.fn(), notifyAppointmentCreated: jest.fn() };
 });
 
 import ScheduleConfirmScreen from '../app/(client)/schedule/confirm';
 
 const mockedCreate = createAppointment as jest.MockedFunction<typeof createAppointment>;
+const mockedNotify = notifyAppointmentCreated as jest.MockedFunction<
+  typeof notifyAppointmentCreated
+>;
 const SLOW = { timeout: 3000 };
+const BOOKING_CTX = {
+  purpose: { kind: 'booking', appointmentId: 77 },
+  idempotencyKey: 'booking:77',
+};
 
-function renderScreen(wallet = new MockWalletService({ latencyMs: 0 })) {
+function renderScreen(
+  wallet = new MockWalletService({ latencyMs: 0 }),
+  booking: BookingPaymentService = new MockBookingPaymentService({ latencyMs: 0 }),
+) {
   return renderWithProviders(
     <ToastProvider>
       <ScheduleConfirmScreen />
     </ToastProvider>,
-    { wallet },
+    { wallet, booking },
   );
+}
+
+async function chooseCardAndPay(screen: ReturnType<typeof renderScreen>) {
+  await screen.findByText('Corte');
+  fireEvent.press(screen.getByText('Cartão'));
+  await screen.findByText('•••• 4242');
+  fireEvent.press(screen.getByText('Realizar pagamento'));
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockedCreate.mockResolvedValue({ id: 77, startTime: 'a', endTime: 'b' });
+  mockedNotify.mockResolvedValue(undefined);
 });
 
 describe('ScheduleConfirmScreen (pagamento do agendamento)', () => {
@@ -126,11 +150,12 @@ describe('ScheduleConfirmScreen (pagamento do agendamento)', () => {
     fireEvent.press(screen.getByText('Realizar pagamento'));
 
     expect(await screen.findByText('Processando seu pagamento...')).toBeTruthy();
-    expect(paySpy).toHaveBeenCalledWith('card_visa_1', 6500, 'Agendamento · Corte');
+    expect(paySpy).toHaveBeenCalledWith('card_visa_1', 6500, 'Agendamento · Corte', BOOKING_CTX);
 
     fireEvent.press(await screen.findByText('Fechar', {}, SLOW));
     expect(mockedCreate).toHaveBeenCalledWith(
       expect.objectContaining({ paymentMethod: 'card', businessId: 10, serviceId: 20 }),
+      { notify: false },
     );
     await expect(screen.booking.getPayment(77)).resolves.toMatchObject({
       status: 'paid',
@@ -141,21 +166,19 @@ describe('ScheduleConfirmScreen (pagamento do agendamento)', () => {
     expect(mockReplace).toHaveBeenCalledWith('/(client)/appointments');
   });
 
-  it('does not create the appointment when the card is declined', async () => {
+  it('keeps the reservation and records nothing when the card is declined', async () => {
     const wallet = new MockWalletService({ latencyMs: 0 });
     jest.spyOn(wallet, 'payWithCard').mockResolvedValue({ status: 'declined' });
     const screen = renderScreen(wallet);
-    await screen.findByText('Corte');
-
-    fireEvent.press(screen.getByText('Cartão'));
-    await screen.findByText('•••• 4242');
-    fireEvent.press(screen.getByText('Realizar pagamento'));
+    await chooseCardAndPay(screen);
 
     expect(
       await screen.findByText('Pagamento recusado. Tente outro cartão.', {}, SLOW),
     ).toBeTruthy();
     expect(screen.queryByText('Processando seu pagamento...')).toBeNull();
-    expect(mockedCreate).not.toHaveBeenCalled();
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    await expect(screen.booking.getPayment(77)).resolves.toBeNull();
+    expect(mockedNotify).not.toHaveBeenCalled();
     expect(screen.getByText('Realizar pagamento')).toBeTruthy();
   });
 
@@ -167,7 +190,9 @@ describe('ScheduleConfirmScreen (pagamento do agendamento)', () => {
     fireEvent.press(await screen.findByText('Já realizei o pagamento'));
 
     await screen.findByText('Agendamento concluído', {}, SLOW);
-    expect(mockedCreate).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: 'pix' }));
+    expect(mockedCreate).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: 'pix' }), {
+      notify: false,
+    });
     await expect(screen.booking.getPayment(77)).resolves.toMatchObject({
       status: 'paid',
       method: 'pix',
@@ -232,5 +257,182 @@ describe('ScheduleConfirmScreen (pagamento do agendamento)', () => {
     await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
     await expect(screen.booking.getPayment(77)).resolves.toBeNull();
     expect(screen.queryByText('Agendamento concluído')).toBeNull();
+  });
+
+  describe('reservar, depois cobrar (F8)', () => {
+    it('reserves without notifying before charging, then notifies after approval', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      const paySpy = jest.spyOn(wallet, 'payWithCard');
+      const screen = renderScreen(wallet);
+      await chooseCardAndPay(screen);
+
+      await screen.findByText('Agendamento concluído', {}, SLOW);
+      expect(mockedCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentMethod: 'card' }),
+        { notify: false },
+      );
+      expect(mockedCreate.mock.invocationCallOrder[0]).toBeLessThan(
+        paySpy.mock.invocationCallOrder[0],
+      );
+      expect(paySpy).toHaveBeenCalledWith('card_visa_1', 6500, 'Agendamento · Corte', BOOKING_CTX);
+      expect(mockedNotify).toHaveBeenCalledWith(expect.objectContaining({ serviceName: 'Corte' }), {
+        id: 77,
+        startTime: 'a',
+        endTime: 'b',
+      });
+      expect(mockedNotify.mock.invocationCallOrder[0]).toBeGreaterThan(
+        paySpy.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does not notify from the app when the server notifies (Stripe)', async () => {
+      const booking = new MockBookingPaymentService({ latencyMs: 0 });
+      Object.defineProperty(booking, 'serverNotifiesOnPayment', { value: true });
+      const screen = renderScreen(new MockWalletService({ latencyMs: 0 }), booking);
+      await chooseCardAndPay(screen);
+
+      await screen.findByText('Agendamento concluído', {}, SLOW);
+      expect(mockedNotify).not.toHaveBeenCalled();
+    });
+
+    it('retries a declined payment on the same reservation and key', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      const paySpy = jest
+        .spyOn(wallet, 'payWithCard')
+        .mockResolvedValueOnce({ status: 'declined', paymentId: 'p1' })
+        .mockResolvedValueOnce({ status: 'approved', paymentId: 'p1' });
+      const screen = renderScreen(wallet);
+      await chooseCardAndPay(screen);
+      await screen.findByText('Pagamento recusado. Tente outro cartão.', {}, SLOW);
+
+      fireEvent.press(screen.getByText('Alterar'));
+      await screen.findByText('Meus cartões');
+      fireEvent.press(screen.getByTestId('cards-stack-card-1'));
+      fireEvent.press(screen.getByText('Selecionar cartão'));
+      await screen.findByText('•••• 5454');
+      fireEvent.press(screen.getByText('Realizar pagamento'));
+
+      await screen.findByText('Agendamento concluído', {}, SLOW);
+      expect(mockedCreate).toHaveBeenCalledTimes(1);
+      expect(paySpy).toHaveBeenCalledTimes(2);
+      expect(paySpy.mock.calls[0][3]).toEqual(BOOKING_CTX);
+      expect(paySpy.mock.calls[1]).toEqual([
+        'card_mastercard_1',
+        6500,
+        'Agendamento · Corte',
+        BOOKING_CTX,
+      ]);
+    });
+
+    it('releases the unpaid reservation when leaving after a decline', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      jest.spyOn(wallet, 'payWithCard').mockResolvedValue({ status: 'declined' });
+      const booking = new MockBookingPaymentService({ latencyMs: 0 });
+      const cancelSpy = jest.spyOn(booking, 'cancelUnpaid');
+      const screen = renderScreen(wallet, booking);
+      await chooseCardAndPay(screen);
+      await screen.findByText('Pagamento recusado. Tente outro cartão.', {}, SLOW);
+
+      expect(cancelSpy).not.toHaveBeenCalled();
+      screen.unmount();
+      expect(cancelSpy).toHaveBeenCalledWith(77);
+    });
+
+    it('does not release a paid reservation on leave', async () => {
+      const booking = new MockBookingPaymentService({ latencyMs: 0 });
+      const cancelSpy = jest.spyOn(booking, 'cancelUnpaid');
+      const screen = renderScreen(new MockWalletService({ latencyMs: 0 }), booking);
+      await chooseCardAndPay(screen);
+      await screen.findByText('Agendamento concluído', {}, SLOW);
+
+      screen.unmount();
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('never charges when the reservation fails', async () => {
+      mockedCreate.mockRejectedValue(
+        new BookingError('conflict', 'Selecione outro horário, este já está ocupado.'),
+      );
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      const paySpy = jest.spyOn(wallet, 'payWithCard');
+      const screen = renderScreen(wallet);
+      await screen.findByText('Corte');
+      fireEvent.press(screen.getByText('Cartão'));
+      await screen.findByText('•••• 4242');
+      // A reserva rejeita num microtask e o toast aparece fora do findBy.
+      await act(async () => {
+        fireEvent.press(screen.getByText('Realizar pagamento'));
+      });
+
+      expect(
+        await screen.findByText('Selecione outro horário, este já está ocupado.'),
+      ).toBeTruthy();
+      expect(paySpy).not.toHaveBeenCalled();
+      expect(screen.queryByText('Processando seu pagamento...')).toBeNull();
+    });
+
+    it('reserves before opening pix and charges with the booking context', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      const pixSpy = jest.spyOn(wallet, 'createPixCharge');
+      const screen = renderScreen(wallet);
+      await screen.findByText('Corte');
+
+      fireEvent.press(screen.getByText('Realizar pagamento'));
+      await screen.findByText('Já realizei o pagamento');
+      expect(mockedCreate).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: 'pix' }), {
+        notify: false,
+      });
+      await waitFor(() =>
+        expect(pixSpy).toHaveBeenCalledWith(6500, 'Agendamento · Corte', BOOKING_CTX),
+      );
+    });
+
+    it('releases the reservation when the pix sheet is closed without paying', async () => {
+      const booking = new MockBookingPaymentService({ latencyMs: 0 });
+      const cancelSpy = jest.spyOn(booking, 'cancelUnpaid');
+      const screen = renderScreen(new MockWalletService({ latencyMs: 0 }), booking);
+      await screen.findByText('Corte');
+
+      fireEvent.press(screen.getByText('Realizar pagamento'));
+      await screen.findByText('Já realizei o pagamento');
+      fireEvent.press(screen.getByTestId('pix-sheet-backdrop', { includeHiddenElements: true }));
+
+      await waitFor(() => expect(cancelSpy).toHaveBeenCalledWith(77));
+      expect(screen.queryByText('Já realizei o pagamento')).toBeNull();
+    });
+
+    it('pays on site notifying on creation, as before', async () => {
+      const screen = renderScreen();
+      await screen.findByText('Corte');
+      fireEvent.press(screen.getByText('Dinheiro'));
+      fireEvent.press(screen.getByText('Pagar na hora'));
+
+      await screen.findByText('Agendamento concluído', {}, SLOW);
+      expect(mockedCreate).toHaveBeenCalledTimes(1);
+      expect(mockedCreate.mock.calls[0][1]?.notify).not.toBe(false);
+      expect(mockedNotify).not.toHaveBeenCalled();
+    });
+
+    it('pay on site after a declined card releases the reservation and books again', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      jest.spyOn(wallet, 'payWithCard').mockResolvedValue({ status: 'declined' });
+      const booking = new MockBookingPaymentService({ latencyMs: 0 });
+      const cancelSpy = jest.spyOn(booking, 'cancelUnpaid');
+      mockedCreate
+        .mockResolvedValueOnce({ id: 77, startTime: 'a', endTime: 'b' })
+        .mockResolvedValueOnce({ id: 78, startTime: 'a', endTime: 'b' });
+      const screen = renderScreen(wallet, booking);
+      await chooseCardAndPay(screen);
+      await screen.findByText('Pagamento recusado. Tente outro cartão.', {}, SLOW);
+
+      fireEvent.press(screen.getByText('Pagar na hora'));
+      await screen.findByText('Agendamento concluído', {}, SLOW);
+      expect(cancelSpy).toHaveBeenCalledWith(77);
+      expect(cancelSpy.mock.invocationCallOrder[0]).toBeLessThan(
+        mockedCreate.mock.invocationCallOrder[1],
+      );
+      expect(mockedCreate.mock.calls[1][1]?.notify).not.toBe(false);
+      await expect(booking.getPayment(78)).resolves.toMatchObject({ status: 'pay_on_site' });
+    });
   });
 });

@@ -43,7 +43,7 @@ describe('PaymentPixBottomSheet', () => {
       { wallet },
     );
 
-    await waitFor(() => expect(chargeSpy).toHaveBeenCalledWith(AMOUNT, DESCRIPTION));
+    await waitFor(() => expect(chargeSpy).toHaveBeenCalledWith(AMOUNT, DESCRIPTION, undefined));
     // O copia-e-cola aparece em destaque para o usuário colar no app do banco.
     await findByText(PIX_CHARGE.copyPasteCode);
   });
