@@ -473,7 +473,12 @@ const ClientHomeScreen: React.FC = () => {
         {/* Stories: as lojas em destaque como anéis circulares. */}
         {stories.length > 0 && (
           <View style={styles.storiesSection}>
-            <StoriesRow stores={stories} />
+            <StoriesRow
+              stores={stories}
+              onPressStore={(s) =>
+                router.push({ pathname: '/(client)/feed', params: { businessId: String(s.id) } })
+              }
+            />
           </View>
         )}
 

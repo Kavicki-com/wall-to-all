@@ -202,6 +202,14 @@ const ClientLayout: React.FC = () => {
             tabBarButton: () => null,
           }}
         />
+
+        {/* Feed F6 */}
+        <Tabs.Screen
+          name="feed/index"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
       </Tabs>
     </ProfileProvider>
   );

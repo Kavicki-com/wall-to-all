@@ -14,6 +14,7 @@ export const CLIENT_DRAWER_ITEMS: DrawerItem[] = [
   { label: 'Início', route: '/(client)/home' },
   { label: 'Meus agendamentos', route: '/(client)/appointments' },
   { label: 'Buscar serviços', route: '/(client)/search' },
+  { label: 'Feed', route: '/(client)/feed' },
   { label: 'Carteira', route: '/(client)/wallet' },
   { label: 'QI', route: '/(client)/qi' },
   { label: 'Perfil', route: '/(client)/profile' },

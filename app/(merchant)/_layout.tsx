@@ -189,6 +189,26 @@ const MerchantLayout: React.FC = () => {
             tabBarButton: () => null,
           }}
         />
+
+        {/* Feed F6 */}
+        <Tabs.Screen
+          name="feed/index"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="feed/record"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="feed/preview"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
       </Tabs>
     </BusinessProfileProvider>
   );

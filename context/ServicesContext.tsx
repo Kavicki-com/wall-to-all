@@ -17,12 +17,18 @@ import {
   MockBookingPaymentService,
   SIMULATED_LATENCY_MS as BOOKING_LATENCY_MS,
 } from '../lib/services/mock/mockBookingPaymentService';
+import type { FeedService } from '../lib/services/feedTypes';
+import {
+  MockFeedService,
+  SIMULATED_LATENCY_MS as FEED_LATENCY_MS,
+} from '../lib/services/mock/mockFeedService';
 
 interface ServicesContextType {
   queue: QueueService;
   wallet: WalletService;
   qi: QiService;
   booking: BookingPaymentService;
+  feed: FeedService;
 }
 
 // Default undefined + guard no hook: consumir fora do provider deve lançar.
@@ -57,6 +63,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   const walletRef = useRef<MockWalletService | null>(null);
   const qiRef = useRef<MockQiService | null>(null);
   const bookingRef = useRef<MockBookingPaymentService | null>(null);
+  const feedRef = useRef<MockFeedService | null>(null);
 
   // NOTA: as instâncias default são criadas aqui no render (lazy via ref) e o
   // dispose() da fila roda no cleanup do useEffect abaixo. Esse acoplamento
@@ -72,6 +79,8 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
     qiRef.current = new MockQiService({ latencyMs: QI_LATENCY_MS });
     // Registro de pagamento dos agendamentos (F5): só um Map, dispensa dispose.
     bookingRef.current = new MockBookingPaymentService({ latencyMs: BOOKING_LATENCY_MS });
+    // Feed (F6): estado em memória sem timers, dispensa dispose.
+    feedRef.current = new MockFeedService({ latencyMs: FEED_LATENCY_MS });
   }
 
   useEffect(() => {
@@ -89,6 +98,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
         wallet: walletRef.current!,
         qi: qiRef.current!,
         booking: bookingRef.current!,
+        feed: feedRef.current!,
       },
     [services],
   );
@@ -96,7 +106,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   return <ServicesContext.Provider value={value}>{children}</ServicesContext.Provider>;
 };
 
-/** Retorna `{ queue, wallet, qi, booking }`. Lança se usado fora do ServicesProvider. */
+/** Retorna `{ queue, wallet, qi, booking, feed }`. Lança se usado fora do ServicesProvider. */
 export const useServices = (): ServicesContextType => {
   const context = useContext(ServicesContext);
   if (context === undefined) {
@@ -116,3 +126,6 @@ export const useQiService = (): QiService => useServices().qi;
 
 /** Atalho para o BookingPaymentService. Herda o guard de useServices. */
 export const useBookingPaymentService = (): BookingPaymentService => useServices().booking;
+
+/** Atalho para o FeedService. Herda o guard de useServices. */
+export const useFeedService = (): FeedService => useServices().feed;
