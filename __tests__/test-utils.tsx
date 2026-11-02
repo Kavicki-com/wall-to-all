@@ -7,6 +7,8 @@ import { MockQiService } from '../lib/services/mock/mockQiService';
 import type { QiService, QueueService, WalletService } from '../lib/services/types';
 import { MockBookingPaymentService } from '../lib/services/mock/mockBookingPaymentService';
 import type { BookingPaymentService } from '../lib/services/bookingTypes';
+import { MockFeedService } from '../lib/services/mock/mockFeedService';
+import type { FeedService } from '../lib/services/feedTypes';
 
 /**
  * Harness compartilhado dos testes de tela da F1 (reusado pelas Tasks 15-23).
@@ -42,6 +44,8 @@ export interface RenderWithProvidersOptions extends Omit<RenderOptions, 'wrapper
   qi?: QiService;
   /** Sobrepõe o BookingPaymentService injetado (default: `MockBookingPaymentService` latência 0). */
   booking?: BookingPaymentService;
+  /** Sobrepõe o FeedService injetado (default: `MockFeedService` latência 0). */
+  feed?: FeedService;
 }
 
 export type RenderWithProvidersResult = ReturnType<typeof render> & {
@@ -49,6 +53,7 @@ export type RenderWithProvidersResult = ReturnType<typeof render> & {
   wallet: WalletService;
   qi: QiService;
   booking: BookingPaymentService;
+  feed: FeedService;
 };
 
 // Serviços a descartar após cada teste — criados por default OU injetados. Um
@@ -62,7 +67,7 @@ interface Disposable {
 const disposables = new Set<Disposable>();
 
 function trackDisposable(
-  service: QueueService | WalletService | QiService | BookingPaymentService,
+  service: QueueService | WalletService | QiService | BookingPaymentService | FeedService,
 ): void {
   if (typeof (service as Partial<Disposable>).dispose === 'function') {
     disposables.add(service as unknown as Disposable);
@@ -85,6 +90,7 @@ export function renderWithProviders(
     wallet: walletOverride,
     qi: qiOverride,
     booking: bookingOverride,
+    feed: feedOverride,
     ...renderOptions
   } = options;
   const queue: QueueService = queueOverride ?? new MockQueueService({ latencyMs: 0 });
@@ -96,13 +102,15 @@ export function renderWithProviders(
   trackDisposable(wallet);
   trackDisposable(qi); // no-op hoje (MockQiService não tem dispose) — duck-typed p/ futuro.
   trackDisposable(booking); // no-op hoje, idem.
+  const feed: FeedService = feedOverride ?? new MockFeedService({ latencyMs: 0 });
+  trackDisposable(feed); // no-op hoje, idem.
 
   // Referência estável do objeto de serviços (não recriado a cada render do wrapper).
-  const services = { queue, wallet, qi, booking };
+  const services = { queue, wallet, qi, booking, feed };
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <ServicesProvider services={services}>{children}</ServicesProvider>
   );
 
   const result = render(ui, { wrapper: Wrapper, ...renderOptions });
-  return { ...result, queue, wallet, qi, booking };
+  return { ...result, queue, wallet, qi, booking, feed };
 }
