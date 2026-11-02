@@ -132,9 +132,34 @@ Dependências: `F0 → F1 → F2 → F3 → {F4, F5, F7} → F6 → F8` (F4/F5/F
 
 **Débito herdado da F3, fora do escopo desta fase:** `app/(merchant)/financeiro/withdraw.tsx` tem `try/finally` **sem `catch`** (unhandled rejection e spinner infinito em caso de falha) e o estado de carga não oferece "Voltar". O `components/qi/QiWithdrawScreen.tsx` é o modelo pronto de como corrigir.
 
-### Fase 5 — Agendamento de serviços com pagamento (cliente) — evolução do fluxo atual
+### Fase 5: Agendamento de serviços com pagamento (cliente) ✅ implementada (2026-11-02)
 
 Seção `2668:18465`: store-profile-view `2663:7158` · search-results `2663:7678` · searching `2663:7806` · schedule-service `2663:7937` · schedule-service-selected `2663:7960` · schedule-whole-month `2663:7983` / `2663:8015` / `2663:17450` (3 variantes) · schedule-appointment-view `2663:8034` · card-selection `2668:18327` · payment-loading `2663:9149` · Modal `2663:8057`
+
+Evolução do fluxo atual de agendamento (PR #7). Domínio novo `BookingPaymentService` em `lib/services/bookingTypes.ts` (sem tocar `lib/services/types.ts`) + `MockBookingPaymentService` em memória. A confirmação **cobra primeiro e grava depois**: pagamento (mock) → `createAppointment` (Supabase, extraído para `lib/booking/createAppointment.ts`) → `recordPayment` (mock). Cartão recusado nunca cria agendamento. `CardSelectionBottomSheet` e `PaymentProcessingSheet` em `components/payment/` são genéricos e devem ser reaproveitados pela assinatura da F7. Design e plano: `docs/plans/2026-10-28-f5-agendamento-design.md` e `-plan.md`.
+
+**Divergências deliberadas do Figma nesta fase:**
+
+| # | Divergência | Razão |
+|---|---|---|
+| 1 | Sub-telas com `AppHeader` (Voltar) em vez da top bar com menu | Precedente F4 #4: top bar com menu é das telas-hub |
+| 2 | "Serviços disponíveis" | Figma `2663:7937` traz "dispníveis" |
+| 3 | "Agendamento concluído" | Figma `2663:8057` traz "Agendametno" |
+| 4 | Pilha com 2 cartões no card-selection | Figma desenha 3; as fixtures do `MockWalletService` têm 2 e os testes da F1/F3 contam cartões |
+| 5 | "•••• 4242 / Visa" na linha do cartão | Figma traz "0928 / VISA" estático; a linha mostra o cartão real do mock |
+| 6 | Bottom nav com 4 ícones | Figma mostra 5; decisão herdada da F1/F2 |
+| 7 | Passo Pix reaproveita o sheet da F1 | A seção da F5 não desenha o Pix; `2663:7091` é o desenho mais recente |
+| 8 | "Realizar pagamento" desabilitado com Dinheiro | Estado não desenhado; pagar online em dinheiro não existe |
+| 9 | Linha "Pagamento via PIX" e ausência de linha com Dinheiro | O Figma só desenha a linha do cartão |
+| 10 | Preço com centavos ("R$ 65,00") | Figma mostra "R$ 65"; `formatBRL` é o padrão do app |
+| 11 | Observações com placeholder vazio | O Figma mostra um texto de exemplo preenchido |
+| 12 | Toasts "Pagamento recusado" e "Nenhum cartão salvo" | Estados não desenhados; o mock recusa ids desconhecidos |
+| 13 | "Processando..." com duração mínima simulada | O mock responde na hora; sem o mínimo o sheet piscaria |
+| 14 | Fechar o modal de sucesso vai para "Meus agendamentos" | Antes ia para a home; a lista (`2663:17450`) é o destino coerente |
+| 15 | Lista de agendamentos (`2663:17450`) inalterada | Fora do território da F5; já fiel |
+| 16 | CTA "Continuar" com 48 de altura | Padrão do `CustomButton`; o Figma dá cerca de 44 |
+
+**Dívidas registradas para a F8:** `MockBookingPaymentService` é em memória (o status some ao reiniciar o app e o detalhe cai no rótulo `payment_method`); F8: tabela de pagamentos + PSP + webhook · idempotência: cartão cobrado com insert do agendamento falhando deixa a cobrança sem estorno; F8: cobrança idempotente ou agendamento "aguardando pagamento" antes da captura · `schedule/date.tsx` morta, com `Tabs.Screen` órfão em `app/(client)/_layout.tsx` · `PaymentPixBottomSheet` mantém o próprio estado "Processando", duplicando `PaymentProcessingSheet`.
 
 ### Fase 6 — Feed (lojista + cliente)
 
@@ -195,5 +220,6 @@ Assinatura (seção `2678:149`): subscription-offer `2678:150` · subscription-m
 | Plano da F2 (dashboards/home) | ✅ criado; F2 **implementada** (2026-07-10) — suíte 300/300, typecheck e lint (0 erros) limpos. Pendente: QA em dispositivo + fidelidade visual vs Figma (`2715:3426`, `2478:111`). |
 | Plano da F3 (carteira/financeiro) | ✅ criado; F3 **implementada** (2026-07-10), mock-first (WalletService estendido); suíte 350/350, typecheck e lint (0 erros) limpos. Pendente: QA em dispositivo + fidelidade visual vs Figma (`2715:3681`, `2602:5991`, `2715:3711`). Débitos de fidelidade: cadastro de cartão sem CPF/débito-crédito, chave Pix sem "padrão"/verificação, a casar com o backend na F8. **Débito do saque sem resumo de taxa: FECHADO na F4** (Task 5), com o withdraw do Financeiro retrofitado no `WithdrawFlow` compartilhado. Aberto na F4: o wrapper do saque do Financeiro não tem `catch` na carga (ver § Fase 4). |
 | Plano da F4 (QI) | ✅ criado; F4 **implementada** (2026-08-17), mock-first (`QiService` + `MockQiService`, fixtures do Figma); suíte 463/463 em 57 suítes, typecheck 0 erros, lint sem nenhum problema novo (o único warning em arquivo tocado é pré-existente, commit `4a33246f`). Referral legado **removido por completo**, incluindo o campo de código no signup: `git grep -ri referral` em `app/ components/ lib/ __tests__/` retorna zero hits, e a captação real de indicação só volta na F8. Fecha o débito do resumo de taxa da F3. Pendente: QA em dispositivo (cliente e lojista: QI → detalhes → como funciona → saque com saldo atualizado; financeiro com resumo de taxa; signup sem campo de código) + revisão de fidelidade visual vs Figma (`2628:6934`, `2606:5475`, `2628:7149`, `2628:7226`, `2715:3711`), contra a tabela de 12 divergências deliberadas da § Fase 4. |
+| Design doc + plano da F5 (agendamento com pagamento) | ✅ criado; F5 **implementada** (2026-11-02, PR #7), mock-first (`BookingPaymentService` + `MockBookingPaymentService`); suíte 525/525 em 69 suítes, typecheck 0 erros, lint sem nenhum problema novo. Pendente: QA em dispositivo (home → loja → serviço → hora → confirmar com cartão, Pix, pagar na hora com Dinheiro, cartão recusado; detalhe com a linha de status) + revisão de fidelidade visual vs Figma (`2663:7158`, `2663:7678`, `2663:7937`, `2663:8034`, `2668:18327`, `2663:8057`), contra a tabela de 16 divergências deliberadas da § Fase 5. |
 | Design doc + plano das demais fases | imediatamente antes de cada fase |
 | Plano da F8 (integração) | ao final da F7, com PSP decidido |
