@@ -71,6 +71,12 @@
       ],
       "expo-video",
       [
+        "@stripe/stripe-react-native",
+        {
+          "enableGooglePay": false
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "O app precisa da câmera para gravar vídeos e stories do seu negócio.",

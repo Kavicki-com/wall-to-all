@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { NotificationProvider } from '../context/NotificationContext';
 import { NetworkProvider } from '../context/NetworkContext';
 import { ServicesProvider } from '../context/ServicesContext';
+import { StripeRoot } from '../lib/payments/StripeRoot';
 import { ActivityIndicator } from 'react-native';
 
 
@@ -113,7 +114,9 @@ const RootLayout: React.FC = () => {
             <AuthProvider>
               <NotificationProvider>
                 <ServicesProvider>
-                  <MainLayout />
+                  <StripeRoot>
+                    <MainLayout />
+                  </StripeRoot>
                 </ServicesProvider>
               </NotificationProvider>
             </AuthProvider>
