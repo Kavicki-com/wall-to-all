@@ -258,5 +258,11 @@ export interface QiService {
   getIndicacaoStatement(side: QiSide, id: string): Promise<QiStatementEntry[]>;
   getProgramRules(): Promise<QiProgramRules>;
   quoteWithdraw(amountCents: number): Promise<WithdrawQuote>;
-  requestQiWithdraw(side: QiSide, amountCents: number, pixKeyId: string): Promise<void>;
+  /** F8: `idempotencyKey` por tentativa (o retry com a mesma chave retoma o saque). */
+  requestQiWithdraw(
+    side: QiSide,
+    amountCents: number,
+    pixKeyId: string,
+    idempotencyKey?: string,
+  ): Promise<void>;
 }

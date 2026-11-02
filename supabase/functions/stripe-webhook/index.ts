@@ -24,6 +24,7 @@ import {
   type StripeEventShape,
   type WebhookPlan,
 } from '../_shared/webhookPlan.ts';
+import type { QiReferrer } from '../_shared/ledger.ts';
 
 const SECRETS: Array<[string, 'platform' | 'connect']> = [
   ['STRIPE_WEBHOOK_SECRET', 'platform'],
@@ -82,10 +83,43 @@ interface PaymentJoinRow {
   business_profiles: { owner_id: string } | null;
 }
 
+/** Percentual do cashback QI (regras do programa); `QI_CASHBACK_PCT` sobrepõe. */
+function cashbackPct(): number {
+  const raw = Deno.env.get('QI_CASHBACK_PCT');
+  const value = raw ? Number(raw) : 10;
+  return Number.isFinite(value) && value >= 0 && value <= 100 ? value : 10;
+}
+
+/**
+ * Indicador do pagador (`profiles.referred_by`). Lojista (dono de negócio)
+ * recebe na `merchant_qi` do negócio; cliente, na `client_qi`. Autoindicação
+ * não conta.
+ */
+async function loadReferrer(
+  db: SupabaseClient,
+  payerId: string,
+  referredBy: string | null,
+): Promise<QiReferrer | null> {
+  if (!referredBy || referredBy === payerId) return null;
+  const business = await db
+    .from('business_profiles')
+    .select('id')
+    .eq('owner_id', referredBy)
+    .limit(1)
+    .maybeSingle();
+  if (business.error) throw business.error;
+  return { userId: referredBy, businessId: (business.data?.id as number | undefined) ?? null };
+}
+
+interface LoadedPayment {
+  payment: PaymentContext;
+  referrer: QiReferrer | null;
+}
+
 async function loadPayment(
   db: SupabaseClient,
   lookup: { paymentId: string } | { providerPaymentId: string },
-): Promise<PaymentContext | null> {
+): Promise<LoadedPayment | null> {
   let query = db
     .from('payments')
     .select(
@@ -100,17 +134,25 @@ async function loadPayment(
   if (!data) return null;
 
   let payerName = 'Cliente';
+  let referrer: QiReferrer | null = null;
   if (data.payer_id) {
     const profile = await db
       .from('profiles')
-      .select('full_name')
+      .select('full_name, referred_by')
       .eq('id', data.payer_id)
       .maybeSingle();
     if (profile.error) throw profile.error;
     payerName = (profile.data?.full_name as string | null) || 'Cliente';
+    if (data.purpose === 'booking') {
+      referrer = await loadReferrer(
+        db,
+        data.payer_id,
+        (profile.data?.referred_by as string | null) ?? null,
+      );
+    }
   }
 
-  return {
+  const payment: PaymentContext = {
     id: data.id,
     purpose: data.purpose,
     fundsFlow: data.funds_flow,
@@ -125,6 +167,7 @@ async function loadPayment(
     merchantOwnerId: data.business_profiles?.owner_id ?? null,
     appointmentStartTime: data.appointments?.start_time ?? null,
   };
+  return { payment, referrer };
 }
 
 async function cardOfIntent(
@@ -245,7 +288,8 @@ Deno.serve(async (req) => {
     } else {
       const shape = event as unknown as StripeEventShape;
       const lookup = paymentLookup(shape);
-      const payment = lookup ? await loadPayment(db, lookup) : null;
+      const loaded = lookup ? await loadPayment(db, lookup) : null;
+      const payment = loaded?.payment ?? null;
       const charge =
         event.type === 'payment_intent.succeeded' && payment?.method === 'card'
           ? await cardOfIntent(stripe, event.data.object as Stripe.PaymentIntent)
@@ -254,6 +298,7 @@ Deno.serve(async (req) => {
         payment,
         charge,
         demoBusinessId: optionalIntEnv('DEMO_FURA_FILA_BUSINESS_ID'),
+        qi: { referrer: loaded?.referrer ?? null, perServicePct: cashbackPct() },
       });
       result = await execute(db, plan);
     }

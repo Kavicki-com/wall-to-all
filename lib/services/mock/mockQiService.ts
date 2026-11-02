@@ -152,8 +152,14 @@ export class MockQiService implements QiService {
     return computeWithdrawQuote(amountCents);
   }
 
-  async requestQiWithdraw(side: QiSide, amountCents: number, pixKeyId: string): Promise<void> {
+  async requestQiWithdraw(
+    side: QiSide,
+    amountCents: number,
+    pixKeyId: string,
+    idempotencyKey?: string,
+  ): Promise<void> {
     await this.delay();
+    void idempotencyKey; // o mock não deduplica; a chave só importa no servidor.
     if (amountCents < MIN_WITHDRAW_CENTS) {
       throw new Error('O valor mínimo de saque é R$ 30,00.');
     }

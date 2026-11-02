@@ -2,6 +2,7 @@ import {
   entriesForSucceeded,
   entriesForRefund,
   entriesForWithdraw,
+  entriesForCashback,
   type SettledPayment,
 } from '../supabase/functions/_shared/ledger.ts';
 
@@ -124,6 +125,84 @@ describe('ledger (edge _shared)', () => {
         expect(entry.title).toBe('Estorno');
         expect(entry.subtitle).toBe(original[i].title);
       });
+    });
+  });
+
+  describe('entriesForCashback (QI)', () => {
+    const clientReferrer = { userId: 'user_ref', businessId: null };
+    const merchantReferrer = { userId: 'user_shop', businessId: 7 };
+
+    it('indicador cliente: client_qi +10% do serviço (6500 -> 650)', () => {
+      expect(entriesForCashback(booking, { referrer: clientReferrer, perServicePct: 10 })).toEqual([
+        {
+          account: 'client_qi',
+          kind: 'qi_cashback',
+          amountCents: 650,
+          businessId: null,
+          userId: 'user_ref',
+          paymentId: 'pay_1',
+          withdrawalId: null,
+          title: 'Agendamento realizado',
+          subtitle: 'Carlos Silva',
+        },
+      ]);
+    });
+
+    it('indicador lojista: merchant_qi do negócio dele', () => {
+      const [entry] = entriesForCashback(booking, {
+        referrer: merchantReferrer,
+        perServicePct: 10,
+      });
+      expect(entry).toMatchObject({
+        account: 'merchant_qi',
+        kind: 'qi_cashback',
+        amountCents: 650,
+        businessId: 7,
+        userId: 'user_shop',
+      });
+    });
+
+    it('arredonda para baixo (centavo nunca a mais)', () => {
+      const [entry] = entriesForCashback(
+        { ...booking, amountCents: 6599 },
+        { referrer: clientReferrer, perServicePct: 10 },
+      );
+      expect(entry.amountCents).toBe(659);
+    });
+
+    it('sem indicador, pct inválido, valor zerado ou fura-fila: nada', () => {
+      expect(entriesForCashback(booking, { referrer: null, perServicePct: 10 })).toEqual([]);
+      expect(entriesForCashback(booking, { referrer: clientReferrer, perServicePct: 0 })).toEqual(
+        [],
+      );
+      expect(entriesForCashback(booking, { referrer: clientReferrer, perServicePct: -5 })).toEqual(
+        [],
+      );
+      expect(
+        entriesForCashback(
+          { ...booking, amountCents: 5 },
+          { referrer: clientReferrer, perServicePct: 10 },
+        ),
+      ).toEqual([]);
+      expect(entriesForCashback(furaFila, { referrer: clientReferrer, perServicePct: 10 })).toEqual(
+        [],
+      );
+    });
+
+    it('entra no succeeded do agendamento e o estorno o espelha', () => {
+      const qi = { referrer: clientReferrer, perServicePct: 10 };
+      const succeeded = entriesForSucceeded(booking, { qi });
+      expect(succeeded.find((e) => e.account === 'client_qi')?.amountCents).toBe(650);
+
+      const refund = entriesForRefund(booking, { qi });
+      expect(refund.find((e) => e.account === 'client_qi')).toMatchObject({
+        kind: 'refund',
+        amountCents: -650,
+        userId: 'user_ref',
+      });
+      // Um lançamento por (pagamento, conta, tipo): o unique do ledger.
+      const keys = refund.map((e) => `${e.account}:${e.kind}`);
+      expect(new Set(keys).size).toBe(keys.length);
     });
   });
 

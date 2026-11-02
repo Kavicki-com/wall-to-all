@@ -89,6 +89,30 @@ describe('paymentLookup', () => {
   });
 });
 
+describe('planForEvent: cashback QI', () => {
+  const qi = { referrer: { userId: 'user_ref', businessId: null }, perServicePct: 10 };
+
+  it('succeeded de agendamento com indicador credita o client_qi', () => {
+    const plan = planForEvent(
+      intentEvent('payment_intent.succeeded', { status: 'succeeded' }),
+      ctx(bookingPayment, { qi }),
+    );
+    if (plan.kind !== 'payment') throw new Error('esperava plano de pagamento');
+    expect(plan.ledger).toContainEqual(
+      expect.objectContaining({ account: 'client_qi', kind: 'qi_cashback', userId: 'user_ref' }),
+    );
+  });
+
+  it('sem contexto de QI: nenhum lançamento de cashback', () => {
+    const plan = planForEvent(
+      intentEvent('payment_intent.succeeded', { status: 'succeeded' }),
+      ctx(bookingPayment),
+    );
+    if (plan.kind !== 'payment') throw new Error('esperava plano de pagamento');
+    expect(plan.ledger.some((e) => e.kind === 'qi_cashback')).toBe(false);
+  });
+});
+
 describe('planForEvent: PaymentIntent', () => {
   it('succeeded de booking: status, cartão do charge, ledger e notificação', () => {
     const plan = planForEvent(

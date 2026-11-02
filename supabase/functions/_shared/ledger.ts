@@ -46,9 +46,24 @@ export interface SettledPayment {
   payerName: string;
 }
 
+/** Quem indicou o pagador (`profiles.referred_by`); lojista leva o negócio. */
+export interface QiReferrer {
+  userId: string;
+  /** Negócio do indicador quando ele é lojista (conta `merchant_qi`); senão null. */
+  businessId: number | null;
+}
+
+export interface QiCashbackContext {
+  referrer: QiReferrer | null;
+  /** Percentual do serviço creditado ao indicador (regras do programa: 10). */
+  perServicePct: number;
+}
+
 export interface LedgerContext {
   /** Só test mode: negócio que recebe a parte do lojista no fura-fila. */
   demoBusinessId?: number | null;
+  /** Cashback QI do agendamento (Task 16); ausente = sem cashback. */
+  qi?: QiCashbackContext;
 }
 
 export const FURA_FILA_TITLE = 'Furou Fila';
@@ -57,6 +72,8 @@ export const PLATFORM_FEE_TITLE = 'Taxa da plataforma';
 export const WITHDRAW_TITLE = 'Saque';
 export const WITHDRAW_FEE_TITLE = 'Taxa de saque';
 export const REFUND_TITLE = 'Estorno';
+/** Copy do extrato do QI (`QiStatementEntry.title` do mock). */
+export const QI_CASHBACK_TITLE = 'Agendamento realizado';
 
 function entry(
   partial: Pick<LedgerEntryDraft, 'account' | 'kind' | 'amountCents' | 'title' | 'subtitle'> &
@@ -133,7 +150,7 @@ export function entriesForSucceeded(
     throw new Error(`Pagamento de agendamento ${id} sem negócio.`);
   }
   const serviceName = payment.serviceName ?? 'Serviço';
-  return withFee(
+  const entries = withFee(
     entry({
       account: 'merchant',
       kind: 'service',
@@ -147,6 +164,40 @@ export function entriesForSucceeded(
     platformFeeCents,
     serviceName,
   );
+  return ctx.qi ? [...entries, ...entriesForCashback(payment, ctx.qi)] : entries;
+}
+
+/**
+ * Cashback QI de um agendamento pago (decisão C, design § 16): o indicador do
+ * pagador recebe `perServicePct` do valor do serviço, arredondado para baixo.
+ * Indicador lojista credita a `merchant_qi` do negócio dele; cliente, a
+ * `client_qi` dele. O custo é da plataforma e fica implícito (soma dos
+ * `qi_cashback`): um débito explícito na conta `platform` colidiria no estorno
+ * com o da taxa, no unique (pagamento, conta, tipo). Só agendamento; sem
+ * indicador ou valor zerado, nada.
+ */
+export function entriesForCashback(
+  payment: SettledPayment,
+  qi: QiCashbackContext,
+): LedgerEntryDraft[] {
+  const { referrer, perServicePct } = qi;
+  if (payment.purpose !== 'booking' || !referrer) return [];
+  if (!Number.isFinite(perServicePct) || perServicePct <= 0) return [];
+  const amountCents = Math.floor((payment.amountCents * perServicePct) / 100);
+  if (amountCents <= 0) return [];
+  const isMerchant = referrer.businessId !== null;
+  return [
+    entry({
+      account: isMerchant ? 'merchant_qi' : 'client_qi',
+      kind: 'qi_cashback',
+      amountCents,
+      businessId: referrer.businessId,
+      userId: referrer.userId,
+      paymentId: payment.id,
+      title: QI_CASHBACK_TITLE,
+      subtitle: payment.payerName,
+    }),
+  ];
 }
 
 function withFee(

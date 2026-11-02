@@ -268,7 +268,7 @@ export class StripeWalletService implements WalletService {
   // ── lojista ──────────────────────────────────────────────
 
   async getMerchantBalanceCents(): Promise<number> {
-    const businessId = await this.businessId();
+    const businessId = await this.currentBusinessId();
     const { data, error } = await supabase.rpc('merchant_balance_cents', {
       p_business_id: businessId,
       p_account: 'merchant',
@@ -278,7 +278,7 @@ export class StripeWalletService implements WalletService {
   }
 
   async getMerchantStatement(): Promise<WalletEntry[]> {
-    const businessId = await this.businessId();
+    const businessId = await this.currentBusinessId();
     const { data, error } = await supabase
       .from('ledger_entries')
       .select('id, kind, amount_cents, title, subtitle, created_at, withdrawal_id')
@@ -318,10 +318,10 @@ export class StripeWalletService implements WalletService {
   }
 
   /**
-   * Negócio do usuário logado. Cache por usuário (o serviço vive o app todo e
+   * Negócio do usuário logado (também usado pelo `StripeQiService`). Cache por usuário (o serviço vive o app todo e
    * a conta pode trocar); falha não fica em cache.
    */
-  private async businessId(): Promise<number> {
+  async currentBusinessId(): Promise<number> {
     const userId = await this.userId();
     if (this.businessCache?.userId !== userId) {
       const promise = (async () => {

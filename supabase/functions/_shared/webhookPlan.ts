@@ -16,6 +16,7 @@ import {
   entriesForRefund,
   entriesForSucceeded,
   type LedgerEntryDraft,
+  type QiCashbackContext,
   type SettledPayment,
 } from './ledger.ts';
 import { canTransition, type PaymentStatus } from './statusMap.ts';
@@ -45,6 +46,8 @@ export interface WebhookContext {
   charge: { last4: string | null; brand: string | null } | null;
   /** Só test mode: negócio que recebe a parte do lojista no fura-fila. */
   demoBusinessId: number | null;
+  /** Cashback QI (indicador do pagador e percentual); ausente = sem cashback. */
+  qi?: QiCashbackContext;
 }
 
 export interface MerchantNotification {
@@ -162,7 +165,7 @@ function planIntentEvent(
   if (status === 'succeeded') {
     if (ctx.charge?.last4) fields.card_last4 = ctx.charge.last4;
     if (ctx.charge?.brand) fields.card_brand = ctx.charge.brand;
-    ledger = entriesForSucceeded(payment, { demoBusinessId: ctx.demoBusinessId });
+    ledger = entriesForSucceeded(payment, { demoBusinessId: ctx.demoBusinessId, qi: ctx.qi });
     notifyMerchant = notificationFor(payment);
   }
   if (status === 'failed') {
@@ -198,7 +201,7 @@ export function planForEvent(event: StripeEventShape, ctx: WebhookContext): Webh
       paymentId: payment.id,
       status: 'refunded',
       fields: {},
-      ledger: entriesForRefund(payment, { demoBusinessId: ctx.demoBusinessId }),
+      ledger: entriesForRefund(payment, { demoBusinessId: ctx.demoBusinessId, qi: ctx.qi }),
       cancelAppointment: false,
       notifyMerchant: null,
     };

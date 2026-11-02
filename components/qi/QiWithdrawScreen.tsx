@@ -9,6 +9,7 @@ import { WithdrawFlow } from '../wallet/WithdrawFlow';
 import { Icon } from '../ui/Icon';
 import { handleError } from '../../lib/errorHandler';
 import { qiRoute } from '../../lib/qi/routes';
+import { newCheckoutKey } from '../../lib/payments/checkoutKey';
 import type { PixKey, QiProgramRules, QiSide, QiSummary } from '../../lib/services/types';
 import { colors } from '../../lib/theme';
 
@@ -109,6 +110,10 @@ export const QiWithdrawScreen: React.FC<QiWithdrawScreenProps> = ({ side }) => {
   const [pixKeys, setPixKeys] = useState<PixKey[]>([]);
 
   const runIdRef = useRef(0);
+  // F8: chave de idempotência por tentativa, presa a (valor, chave Pix). Retry
+  // depois de falha com os mesmos dados reusa a chave (o servidor retoma o
+  // saque); outro valor ou chave Pix gera uma nova; sucesso descarta.
+  const attemptRef = useRef<{ signature: string; key: string } | null>(null);
 
   const load = useCallback(async () => {
     const runId = ++runIdRef.current;
@@ -157,6 +162,18 @@ export const QiWithdrawScreen: React.FC<QiWithdrawScreenProps> = ({ side }) => {
   const handleBack = useCallback(() => {
     router.back();
   }, [router]);
+
+  const handleConfirm = useCallback(
+    async (amountCents: number, pixKeyId: string) => {
+      const signature = `${amountCents}:${pixKeyId}`;
+      if (attemptRef.current?.signature !== signature) {
+        attemptRef.current = { signature, key: newCheckoutKey() };
+      }
+      await qiService.requestQiWithdraw(side, amountCents, pixKeyId, attemptRef.current.key);
+      attemptRef.current = null;
+    },
+    [qiService, side],
+  );
 
   // Sem top bar, o cabeçalho é o topo da tela e absorve o inset superior; ele é
   // renderizado nos TRÊS estados, então a saída nunca fica sob a status bar.
@@ -211,7 +228,7 @@ export const QiWithdrawScreen: React.FC<QiWithdrawScreenProps> = ({ side }) => {
         balanceCents={summary.balanceCents}
         pixKeys={pixKeys}
         quote={(cents) => qiService.quoteWithdraw(cents)}
-        onConfirm={(cents, keyId) => qiService.requestQiWithdraw(side, cents, keyId)}
+        onConfirm={handleConfirm}
         minWithdrawCents={rules.minWithdrawCents}
         onAddPixKey={() => router.push(qiRoute(side, 'new-pix-key'))}
         onSuccessClose={handleBack}
