@@ -16,7 +16,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          # react-native 0.81 (Expo SDK 54) exige Node >= 20.19.4.
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
