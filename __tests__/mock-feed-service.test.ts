@@ -57,7 +57,9 @@ describe('MockFeedService', () => {
 
   it('posts dentro do grupo ficam em ordem cronológica crescente', async () => {
     await service.publishPost(
-      videoInput({ author: { ...author, businessId: 101, name: 'Ana Cabelos', handle: '@anaCabelos' } }),
+      videoInput({
+        author: { ...author, businessId: 101, name: 'Ana Cabelos', handle: '@anaCabelos' },
+      }),
     );
     const [ana] = await service.listStories();
     expect(ana.author.businessId).toBe(101);

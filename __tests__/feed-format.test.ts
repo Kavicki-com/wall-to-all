@@ -32,7 +32,12 @@ describe('formatPostMeta', () => {
   it('junta serviço vinculado e data curta', () => {
     expect(
       formatPostMeta({
-        linkedService: { serviceId: 1, name: 'Corte feminino', priceCents: 8000, durationMinutes: 60 },
+        linkedService: {
+          serviceId: 1,
+          name: 'Corte feminino',
+          priceCents: 8000,
+          durationMinutes: 60,
+        },
         createdAt,
       }),
     ).toBe('Corte feminino · 12 mai');

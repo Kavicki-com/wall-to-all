@@ -195,7 +195,12 @@ export class MockFeedService implements FeedService {
         category: 'Cabelo',
         ageMs: 30 * MINUTE,
         likeCount: 45200,
-        linkedService: { serviceId: 9001, name: 'Corte feminino', priceCents: 8000, durationMinutes: 60 },
+        linkedService: {
+          serviceId: 9001,
+          name: 'Corte feminino',
+          priceCents: 8000,
+          durationMinutes: 60,
+        },
       },
       {
         id: 'fx-2',
@@ -260,7 +265,12 @@ export class MockFeedService implements FeedService {
         category: 'Cabelo',
         ageMs: 3 * DAY,
         likeCount: 980,
-        linkedService: { serviceId: 9003, name: 'Coloração', priceCents: 15000, durationMinutes: 120 },
+        linkedService: {
+          serviceId: 9003,
+          name: 'Coloração',
+          priceCents: 15000,
+          durationMinutes: 120,
+        },
       },
     ];
 
