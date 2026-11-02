@@ -25,4 +25,6 @@ export const idempotencyKeys = {
   reversal: (withdrawalId: string) => `reversal:${requireId(withdrawalId, 'withdrawalId')}`,
   account: (businessId: number) => `acct:${requireId(businessId, 'businessId')}`,
   customer: (userId: string) => `cus:${requireId(userId, 'userId')}`,
+  /** Cancelamento do PI de uma cobrança não paga (`payments-cancel`). */
+  cancel: (paymentId: string) => `cancel:${requireId(paymentId, 'paymentId')}`,
 } as const;

@@ -80,6 +80,7 @@ describe('idempotencyKeys (edge _shared)', () => {
     expect(idempotencyKeys.reversal('w1')).toBe('reversal:w1');
     expect(idempotencyKeys.account(42)).toBe('acct:42');
     expect(idempotencyKeys.customer('u1')).toBe('cus:u1');
+    expect(idempotencyKeys.cancel('p1')).toBe('cancel:p1');
   });
 
   it('repetir a chamada devolve a mesma chave', () => {
