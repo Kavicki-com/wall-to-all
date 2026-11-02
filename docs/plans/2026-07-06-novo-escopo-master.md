@@ -161,11 +161,41 @@ Evolução do fluxo atual de agendamento (PR #7). Domínio novo `BookingPaymentS
 
 **Dívidas registradas para a F8:** `MockBookingPaymentService` é em memória (o status some ao reiniciar o app e o detalhe cai no rótulo `payment_method`); F8: tabela de pagamentos + PSP + webhook · idempotência: cartão cobrado com insert do agendamento falhando deixa a cobrança sem estorno; F8: cobrança idempotente ou agendamento "aguardando pagamento" antes da captura · `schedule/date.tsx` morta, com `Tabs.Screen` órfão em `app/(client)/_layout.tsx` · `PaymentPixBottomSheet` mantém o próprio estado "Processando", duplicando `PaymentProcessingSheet`.
 
-### Fase 6 — Feed (lojista + cliente)
+### Fase 6: Feed (lojista + cliente) ✅ implementada (2026-11-02)
 
 **Lojista** (seção `2643:7837`): feed `2485:146` · feed-past-post `2563:5334` · record-video-post `2501:396` · preview-post `2502:396`
 
 **Cliente** (seção `2643:7838`): feed `2643:7839`
+
+Feed de vídeos e fotos das lojas (PR #9). Domínio novo `FeedService` em `lib/services/feedTypes.ts` (sem tocar `lib/services/types.ts`) + `MockFeedService` em memória com relógio injetável, injetado no `ServicesProvider` como `feed`. Uma tela compartilhada `FeedScreen` (prop `role`) atende as duas rotas: fila de stories (posts das últimas 24h, `StoryViewer` em modal), cards com vídeo tocando só no card mais visível, curtir, seguir, agendar (só cliente) e compartilhar. Lojista: "Seu story" abre a câmera (`expo-camera`, foto e vídeo até 30 s, galeria recusa vídeo acima de 30 s) e depois o preview (`PostComposer`), com serviço vinculado vindo do Supabase real e categorias do mock; publicar volta ao feed com o post no topo. Entradas: item "Feed" nos drawers e toque na `StoriesRow` da home do cliente. Sem dependência nova (`expo-camera`, `expo-video` e `expo-image-picker` já vinham da F0). Design e plano: `docs/plans/2026-11-02-f6-feed-design.md` e `-plan.md`.
+
+**Divergências deliberadas do Figma nesta fase:**
+
+| # | Divergência | Razão |
+|---|---|---|
+| 1 | Bottom nav visível no feed e no preview | O Figma não tem; as telas empurradas mantêm a tab bar (padrão F1 a F5). A câmera cobre tudo |
+| 2 | Preview com `AppHeader` (Voltar) | O Figma usa a top bar de hub (menu + sino); precedente F4 #4 |
+| 3 | "Seguindo" depois de seguir | Estado não desenhado |
+| 4 | Contagem "45,2k" | Figma "45.2k"; vírgula decimal do pt-BR |
+| 5 | Visualizador de story | Não desenhado; só tokens do tema |
+| 6 | "Agendar" oculto no lojista | O lojista não agenda na própria loja |
+| 7 | Legenda só no visualizador de story | O card do Figma não mostra legenda |
+| 8 | Estados de permissão negada, carregando, erro e vazio | Não desenhados |
+| 9 | Chips de categoria do mock | O Figma traz exemplos; a lista vem do `FeedService` |
+| 10 | Raio do card 16 e handle 16 | Medidas do Figma (o design doc previa 24 e 18) |
+| 11 | Anel do "Seu story" branco quando inativo | Figma (o design doc previa navy) |
+| 12 | Ícone de "Agendar" é `calendar-clock-outline` | Mais próximo do glifo do Figma |
+| 13 | Barra de progresso do story estática | Visualizador não desenhado; avanço por timer de 5 s em foto e fim do vídeo |
+| 14 | Galeria da câmera é um ícone | O Figma mostra a última mídia; ler a galeria pediria permissão extra |
+| 15 | Fundo da câmera em `colors.textPrimary` | Igual ao `content/dark` do Figma; sem token novo |
+| 16 | Preço do serviço vinculado com centavos ("R$ 80,00") | Figma "R$ 80"; `formatBRL` é o padrão do app |
+| 17 | "Alterar" abre lista inline com os serviços ativos | Seletor não desenhado |
+| 18 | Player do preview começa pausado e alterna play e pause | Estado tocando não desenhado |
+| 19 | Legenda e "Alterar" em Montserrat | O Figma usa Inter nesses textos |
+| 20 | Legenda com placeholder | O Figma mostra um texto de exemplo preenchido |
+| 21 | Falha ao carregar serviços avisa e publica sem vínculo | Estado não desenhado; não bloqueia a publicação |
+
+**Dívidas registradas para a F8:** `MockFeedService` em memória (posts, curtidas e "seguindo" somem ao reiniciar e não distinguem usuário) · mídia publicada é a URI local do dispositivo; F8: upload ao Supabase Storage (720p, até 30 s), capa gerada e posts persistidos · ids de loja das fixtures podem não existir no banco de dev ("Agendar" cai em "Loja não encontrada") · categorias do composer são lista fixa do mock · "Permitir downloads" e "Compartilhar com clientes vinculados" só são gravados, sem efeito · link do compartilhar provisório (sem deep link de post) · serviço vinculado é snapshot tirado na publicação · lista de serviços do composer sem paginação · `TODO(F6)` em `components/home/StoriesRow.tsx` ficou (fora do território; o toque já é ligado pela home).
 
 ### Fase 7 — Profile lojista + Assinatura
 
@@ -221,5 +251,6 @@ Assinatura (seção `2678:149`): subscription-offer `2678:150` · subscription-m
 | Plano da F3 (carteira/financeiro) | ✅ criado; F3 **implementada** (2026-07-10), mock-first (WalletService estendido); suíte 350/350, typecheck e lint (0 erros) limpos. Pendente: QA em dispositivo + fidelidade visual vs Figma (`2715:3681`, `2602:5991`, `2715:3711`). Débitos de fidelidade: cadastro de cartão sem CPF/débito-crédito, chave Pix sem "padrão"/verificação, a casar com o backend na F8. **Débito do saque sem resumo de taxa: FECHADO na F4** (Task 5), com o withdraw do Financeiro retrofitado no `WithdrawFlow` compartilhado. Aberto na F4: o wrapper do saque do Financeiro não tem `catch` na carga (ver § Fase 4). |
 | Plano da F4 (QI) | ✅ criado; F4 **implementada** (2026-08-17), mock-first (`QiService` + `MockQiService`, fixtures do Figma); suíte 463/463 em 57 suítes, typecheck 0 erros, lint sem nenhum problema novo (o único warning em arquivo tocado é pré-existente, commit `4a33246f`). Referral legado **removido por completo**, incluindo o campo de código no signup: `git grep -ri referral` em `app/ components/ lib/ __tests__/` retorna zero hits, e a captação real de indicação só volta na F8. Fecha o débito do resumo de taxa da F3. Pendente: QA em dispositivo (cliente e lojista: QI → detalhes → como funciona → saque com saldo atualizado; financeiro com resumo de taxa; signup sem campo de código) + revisão de fidelidade visual vs Figma (`2628:6934`, `2606:5475`, `2628:7149`, `2628:7226`, `2715:3711`), contra a tabela de 12 divergências deliberadas da § Fase 4. |
 | Design doc + plano da F5 (agendamento com pagamento) | ✅ criado; F5 **implementada** (2026-11-02, PR #7), mock-first (`BookingPaymentService` + `MockBookingPaymentService`); suíte 525/525 em 69 suítes, typecheck 0 erros, lint sem nenhum problema novo. Pendente: QA em dispositivo (home → loja → serviço → hora → confirmar com cartão, Pix, pagar na hora com Dinheiro, cartão recusado; detalhe com a linha de status) + revisão de fidelidade visual vs Figma (`2663:7158`, `2663:7678`, `2663:7937`, `2663:8034`, `2668:18327`, `2663:8057`), contra a tabela de 16 divergências deliberadas da § Fase 5. |
+| Design doc + plano da F6 (feed) | ✅ criado; F6 **implementada** (2026-11-02, PR #9), mock-first (`FeedService` + `MockFeedService`); suíte 640/640 em 82 suítes, typecheck 0 erros, lint sem nenhum problema novo. Sem rebuild do dev client, desde que o instalado seja posterior à F0. Pendente: QA em dispositivo (cliente: home → story → feed → curtir, seguir, agendar, compartilhar; lojista: feed → Seu story → vídeo de 30 s e foto → galeria com vídeo longo → preview → publicar → post no topo) + revisão de fidelidade visual vs Figma (`2485:146`, `2643:7839`, `2501:396`, `2502:396`), contra a tabela de 21 divergências deliberadas da § Fase 6. |
 | Design doc + plano das demais fases | imediatamente antes de cada fase |
 | Plano da F8 (integração) | ao final da F7, com PSP decidido |
