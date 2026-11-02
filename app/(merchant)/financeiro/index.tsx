@@ -1,23 +1,17 @@
-// F3: dados 100% do WalletService mock; a unificação com o backend é F8.
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { format, parseISO } from 'date-fns';
 import { useWalletService } from '../../../context/ServicesContext';
 import { useNotifications } from '../../../context/NotificationContext';
-import type { PixKey, WalletEntry } from '../../../lib/services/types';
+import type { PayoutAccountStatus, PixKey, WalletEntry } from '../../../lib/services/types';
 import { HomeTopBar } from '../../../components/home/HomeTopBar';
 import { AppDrawer } from '../../../components/layout/AppDrawer';
 import { MERCHANT_DRAWER_ITEMS } from '../../../components/layout/merchantDrawerItems';
 import NotificationModal from '../../../components/notifications/NotificationModal';
 import { PixKeySection } from '../../../components/wallet/PixKeySection';
+import { PayoutOnboardingBanner } from '../../../components/wallet/PayoutOnboardingBanner';
+import { handleError } from '../../../lib/errorHandler';
 import { StatementTimeline } from '../../../components/wallet/StatementTimeline';
 import {
   EarningsLineChart,
@@ -115,6 +109,18 @@ const MerchantFinanceiroScreen: React.FC = () => {
   const [balanceCents, setBalanceCents] = useState(0);
   const [statement, setStatement] = useState<WalletEntry[]>([]);
   const [pixKeys, setPixKeys] = useState<PixKey[]>([]);
+  // F8: estado da conta de recebimento. null = desconhecido (sem aviso).
+  const [payoutStatus, setPayoutStatus] = useState<PayoutAccountStatus | null>(null);
+
+  // Carga separada do resto: falhar aqui não pode derrubar o Financeiro, só
+  // esconde o aviso. Também é o `onReturn` do aviso (relê ao voltar do form).
+  const loadPayoutStatus = useCallback(async () => {
+    try {
+      setPayoutStatus(await walletService.getPayoutAccountStatus());
+    } catch (error) {
+      handleError(error, 'general');
+    }
+  }, [walletService]);
 
   // Recarrega os três recursos ao focar (mount inclusive). Depois do primeiro
   // load, `loaded` permanece true — refocos só atualizam os dados, sem repor o
@@ -137,10 +143,11 @@ const MerchantFinanceiroScreen: React.FC = () => {
           if (active) setLoaded(true);
         }
       })();
+      void loadPayoutStatus();
       return () => {
         active = false;
       };
-    }, [walletService]),
+    }, [walletService, loadPayoutStatus]),
   );
 
   const sorted = useMemo(() => sortStatementDesc(statement), [statement]);
@@ -175,8 +182,7 @@ const MerchantFinanceiroScreen: React.FC = () => {
   // que "591,20" permaneça contíguo.
   const formattedBalance = formatBRL(balanceCents);
   const commaIndex = formattedBalance.lastIndexOf(',');
-  const balanceInt =
-    commaIndex === -1 ? formattedBalance : formattedBalance.slice(0, commaIndex);
+  const balanceInt = commaIndex === -1 ? formattedBalance : formattedBalance.slice(0, commaIndex);
   const balanceCentsPart = commaIndex === -1 ? '' : formattedBalance.slice(commaIndex);
 
   return (
@@ -214,6 +220,11 @@ const MerchantFinanceiroScreen: React.FC = () => {
 
           {/* Corpo com padding próprio (o hero sangra até as bordas). */}
           <View style={styles.body}>
+            {/* F8: aviso de ativação de recebimentos (some com a conta ativa). */}
+            {payoutStatus && payoutStatus !== 'active' ? (
+              <PayoutOnboardingBanner status={payoutStatus} onReturn={loadPayoutStatus} />
+            ) : null}
+
             {/* Chaves Pix — lista + botão "Adicionar chave Pix". */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Chaves Pix</Text>

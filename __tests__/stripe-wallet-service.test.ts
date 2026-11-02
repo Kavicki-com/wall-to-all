@@ -416,18 +416,30 @@ describe('StripeWalletService: lojista', () => {
     expect(quote.etaLabel).not.toBe('Até 24 horas');
   });
 
-  it('getPayoutAccountStatus e startPayoutOnboarding usam connect-onboarding', async () => {
+  it('getPayoutAccountStatus: pending relê na Stripe (sync); startPayoutOnboarding pede o link', async () => {
     mockInvoke
       .mockResolvedValueOnce({ data: { status: 'pending', chargesEnabled: false, payoutsEnabled: false, requirementsDue: [] }, error: null })
+      .mockResolvedValueOnce({ data: { status: 'active', chargesEnabled: true, payoutsEnabled: true, requirementsDue: [] }, error: null })
       .mockResolvedValueOnce({ data: { url: 'https://connect.stripe.com/setup/x' }, error: null });
     const svc = service();
 
-    await expect(svc.getPayoutAccountStatus()).resolves.toBe('pending');
+    await expect(svc.getPayoutAccountStatus()).resolves.toBe('active');
     await expect(svc.startPayoutOnboarding()).resolves.toEqual({ url: 'https://connect.stripe.com/setup/x' });
     expect(mockInvoke).toHaveBeenNthCalledWith(1, 'connect-onboarding', { method: 'GET' });
     expect(mockInvoke).toHaveBeenNthCalledWith(2, 'connect-onboarding', {
       method: 'POST',
+      body: { action: 'sync' },
+    });
+    expect(mockInvoke).toHaveBeenNthCalledWith(3, 'connect-onboarding', {
+      method: 'POST',
       body: { action: 'link' },
     });
+  });
+
+  it.each(['active', 'none'] as const)('getPayoutAccountStatus: %s não chama o sync', async (status) => {
+    mockInvoke.mockResolvedValueOnce({ data: { status }, error: null });
+
+    await expect(service().getPayoutAccountStatus()).resolves.toBe(status);
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
   });
 });

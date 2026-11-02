@@ -208,11 +208,21 @@ export class StripeWalletService implements WalletService {
 
   // ── conta de recebimento ─────────────────────────────────
 
+  /**
+   * Lê o status salvo; se está `pending`, relê na Stripe (`sync`). Na volta do
+   * formulário o webhook `account.updated` pode ainda não ter chegado, e sem o
+   * `sync` o aviso de ativação continuaria na tela. Conta ativa ou inexistente
+   * não custa chamada à Stripe.
+   */
   async getPayoutAccountStatus(): Promise<PayoutAccountStatus> {
-    const body = await invokeEdge<{ status: PayoutAccountStatus }>('connect-onboarding', {
+    const saved = await invokeEdge<{ status: PayoutAccountStatus }>('connect-onboarding', {
       method: 'GET',
     });
-    return body.status;
+    if (saved.status !== 'pending') return saved.status;
+    const synced = await invokeEdge<{ status: PayoutAccountStatus }>('connect-onboarding', {
+      body: { action: 'sync' },
+    });
+    return synced.status;
   }
 
   startPayoutOnboarding(): Promise<{ url: string }> {

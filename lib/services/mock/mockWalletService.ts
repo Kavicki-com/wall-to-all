@@ -390,8 +390,13 @@ export class MockWalletService implements WalletService {
     return computeWithdrawQuote(amountCents);
   }
 
-  async requestWithdraw(amountCents: number, pixKeyId: string): Promise<void> {
+  async requestWithdraw(
+    amountCents: number,
+    pixKeyId: string,
+    idempotencyKey?: string,
+  ): Promise<void> {
     await this.delay();
+    void idempotencyKey; // o mock não deduplica; a chave só importa no servidor.
     if (amountCents <= 0) {
       throw new Error('O valor do saque deve ser maior que zero.');
     }
