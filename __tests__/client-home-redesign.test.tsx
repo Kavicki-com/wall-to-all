@@ -234,6 +234,17 @@ describe('ClientHomeScreen (redesign)', () => {
     expect(mockPush).toHaveBeenCalledWith('/(client)/store/1');
   });
 
+  it('abre o feed com os stories da loja ao tocar num anel (F6)', async () => {
+    render(<ClientHomeScreen />);
+    await screen.findByText('Lojas em destaque');
+
+    fireEvent.press(screen.getByTestId('story-1'));
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/(client)/feed',
+      params: { businessId: '1' },
+    });
+  });
+
   it('mostra o "Preço médio" do card de destaque a partir do preço real do serviço', async () => {
     render(<ClientHomeScreen />);
     await screen.findByText('Lojas em destaque');

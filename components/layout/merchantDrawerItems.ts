@@ -25,6 +25,7 @@ const ITEMS_UP_TO_QI: DrawerItem[] = [
   { label: 'Início', route: '/(merchant)/home' },
   { label: 'Agenda', route: '/(merchant)/dashboard' },
   { label: 'Serviços', route: '/(merchant)/services' },
+  { label: 'Feed', route: '/(merchant)/feed' },
   { label: 'Financeiro', route: '/(merchant)/financeiro' },
   { label: 'QI', route: '/(merchant)/qi' },
 ];
