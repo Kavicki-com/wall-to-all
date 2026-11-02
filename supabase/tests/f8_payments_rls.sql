@@ -172,8 +172,10 @@ BEGIN
   END IF;
 
   -- Reserva Pix velha e não paga: cancela pagamento e agendamento; o resto fica.
+  -- `n` conta o banco inteiro (reservas de QA fora deste teste também caem,
+  -- e o ROLLBACK desfaz): as asserções abaixo olham só as linhas do teste.
   n := public.release_unpaid_appointments(interval '30 minutes');
-  IF n <> 1 THEN RAISE EXCEPTION 'FALHA: release_unpaid_appointments liberou % (esperado 1)', n; END IF;
+  IF n < 1 THEN RAISE EXCEPTION 'FALHA: release_unpaid_appointments liberou % (esperado >= 1)', n; END IF;
   IF (SELECT status FROM public.appointments WHERE id = (SELECT v FROM f8_ids WHERE k = 'appt_stale')) <> 'canceled' THEN
     RAISE EXCEPTION 'FALHA: agendamento velho nao cancelado';
   END IF;

@@ -20,7 +20,11 @@ export const idempotencyKeys = {
     }
     return `confirm:${requireId(paymentId, 'paymentId')}:${attempt}`;
   },
-  transfer: (withdrawalId: string) => `transfer:${requireId(withdrawalId, 'withdrawalId')}`,
+  /** Saque com vários transfers (um por cobrança alocada): `part` = id da alocação. */
+  transfer: (withdrawalId: string, part?: number) =>
+    part === undefined
+      ? `transfer:${requireId(withdrawalId, 'withdrawalId')}`
+      : `transfer:${requireId(withdrawalId, 'withdrawalId')}:${requireId(part, 'part')}`,
   payout: (withdrawalId: string) => `payout:${requireId(withdrawalId, 'withdrawalId')}`,
   reversal: (withdrawalId: string) => `reversal:${requireId(withdrawalId, 'withdrawalId')}`,
   account: (businessId: number) => `acct:${requireId(businessId, 'businessId')}`,
