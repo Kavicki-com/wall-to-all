@@ -92,6 +92,9 @@ export class StripeWalletService implements WalletService {
     return invokeEdge<PaymentCard[]>('payments-cards', { method: 'GET' });
   }
 
+  /** O cartão entra pelo CardField: a tela confirma o SetupIntent no SDK. */
+  readonly cardSetupConfirmsWithStripe = true;
+
   beginCardSetup(): Promise<{ setupIntentClientSecret: string }> {
     return invokeEdge('payments-cards', { body: { action: 'setup' } });
   }
@@ -100,11 +103,6 @@ export class StripeWalletService implements WalletService {
     return invokeEdge<PaymentCard>('payments-cards', {
       body: { action: 'complete', setupIntentId },
     });
-  }
-
-  /** Cadastro com número cru não existe aqui: o cartão entra pelo CardField (Task 14). */
-  async addCard(): Promise<PaymentCard> {
-    throw new Error('Cadastro de cartão usa beginCardSetup/completeCardSetup na Stripe.');
   }
 
   // ── cobranças ────────────────────────────────────────────

@@ -165,6 +165,12 @@ export interface WalletService {
   ): Promise<{ status: 'approved' | 'declined'; paymentId?: string }>;
   // pagamentos reais (F8)
   getPaymentStatus(paymentId: string): Promise<PaymentStatus>;
+  /**
+   * true: o SetupIntent precisa ser confirmado no SDK da Stripe (CardField)
+   * entre `beginCardSetup` e `completeCardSetup`. Mock: false, a tela completa
+   * direto (sem SDK nativo nem StripeProvider).
+   */
+  readonly cardSetupConfirmsWithStripe: boolean;
   beginCardSetup(): Promise<{ setupIntentClientSecret: string }>;
   completeCardSetup(setupIntentId: string): Promise<PaymentCard>;
   /** Lojista: estado da conta de recebimento. Mock: 'active'. */
@@ -172,7 +178,6 @@ export interface WalletService {
   /** Lojista: URL do formulário de ativação de recebimentos. */
   startPayoutOnboarding(): Promise<{ url: string }>;
   // cliente (F3)
-  addCard(input: { number: string; holderName: string; expiry: string; cvv: string }): Promise<PaymentCard>;
   getPixKeys(): Promise<PixKey[]>;
   addPixKey(input: { type: PixKeyType; value: string }): Promise<PixKey>;
   getStatement(): Promise<WalletEntry[]>;

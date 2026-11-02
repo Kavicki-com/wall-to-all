@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CardField, confirmSetupIntent } from '@stripe/stripe-react-native';
+import type { CardFieldInput } from '@stripe/stripe-react-native';
 import { useWalletService } from '../../../context/ServicesContext';
 import { Icon } from '../../../components/ui/Icon';
 import { CustomInput } from '../../../components/ui/CustomInput';
@@ -10,79 +12,61 @@ import { useToast } from '../../../components/ui/ToastProvider';
 import type { CardBrand, PaymentCard } from '../../../lib/services/types';
 import { colors } from '../../../lib/theme';
 
-// ── Helpers de máscara/derivação (sem lib nova — formatação manual) ─────────
-
-/** Remove tudo que não for dígito. */
-function onlyDigits(text: string): string {
-  return text.replace(/\D/g, '');
-}
-
-/** Agrupa os dígitos do número em blocos de 4: "4111111111111111" → "4111 1111 1111 1111". */
-function formatCardNumber(digits: string): string {
-  return digits.replace(/(.{4})/g, '$1 ').trim();
-}
-
-/** Formata os dígitos de validade como "MM/AA" (só insere a barra após 2 dígitos). */
-function formatExpiry(digits: string): string {
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-}
+const GENERIC_ERROR = 'Não foi possível adicionar o cartão.';
+const DECLINED_ERROR = 'Cartão recusado. Tente outro cartão.';
 
 /**
- * Deriva a bandeira pelo PRIMEIRO dígito do número — espelha o `deriveCardBrand`
- * do mock (não exportado para telas): 4 → Visa, 5 → Mastercard, 3 → Amex, senão
- * Elo. Usado só para o preview refletir a bandeira ao vivo enquanto se digita.
+ * Bandeira do `onCardChange` para o preview. O SDK manda string ("Visa",
+ * "MasterCard", "AmericanExpress") no evento nativo, mas o tipo declara um enum
+ * numérico: aceita os dois. O resto vira Elo, como no preview da F3.
  */
-function derivePreviewBrand(digits: string): CardBrand {
-  switch (digits[0]) {
-    case '4':
-      return 'visa';
-    case '5':
-      return 'mastercard';
-    case '3':
-      return 'amex';
-    default:
-      return 'elo';
-  }
+function previewBrand(brand: unknown): CardBrand {
+  const key = String(brand ?? '').toLowerCase();
+  if (key === 'visa' || key === '7') return 'visa';
+  if (key === 'mastercard' || key === '5') return 'mastercard';
+  if (key === 'amex' || key === 'americanexpress' || key === '1') return 'amex';
+  return 'elo';
+}
+
+/** Validade "MM/AA" do onCardChange (vazio enquanto não digitada). */
+function previewExpiry(card: CardFieldInput.Details | null): string {
+  if (!card || !card.expiryMonth || !card.expiryYear) return '';
+  const mm = String(card.expiryMonth).padStart(2, '0');
+  const yy = String(card.expiryYear % 100).padStart(2, '0');
+  return `${mm}/${yy}`;
+}
+
+/** id do SetupIntent a partir do client secret (`seti_x_secret_y` vira `seti_x`). */
+function setupIntentIdFromSecret(secret: string): string {
+  return secret.split('_secret_')[0];
+}
+
+/** Erro do SDK: "Cartão recusado" para card_declined, genérico nos demais. */
+function sdkErrorMessage(error: { stripeErrorCode?: string }): string {
+  return error.stripeErrorCode === 'card_declined' ? DECLINED_ERROR : GENERIC_ERROR;
+}
+
+/** Erro de serviço: copy pt-BR do PaymentsApiError; o resto vira genérico. */
+function serviceErrorMessage(err: unknown): string {
+  return err instanceof Error && err.name === 'PaymentsApiError' ? err.message : GENERIC_ERROR;
 }
 
 /**
- * Valida a validade `MM/AA` (decisão #4 do plano — SEM Luhn): exige 4 dígitos,
- * mês 01-12 e a competência (mês/ano) no FUTURO. Um cartão que vence NESTE mês
- * ainda é válido (comparação por ano+mês, não por dia). Retorna a mensagem de
- * erro pt-BR ou `undefined` quando válido.
- */
-function validateExpiry(digits: string): string | undefined {
-  if (digits.length !== 4) return 'Validade inválida';
-  const month = parseInt(digits.slice(0, 2), 10);
-  const year = 2000 + parseInt(digits.slice(2), 10);
-  if (month < 1 || month > 12) return 'Validade inválida';
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1; // getMonth() é 0-based
-  if (year < currentYear || (year === currentYear && month < currentMonth)) {
-    return 'Cartão vencido';
-  }
-  return undefined;
-}
-
-type FieldKey = 'number' | 'holderName' | 'expiry' | 'cvv';
-
-/**
- * Cadastro de novo cartão do cliente (Figma node 2660:6604).
+ * Cadastro de novo cartão do cliente (Figma node 2660:6604), F8 Task 14.
  *
- * Sub-tela navegável: usa o "Voltar" fantasma (mesma convenção da F1 —
- * settings do Aqui e Agora), sem a top bar navy do Figma. Mostra um preview ao
- * vivo do `CreditCard` (F0) refletindo número/nome/bandeira digitados, quatro
- * campos com máscara manual (número `0000 0000 0000 0000`, nome, validade
- * `MM/AA`, CVV) e a CTA "Salvar cartão".
+ * Os dados do cartão entram pelo `CardField` da Stripe: número, validade e CVV
+ * nunca passam pelo app nem pelo `WalletService` (PCI). Divergência do Figma:
+ * os três campos separados (número, validade, CVV) viraram um único campo
+ * nativo da Stripe, estilizado com os tokens do `CustomInput`. O nome continua
+ * num `CustomInput` próprio e vai como `billingDetails.name`.
  *
- * Validação leve (decisão #4 do plano — SEM Luhn), com erros pt-BR inline por
- * campo no estilo dos formulários de signup (mostrados no blur). A CTA fica
- * desabilitada enquanto o formulário é inválido OU está salvando. No sucesso,
- * `addCard` persiste no mock, dispara o toast e volta; a falha erra por toast.
- * Guarda de montagem no handler assíncrono (o usuário pode voltar durante o
- * save) + guarda contra duplo-submit.
+ * Fluxo: `beginCardSetup` (SetupIntent no servidor), `confirmSetupIntent` no
+ * SDK, `completeCardSetup` (anexa e devolve o cartão). No mock
+ * (`cardSetupConfirmsWithStripe` false) não há SDK: completa direto.
+ *
+ * O preview `CreditCard` usa só o que o `onCardChange` expõe (final, bandeira,
+ * validade). Guarda de duplo toque por ref (o state só muda no próximo render)
+ * e guarda de montagem para o setState depois do await.
  */
 const NewCardScreen: React.FC = () => {
   const router = useRouter();
@@ -90,17 +74,12 @@ const NewCardScreen: React.FC = () => {
   const walletService = useWalletService();
   const { showSuccess, showError } = useToast();
 
-  // Estado controlado — números guardam os dígitos CRUS; a exibição é mascarada.
-  const [number, setNumber] = useState('');
   const [holderName, setHolderName] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [cvv, setCvv] = useState('');
-  // Campos "tocados" (blur) — só então o erro do campo aparece (estilo signup).
-  const [touched, setTouched] = useState<Partial<Record<FieldKey, boolean>>>({});
+  const [holderTouched, setHolderTouched] = useState(false);
+  const [card, setCard] = useState<CardFieldInput.Details | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
-  // Guarda de montagem para o setState assíncrono do save (o handler não faz
-  // parte de um efeito; evita setState após unmount ao voltar durante o save).
   const mountedRef = useRef(true);
   useEffect(
     () => () => {
@@ -109,87 +88,72 @@ const NewCardScreen: React.FC = () => {
     [],
   );
 
-  // Erros por campo (recalculados a cada render — baratos). `undefined` = válido.
-  const errors = useMemo(
-    () => ({
-      number: number.length === 16 ? undefined : 'Número do cartão inválido',
-      holderName: holderName.trim().length > 0 ? undefined : 'Informe o nome no cartão',
-      expiry: validateExpiry(expiry),
-      cvv: cvv.length >= 3 && cvv.length <= 4 ? undefined : 'CVV inválido',
-    }),
-    [number, holderName, expiry, cvv],
-  );
+  const name = holderName.trim();
+  const holderError = name.length > 0 ? undefined : 'Informe o nome no cartão';
+  const isValid = !holderError && card?.complete === true;
 
-  const isValid = !errors.number && !errors.holderName && !errors.expiry && !errors.cvv;
-
-  // Cartão de preview: reflete bandeira (1º dígito), nome e últimos 4 ao vivo.
   const previewCard: PaymentCard = useMemo(
     () => ({
       id: 'preview',
-      brand: derivePreviewBrand(number),
-      last4: number.slice(-4) || '0000',
+      brand: previewBrand(card?.brand),
+      last4: card?.last4 || '0000',
       holderName: holderName || 'NOME DO TITULAR',
-      expiry: formatExpiry(expiry),
+      expiry: previewExpiry(card),
       isDefault: false,
     }),
-    [number, holderName, expiry],
+    [card, holderName],
   );
 
   const handleBack = useCallback(() => {
     router.back();
   }, [router]);
 
-  const markTouched = useCallback((field: FieldKey) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  }, []);
-
-  const handleNumberChange = useCallback((text: string) => {
-    setNumber(onlyDigits(text).slice(0, 16));
-  }, []);
-
-  const handleExpiryChange = useCallback((text: string) => {
-    setExpiry(onlyDigits(text).slice(0, 4));
-  }, []);
-
-  const handleCvvChange = useCallback((text: string) => {
-    setCvv(onlyDigits(text).slice(0, 4));
-  }, []);
-
   const handleHolderChange = useCallback((text: string) => {
     // Exibição em maiúsculas (coerente com as fixtures "MARIA SILVA").
     setHolderName(text.toUpperCase());
   }, []);
 
-  // Persiste o cartão: guarda contra duplo-submit e contra submit inválido;
-  // confirma por toast e volta, ou erra por toast. `finally` destrava o save.
-  const handleSubmit = useCallback(() => {
-    if (saving || !isValid) return;
+  const handleCardChange = useCallback((details: CardFieldInput.Details) => {
+    setCard(details);
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (savingRef.current || !isValid) return;
+    savingRef.current = true;
     setSaving(true);
-    walletService
-      .addCard({
-        number, // dígitos crus — o mock re-normaliza e deriva last4/bandeira.
-        holderName: holderName.trim(),
-        expiry: formatExpiry(expiry),
-        cvv,
-      })
-      .then(() => {
-        showSuccess('Cartão adicionado');
-        router.back();
-      })
-      .catch(() => {
-        showError('Não foi possível adicionar o cartão.');
-      })
-      .finally(() => {
-        // Guarda de montagem: o usuário pode ter voltado durante o save.
-        if (mountedRef.current) setSaving(false);
-      });
-  }, [saving, isValid, number, holderName, expiry, cvv, walletService, showSuccess, showError, router]);
+    try {
+      const { setupIntentClientSecret } = await walletService.beginCardSetup();
+      let setupIntentId = setupIntentIdFromSecret(setupIntentClientSecret);
+
+      if (walletService.cardSetupConfirmsWithStripe) {
+        const { setupIntent, error } = await confirmSetupIntent(setupIntentClientSecret, {
+          paymentMethodType: 'Card',
+          paymentMethodData: { billingDetails: { name } },
+        });
+        if (error) {
+          // Cancelado pelo usuário (ex.: desafio 3DS fechado): sem toast.
+          if (String(error.code) !== 'Canceled') showError(sdkErrorMessage(error));
+          return;
+        }
+        setupIntentId = setupIntent.id;
+      }
+
+      await walletService.completeCardSetup(setupIntentId);
+      showSuccess('Cartão adicionado');
+      router.back();
+    } catch (err) {
+      showError(serviceErrorMessage(err));
+    } finally {
+      savingRef.current = false;
+      if (mountedRef.current) setSaving(false);
+    }
+  }, [isValid, name, walletService, showSuccess, showError, router]);
 
   const disabled = !isValid || saving;
 
   return (
     <View style={styles.container}>
-      {/* Header: "Voltar" fantasma (afordância real de navegação — sub-tela). */}
+      {/* Header: "Voltar" fantasma (afordância real de navegação, sub-tela). */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable
           accessibilityRole="button"
@@ -214,66 +178,35 @@ const NewCardScreen: React.FC = () => {
           Insira os dados do seu cartão para usá-lo para pagamentos de serviços.
         </Text>
 
-        {/* Preview ao vivo do cartão (F0) — reflete nome, últimos 4 e bandeira. */}
+        {/* Preview (F0): final, bandeira e validade do onCardChange, mais o nome. */}
         <CreditCard card={previewCard} testID="card-preview" />
 
-        {/* Número do cartão — máscara "0000 0000 0000 0000". */}
-        <CustomInput
-          label="Número do cartão"
-          placeholder="0000 0000 0000 0000"
-          testID="input-number"
-          value={formatCardNumber(number)}
-          onChangeText={handleNumberChange}
-          onBlur={() => markTouched('number')}
-          keyboardType="numeric"
-          maxLength={19} // 16 dígitos + 3 espaços
-          error={touched.number ? errors.number : undefined}
-        />
-
-        {/* Validade + CVV lado a lado (espelha o Figma). */}
-        <View style={styles.row}>
-          <View style={styles.rowItem}>
-            <CustomInput
-              label="Validade"
-              placeholder="MM/AA"
-              testID="input-expiry"
-              value={formatExpiry(expiry)}
-              onChangeText={handleExpiryChange}
-              onBlur={() => markTouched('expiry')}
-              keyboardType="numeric"
-              maxLength={5} // MM/AA
-              error={touched.expiry ? errors.expiry : undefined}
-            />
-          </View>
-          <View style={styles.rowItem}>
-            <CustomInput
-              label="CVV"
-              placeholder="000"
-              testID="input-cvv"
-              value={cvv}
-              onChangeText={handleCvvChange}
-              onBlur={() => markTouched('cvv')}
-              keyboardType="numeric"
-              maxLength={4}
-              error={touched.cvv ? errors.cvv : undefined}
-            />
-          </View>
+        {/* Número, validade e CVV: campo nativo da Stripe (os dados não passam pelo app). */}
+        <View>
+          <Text style={styles.fieldLabel}>Dados do cartão</Text>
+          <CardField
+            testID="card-field"
+            postalCodeEnabled={false}
+            placeholders={{ number: '0000 0000 0000 0000', expiration: 'MM/AA', cvc: 'CVV' }}
+            cardStyle={CARD_STYLE}
+            style={styles.cardField}
+            onCardChange={handleCardChange}
+          />
         </View>
 
-        {/* Nome no cartão — texto livre, exibição em maiúsculas. */}
         <CustomInput
           label="Nome no cartão"
           placeholder="Nome do titular"
           testID="input-holder"
           value={holderName}
           onChangeText={handleHolderChange}
-          onBlur={() => markTouched('holderName')}
+          onBlur={() => setHolderTouched(true)}
           autoCapitalize="characters"
           maxLength={26}
-          error={touched.holderName ? errors.holderName : undefined}
+          error={holderTouched ? holderError : undefined}
         />
 
-        {/* CTA "Salvar cartão" — navy, radius 24, texto branco bold. */}
+        {/* CTA "Salvar cartão": navy, radius 24, texto branco bold. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Salvar cartão"
@@ -291,6 +224,20 @@ const NewCardScreen: React.FC = () => {
 };
 
 export default NewCardScreen;
+
+/** Tokens do CustomInput (Figma: borda cinza 1px, radius 4, Montserrat 16). */
+const CARD_STYLE: CardFieldInput.Styles = {
+  backgroundColor: colors.surface,
+  borderColor: colors.textSecondary,
+  borderWidth: 1,
+  borderRadius: 4,
+  textColor: colors.textPrimary,
+  placeholderColor: colors.textSecondary,
+  textErrorColor: colors.accent,
+  cursorColor: colors.brand,
+  fontSize: 16,
+  fontFamily: 'Montserrat_400Regular',
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -328,12 +275,15 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     textAlign: 'center',
   },
-  row: {
-    flexDirection: 'row',
-    columnGap: 12,
+  fieldLabel: {
+    fontFamily: 'Montserrat_400Regular',
+    fontSize: 12,
+    color: colors.brand,
+    marginBottom: 4,
   },
-  rowItem: {
-    flex: 1,
+  cardField: {
+    width: '100%',
+    height: 56,
   },
   // ── Salvar ───────────────────────────────────────────────
   saveButton: {

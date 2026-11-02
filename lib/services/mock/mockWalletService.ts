@@ -51,6 +51,8 @@ export interface MockWalletServiceOptions {
   pixAutoConfirm?: boolean;
   /** F8: estado da conta de recebimento do lojista. Default 'active'. */
   payoutStatus?: PayoutAccountStatus;
+  /** F8: finge o caminho da Stripe no cadastro de cartão (testes da tela). Default false. */
+  cardSetupConfirmsWithStripe?: boolean;
 }
 
 /** Cartão devolvido pelo completeCardSetup (o mock não vê os dados do cartão). */
@@ -205,6 +207,7 @@ export class MockWalletService implements WalletService {
   private nextSetupSeq = 1;
   private readonly pixAutoConfirm: boolean;
   private readonly payoutStatus: PayoutAccountStatus;
+  readonly cardSetupConfirmsWithStripe: boolean;
   /** Status por paymentId e paymentId por idempotencyKey (F8). */
   private readonly paymentStatuses = new Map<string, PaymentStatus>();
   private readonly paymentByKey = new Map<string, string>();
@@ -214,6 +217,7 @@ export class MockWalletService implements WalletService {
     this.latencyMs = options.latencyMs ?? 0;
     this.pixAutoConfirm = options.pixAutoConfirm ?? true;
     this.payoutStatus = options.payoutStatus ?? 'active';
+    this.cardSetupConfirmsWithStripe = options.cardSetupConfirmsWithStripe ?? false;
     this.cards = FIXTURE_CARDS.map((card) => ({ ...card }));
     this.pixKeys = FIXTURE_PIX_KEYS.map((key) => ({ ...key }));
     this.merchantStatement = FIXTURE_MERCHANT_STATEMENT.map((entry) => ({ ...entry }));
@@ -320,6 +324,10 @@ export class MockWalletService implements WalletService {
 
   // ── cliente (F3) ───────────────────────────────────────────
 
+  /**
+   * Cadastro com dados crus, só do mock (fora da interface desde a F8: o app
+   * cadastra pelo CardField + SetupIntent).
+   */
   async addCard(input: {
     number: string;
     holderName: string;
