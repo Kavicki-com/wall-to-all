@@ -91,7 +91,35 @@ export interface PixCharge {
   amountCents: number;
   /** ISO 8601 */
   expiresAt: string;
+  /** F8: id da cobrança (linha em `payments` na Stripe; fake no mock). */
+  paymentId?: string;
+  /** F8: PNG do QR gerado pela Stripe; null no mock (a UI usa o placeholder). */
+  qrImageUrl?: string | null;
 }
+
+// ── Pagamentos reais (F8) ──────────────────────────────────
+/** Para que serve a cobrança: o servidor confere o valor a partir disso. */
+export type PaymentPurpose =
+  | { kind: 'booking'; appointmentId: number }
+  | { kind: 'fura_fila'; merchantRef: string };
+
+export interface PaymentRequestContext {
+  purpose: PaymentPurpose;
+  /** `booking:{id}` no agendamento; `chk_...` por tentativa no fura-fila. Mesma chave = mesma cobrança. */
+  idempotencyKey: string;
+}
+
+export type PaymentStatus =
+  | 'requires_payment'
+  | 'requires_action'
+  | 'processing'
+  | 'succeeded'
+  | 'failed'
+  | 'canceled'
+  | 'refunded';
+
+/** Conta de recebimento do lojista: `active` só quando o saque está liberado. */
+export type PayoutAccountStatus = 'active' | 'pending' | 'none';
 
 // ── Chaves Pix, extrato e carteira do lojista (F3) ─────────
 export type PixKeyType = 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
@@ -122,12 +150,27 @@ export interface WalletEntry {
 
 export interface WalletService {
   getCards(): Promise<PaymentCard[]>;
-  createPixCharge(amountCents: number, description: string): Promise<PixCharge>;
+  /** `context` (F8): obrigatório na implementação Stripe; opcional no mock. */
+  createPixCharge(
+    amountCents: number,
+    description: string,
+    context?: PaymentRequestContext,
+  ): Promise<PixCharge>;
+  /** `approved` só quando a cobrança está paga de verdade (na Stripe, confirmado pelo banco). */
   payWithCard(
     cardId: string,
     amountCents: number,
     description: string,
-  ): Promise<{ status: 'approved' | 'declined' }>;
+    context?: PaymentRequestContext,
+  ): Promise<{ status: 'approved' | 'declined'; paymentId?: string }>;
+  // pagamentos reais (F8)
+  getPaymentStatus(paymentId: string): Promise<PaymentStatus>;
+  beginCardSetup(): Promise<{ setupIntentClientSecret: string }>;
+  completeCardSetup(setupIntentId: string): Promise<PaymentCard>;
+  /** Lojista: estado da conta de recebimento. Mock: 'active'. */
+  getPayoutAccountStatus(): Promise<PayoutAccountStatus>;
+  /** Lojista: URL do formulário de ativação de recebimentos. */
+  startPayoutOnboarding(): Promise<{ url: string }>;
   // cliente (F3)
   addCard(input: { number: string; holderName: string; expiry: string; cvv: string }): Promise<PaymentCard>;
   getPixKeys(): Promise<PixKey[]>;

@@ -293,3 +293,84 @@ describe('MockWalletService', () => {
     });
   });
 });
+
+describe('MockWalletService: contexto de pagamento (F8)', () => {
+  const booking = {
+    purpose: { kind: 'booking' as const, appointmentId: 77 },
+    idempotencyKey: 'booking:77',
+  };
+
+  it('createPixCharge com contexto devolve paymentId e qrImageUrl null', async () => {
+    const svc = new MockWalletService();
+    const pix = await svc.createPixCharge(1500, 'x', booking);
+    expect(pix.paymentId).toMatch(/^pay_mock_/);
+    expect(pix.qrImageUrl).toBeNull();
+  });
+
+  it('mesma idempotencyKey: mesmo paymentId', async () => {
+    const svc = new MockWalletService();
+    const a = await svc.createPixCharge(1500, 'x', booking);
+    const b = await svc.createPixCharge(1500, 'x', booking);
+    expect(b.paymentId).toBe(a.paymentId);
+  });
+
+  it('getPaymentStatus do Pix: succeeded por default, processing sem auto confirmação', async () => {
+    const auto = new MockWalletService();
+    const p1 = await auto.createPixCharge(1500, 'x', booking);
+    expect(await auto.getPaymentStatus(p1.paymentId!)).toBe('succeeded');
+
+    const manual = new MockWalletService({ pixAutoConfirm: false });
+    const p2 = await manual.createPixCharge(1500, 'x', booking);
+    expect(await manual.getPaymentStatus(p2.paymentId!)).toBe('processing');
+  });
+
+  it('getPaymentStatus de id desconhecido lança', async () => {
+    await expect(new MockWalletService().getPaymentStatus('nope')).rejects.toThrow();
+  });
+
+  it('payWithCard com contexto devolve paymentId e não cobra de novo a mesma chave aprovada', async () => {
+    const svc = new MockWalletService();
+    const first = await svc.payWithCard('card_visa_1', 6500, 'Corte', booking);
+    expect(first).toEqual({ status: 'approved', paymentId: expect.stringMatching(/^pay_mock_/) });
+    const again = await svc.payWithCard('card_visa_1', 6500, 'Corte', booking);
+    expect(again.paymentId).toBe(first.paymentId);
+    expect(svc.chargeCount).toBe(1);
+    expect(await svc.getPaymentStatus(first.paymentId!)).toBe('succeeded');
+  });
+
+  it('cartão recusado e nova tentativa na mesma chave: aprova no mesmo paymentId', async () => {
+    const svc = new MockWalletService();
+    const declined = await svc.payWithCard('card_desconhecido', 6500, 'Corte', booking);
+    expect(declined.status).toBe('declined');
+    expect(await svc.getPaymentStatus(declined.paymentId!)).toBe('failed');
+    const approved = await svc.payWithCard('card_visa_1', 6500, 'Corte', booking);
+    expect(approved).toEqual({ status: 'approved', paymentId: declined.paymentId });
+  });
+
+  it('payWithCard sem contexto mantém o contrato antigo', async () => {
+    const svc = new MockWalletService();
+    expect(await svc.payWithCard('card_visa_1', 6500, 'Corte')).toMatchObject({ status: 'approved' });
+  });
+
+  it('beginCardSetup e completeCardSetup', async () => {
+    const svc = new MockWalletService();
+    const { setupIntentClientSecret } = await svc.beginCardSetup();
+    expect(setupIntentClientSecret).toMatch(/^seti_mock_.+_secret_.+/);
+    const before = (await svc.getCards()).length;
+    const card = await svc.completeCardSetup('seti_mock_1');
+    expect(card.isDefault).toBe(false);
+    expect(await svc.getCards()).toHaveLength(before + 1);
+  });
+
+  it('getPayoutAccountStatus: active por default, configurável', async () => {
+    expect(await new MockWalletService().getPayoutAccountStatus()).toBe('active');
+    expect(await new MockWalletService({ payoutStatus: 'pending' }).getPayoutAccountStatus()).toBe(
+      'pending',
+    );
+  });
+
+  it('startPayoutOnboarding devolve uma URL https', async () => {
+    const { url } = await new MockWalletService().startPayoutOnboarding();
+    expect(url).toMatch(/^https:\/\//);
+  });
+});

@@ -82,3 +82,27 @@ describe('MockBookingPaymentService', () => {
     }
   });
 });
+
+describe('MockBookingPaymentService.cancelUnpaid (F8)', () => {
+  it('remove o registro não pago e é idempotente', async () => {
+    const svc = new MockBookingPaymentService();
+    await svc.recordPayment(77, {
+      status: 'pay_on_site',
+      method: 'cash',
+      amountCents: 6500,
+      cardLast4: null,
+      cardBrand: null,
+    });
+    await svc.cancelUnpaid(77);
+    expect(await svc.getPayment(77)).toBeNull();
+    await expect(svc.cancelUnpaid(77)).resolves.toBeUndefined();
+    await expect(svc.cancelUnpaid(999)).resolves.toBeUndefined();
+  });
+
+  it('não apaga pagamento já pago', async () => {
+    const svc = new MockBookingPaymentService();
+    await svc.recordPayment(78, PAID_CARD);
+    await svc.cancelUnpaid(78);
+    expect(await svc.getPayment(78)).toMatchObject({ status: 'paid' });
+  });
+});

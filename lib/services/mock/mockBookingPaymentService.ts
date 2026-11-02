@@ -56,6 +56,12 @@ export class MockBookingPaymentService implements BookingPaymentService {
     return record ? { ...record } : null;
   }
 
+  async cancelUnpaid(appointmentId: number): Promise<void> {
+    await this.delay();
+    const record = this.payments.get(appointmentId);
+    if (record && record.status !== 'paid') this.payments.delete(appointmentId);
+  }
+
   /**
    * Latência simulada: com latencyMs === 0 resolve via microtask para manter
    * os testes rápidos; com > 0 usa setTimeout de verdade.

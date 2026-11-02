@@ -1,6 +1,9 @@
 import type {
   CardBrand,
   PaymentCard,
+  PaymentRequestContext,
+  PaymentStatus,
+  PayoutAccountStatus,
   PixCharge,
   PixKey,
   PixKeyType,
@@ -44,7 +47,20 @@ const FAKE_BR_CODE =
 export interface MockWalletServiceOptions {
   /** Latência simulada (ms) das operações. Default 0 — ver SIMULATED_LATENCY_MS. */
   latencyMs?: number;
+  /** F8: Pix confirmado na hora (default true); false deixa em 'processing'. */
+  pixAutoConfirm?: boolean;
+  /** F8: estado da conta de recebimento do lojista. Default 'active'. */
+  payoutStatus?: PayoutAccountStatus;
 }
+
+/** Cartão devolvido pelo completeCardSetup (o mock não vê os dados do cartão). */
+const SETUP_FIXTURE_CARD: Omit<PaymentCard, 'id'> = {
+  brand: 'visa',
+  last4: '4242',
+  holderName: 'MARIA SILVA',
+  expiry: '12/30',
+  isDefault: false,
+};
 
 /** Dois cartões fixos: um Visa (default) e um Mastercard. */
 const FIXTURE_CARDS: readonly PaymentCard[] = [
@@ -185,9 +201,19 @@ export class MockWalletService implements WalletService {
   private nextCardSeq = 1;
   private nextPixSeq = 1;
   private nextEntrySeq = 1;
+  private nextPaymentSeq = 1;
+  private nextSetupSeq = 1;
+  private readonly pixAutoConfirm: boolean;
+  private readonly payoutStatus: PayoutAccountStatus;
+  /** Status por paymentId e paymentId por idempotencyKey (F8). */
+  private readonly paymentStatuses = new Map<string, PaymentStatus>();
+  private readonly paymentByKey = new Map<string, string>();
+  private charges = 0;
 
   constructor(options: MockWalletServiceOptions = {}) {
     this.latencyMs = options.latencyMs ?? 0;
+    this.pixAutoConfirm = options.pixAutoConfirm ?? true;
+    this.payoutStatus = options.payoutStatus ?? 'active';
     this.cards = FIXTURE_CARDS.map((card) => ({ ...card }));
     this.pixKeys = FIXTURE_PIX_KEYS.map((key) => ({ ...key }));
     this.merchantStatement = FIXTURE_MERCHANT_STATEMENT.map((entry) => ({ ...entry }));
@@ -201,16 +227,31 @@ export class MockWalletService implements WalletService {
     return this.cards.map((card) => ({ ...card }));
   }
 
-  async createPixCharge(amountCents: number, description: string): Promise<PixCharge> {
+  /** Só para teste: quantas cobranças de cartão foram de fato tentadas. */
+  get chargeCount(): number {
+    return this.charges;
+  }
+
+  async createPixCharge(
+    amountCents: number,
+    description: string,
+    context?: PaymentRequestContext,
+  ): Promise<PixCharge> {
     await this.delay();
     void description; // reservado para F3; não afeta o payload fake.
     const expiresAt = new Date(Date.now() + PIX_EXPIRY_MS).toISOString();
+    const paymentId = this.paymentFor(context);
+    if (this.paymentStatuses.get(paymentId) !== 'succeeded') {
+      this.paymentStatuses.set(paymentId, this.pixAutoConfirm ? 'succeeded' : 'processing');
+    }
     return {
       // qrCode é o MESMO payload EMV do copyPasteCode (não uma imagem/data-URI).
       qrCode: FAKE_BR_CODE,
       copyPasteCode: FAKE_BR_CODE,
       amountCents,
       expiresAt,
+      paymentId,
+      qrImageUrl: null,
     };
   }
 
@@ -218,12 +259,63 @@ export class MockWalletService implements WalletService {
     cardId: string,
     amountCents: number,
     description: string,
-  ): Promise<{ status: 'approved' | 'declined' }> {
+    context?: PaymentRequestContext,
+  ): Promise<{ status: 'approved' | 'declined'; paymentId?: string }> {
     await this.delay();
     void amountCents;
     void description;
+    const paymentId = this.paymentFor(context);
+    // Mesma chave já paga: não cobra de novo (espelha a idempotência do servidor).
+    if (this.paymentStatuses.get(paymentId) === 'succeeded') {
+      return { status: 'approved', paymentId };
+    }
+    this.charges += 1;
     const known = this.cards.some((card) => card.id === cardId);
-    return { status: known ? 'approved' : 'declined' };
+    this.paymentStatuses.set(paymentId, known ? 'succeeded' : 'failed');
+    return { status: known ? 'approved' : 'declined', paymentId };
+  }
+
+  // ── pagamentos reais (F8) ──────────────────────────────────
+
+  async getPaymentStatus(paymentId: string): Promise<PaymentStatus> {
+    await this.delay();
+    const status = this.paymentStatuses.get(paymentId);
+    if (!status) throw new Error(`Pagamento não encontrado: ${paymentId}`);
+    return status;
+  }
+
+  async beginCardSetup(): Promise<{ setupIntentClientSecret: string }> {
+    await this.delay();
+    const seq = this.nextSetupSeq++;
+    return { setupIntentClientSecret: `seti_mock_${seq}_secret_mock${seq}` };
+  }
+
+  async completeCardSetup(setupIntentId: string): Promise<PaymentCard> {
+    await this.delay();
+    void setupIntentId;
+    const card: PaymentCard = { ...SETUP_FIXTURE_CARD, id: `card_${this.nextCardSeq++}` };
+    this.cards.push(card);
+    return { ...card };
+  }
+
+  async getPayoutAccountStatus(): Promise<PayoutAccountStatus> {
+    await this.delay();
+    return this.payoutStatus;
+  }
+
+  async startPayoutOnboarding(): Promise<{ url: string }> {
+    await this.delay();
+    return { url: 'https://connect.stripe.com/setup/mock' };
+  }
+
+  /** paymentId da chave do contexto (o mesmo para a mesma chave); sem contexto, um novo. */
+  private paymentFor(context?: PaymentRequestContext): string {
+    const key = context?.idempotencyKey;
+    const existing = key ? this.paymentByKey.get(key) : undefined;
+    if (existing) return existing;
+    const paymentId = `pay_mock_${this.nextPaymentSeq++}`;
+    if (key) this.paymentByKey.set(key, paymentId);
+    return paymentId;
   }
 
   // ── cliente (F3) ───────────────────────────────────────────
