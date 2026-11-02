@@ -56,6 +56,9 @@ export const colors = {
   // Figma surface/info-light — fundo do active-alert (Aqui e Agora lojista). Compartilha
   // o valor com contentPrimaryLight (#A8BDFF) mas é um token DISTINTO do Figma: não unificar.
   surfaceInfoLight: '#A8BDFF',
+  // Figma "gradient" do feed (F6, 2485:146): topo do degradê de fundo, que
+  // termina em brand (#000E3D).
+  feedGradientTop: '#22305C',
 } as const;
 
 export type ColorKey = keyof typeof colors;
