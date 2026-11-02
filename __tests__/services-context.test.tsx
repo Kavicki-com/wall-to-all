@@ -14,6 +14,16 @@ import {
 import { MockQueueService } from '../lib/services/mock/mockQueueService';
 import { MockFeedService } from '../lib/services/mock/mockFeedService';
 import { renderWithProviders } from './test-utils';
+import { MockWalletService } from '../lib/services/mock/mockWalletService';
+import { StripeWalletService } from '../lib/services/stripe/stripeWalletService';
+import { getStripeConfig } from '../lib/payments/stripeConfig';
+
+// O StripeWalletService importa o cliente real; aqui só a classe importa.
+jest.mock('../lib/supabase', () => ({ supabase: {} }));
+jest.mock('../lib/payments/stripeConfig', () => ({
+  getStripeConfig: jest.fn(() => ({ provider: 'mock' })),
+}));
+const mockedGetStripeConfig = getStripeConfig as jest.MockedFunction<typeof getStripeConfig>;
 
 const Probe = () => {
   const { queue, wallet } = useServices();
@@ -185,5 +195,35 @@ describe('ServicesProvider', () => {
     unmount();
     expect(disposeSpy).toHaveBeenCalledTimes(1);
     disposeSpy.mockRestore();
+  });
+
+  describe('seleção da carteira por provedor (F8)', () => {
+    const WalletProbe = ({ onWallet }: { onWallet: (w: unknown) => void }) => {
+      onWallet(useWalletService());
+      return <Text>wallet</Text>;
+    };
+
+    afterEach(() => mockedGetStripeConfig.mockReturnValue({ provider: 'mock' }));
+
+    it('sem configuração Stripe usa o MockWalletService', () => {
+      let wallet: unknown;
+      render(
+        <ServicesProvider>
+          <WalletProbe onWallet={(w) => (wallet = w)} />
+        </ServicesProvider>,
+      );
+      expect(wallet).toBeInstanceOf(MockWalletService);
+    });
+
+    it('com provider stripe usa o StripeWalletService', () => {
+      mockedGetStripeConfig.mockReturnValue({ provider: 'stripe', publishableKey: 'pk_test_x' });
+      let wallet: unknown;
+      render(
+        <ServicesProvider>
+          <WalletProbe onWallet={(w) => (wallet = w)} />
+        </ServicesProvider>,
+      );
+      expect(wallet).toBeInstanceOf(StripeWalletService);
+    });
   });
 });

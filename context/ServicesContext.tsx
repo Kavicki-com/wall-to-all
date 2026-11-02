@@ -32,6 +32,7 @@ import {
   MockProfileStampsService,
   SIMULATED_LATENCY_MS as STAMPS_LATENCY_MS,
 } from '../lib/services/mock/mockProfileStampsService';
+import { getStripeConfig } from '../lib/payments/stripeConfig';
 
 interface ServicesContextType {
   queue: QueueService;
@@ -72,7 +73,7 @@ interface ServicesProviderProps {
  */
 export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, services }) => {
   const queueRef = useRef<MockQueueService | null>(null);
-  const walletRef = useRef<MockWalletService | null>(null);
+  const walletRef = useRef<WalletService | null>(null);
   const qiRef = useRef<MockQiService | null>(null);
   const bookingRef = useRef<MockBookingPaymentService | null>(null);
   const feedRef = useRef<MockFeedService | null>(null);
@@ -88,7 +89,17 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   // Só cria os singletons quando nenhum serviço é injetado.
   if (!services && queueRef.current === null) {
     queueRef.current = new MockQueueService({ latencyMs: QUEUE_LATENCY_MS });
-    walletRef.current = new MockWalletService({ latencyMs: WALLET_LATENCY_MS });
+    // F8: carteira real só com EXPO_PUBLIC_PAYMENTS_PROVIDER=stripe e
+    // publishable key válida; sem isso, o mock de sempre.
+    if (getStripeConfig().provider === 'stripe') {
+      // `require` só neste ramo: no modo mock o app (e o jest) não carrega o
+      // supabase-js nem o SDK da Stripe por causa da carteira.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const stripe = require('../lib/services/stripe/stripeWalletService') as typeof import('../lib/services/stripe/stripeWalletService');
+      walletRef.current = new stripe.StripeWalletService();
+    } else {
+      walletRef.current = new MockWalletService({ latencyMs: WALLET_LATENCY_MS });
+    }
     // O MockQiService não tem timers persistentes — dispensa dispose no unmount.
     qiRef.current = new MockQiService({ latencyMs: QI_LATENCY_MS });
     // Registro de pagamento dos agendamentos (F5): só um Map, dispensa dispose.

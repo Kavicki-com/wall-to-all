@@ -181,7 +181,11 @@ export interface WalletService {
   getMerchantStatement(): Promise<WalletEntry[]>;
   /** Cotação do saque (taxa/isenção) — mesma régua do QI (F4). */
   quoteWithdraw(amountCents: number): Promise<WithdrawQuote>;
-  requestWithdraw(amountCents: number, pixKeyId: string): Promise<void>;
+  /**
+   * `idempotencyKey` (F8): uma por tentativa de saque, reaproveitada no retry
+   * (o servidor retoma o mesmo saque). Sem ela, a implementação Stripe gera uma por chamada; o mock ignora.
+   */
+  requestWithdraw(amountCents: number, pixKeyId: string, idempotencyKey?: string): Promise<void>;
 }
 
 // ── QI: programa de indicações com cashback (F4) ───────────
