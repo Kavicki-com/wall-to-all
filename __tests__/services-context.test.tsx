@@ -6,6 +6,7 @@ import {
   useServices,
   useQueueService,
   useWalletService,
+  useBookingPaymentService,
 } from '../context/ServicesContext';
 import { MockQueueService } from '../lib/services/mock/mockQueueService';
 
@@ -50,6 +51,22 @@ describe('ServicesProvider', () => {
 
     expect(sameQueue).toBe(true);
     expect(sameWallet).toBe(true);
+  });
+
+  it('useBookingPaymentService throws outside provider and resolves inside', () => {
+    const BookingProbe = () => {
+      const booking = useBookingPaymentService();
+      return <Text>{typeof booking.getPayment === 'function' ? 'booking-ok' : 'missing'}</Text>;
+    };
+
+    expect(() => render(<BookingProbe />)).toThrow(/ServicesProvider/);
+
+    const { getByText } = render(
+      <ServicesProvider>
+        <BookingProbe />
+      </ServicesProvider>,
+    );
+    expect(getByText('booking-ok')).toBeTruthy();
   });
 
   it('disposes the queue service on unmount', () => {

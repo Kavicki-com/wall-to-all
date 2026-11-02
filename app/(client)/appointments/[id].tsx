@@ -22,6 +22,9 @@ import { safeGoBack } from '../../../lib/router-utils';
 import { logger } from '../../../lib/logger';
 import { Appointment, AppointmentRescheduleItem } from '../../../lib/types';
 import { useToast } from '../../../components/ui/ToastProvider';
+import { BookingPaymentStatusRow } from '../../../components/booking/BookingPaymentStatusRow';
+import { useBookingPaymentService } from '../../../context/ServicesContext';
+import type { BookingPayment, BookingPaymentMethod } from '../../../lib/services/bookingTypes';
 import { colors } from '../../../lib/theme';
 
 // Função auxiliar para converter string ISO para Date local, evitando problemas de timezone
@@ -76,7 +79,9 @@ const AppointmentDetailScreen: React.FC = () => {
   const [showRescheduleForm, setShowRescheduleForm] = useState(false);
   const [rescheduleReason, setRescheduleReason] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [payment, setPayment] = useState<BookingPayment | null>(null);
   const { showError, showSuccess, showWarning } = useToast();
+  const booking = useBookingPaymentService();
 
   const loadAppointment = React.useCallback(async () => {
     try {
@@ -162,6 +167,15 @@ const AppointmentDetailScreen: React.FC = () => {
 
         setAppointment(updatedAppointment);
 
+        // Status do pagamento (mock, F5). Falha aqui nunca derruba a tela:
+        // a linha cai no payment_method do appointment.
+        try {
+          setPayment(await booking.getPayment(appointmentData.id));
+        } catch (paymentError) {
+          logger.warn('Erro ao buscar pagamento do agendamento:', paymentError);
+          setPayment(null);
+        }
+
         // Log para debug - remover em produção se necessário
         logger.debug('[AppointmentDetail] Dados atualizados:', {
           start_time: updatedAppointment.start_time,
@@ -175,7 +189,7 @@ const AppointmentDetailScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [appointmentId]);
+  }, [appointmentId, booking]);
 
   useEffect(() => {
     loadAppointment();
@@ -537,6 +551,11 @@ const AppointmentDetailScreen: React.FC = () => {
           onPrimaryAction={handleContinueReschedule}
         />
       </View>
+
+      <BookingPaymentStatusRow
+        payment={payment}
+        fallbackMethod={(appointment.payment_method as BookingPaymentMethod | null) ?? null}
+      />
 
       {/* Accepted Reschedules - Mostrar apenas o último reagendamento aceito */}
       {appointment.accepted_reschedules &&

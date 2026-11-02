@@ -380,7 +380,7 @@ const SearchResultsScreen: React.FC = () => {
 
           {/* Title for Services List */}
           {services.length > 0 && (
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Principais serviços</Text>
+            <Text style={[styles.sectionTitle, styles.servicesTitle]}>Principais serviços</Text>
           )}
 
           {!hasResults && (
@@ -474,14 +474,19 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     backgroundColor: colors.background,
   },
+  // Figma 2663:7678: 16 entre a fileira de lojas e "Principais serviços"
+  // (vem do paddingBottom do businessRow, que também abre espaço para a sombra).
   section: {
-    marginBottom: 32,
+    marginBottom: 0,
   },
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
     color: colors.accent,
-    marginBottom: 16,
+    marginBottom: 10,
+  },
+  servicesTitle: {
+    marginBottom: 24,
   },
   // Horizontal row de BusinessCards
   businessRow: {
@@ -494,8 +499,9 @@ const styles = StyleSheet.create({
   servicesList: {
     marginBottom: 8,
   },
+  // 12 do último card + 4 + 8 do CustomButton = 24 do Figma.
   buttonWrapper: {
-    marginTop: 8,
+    marginTop: 4,
   },
   cylindricalButton: {
     borderRadius: 50, // Formato cilíndrico (metade da altura ou mais)

@@ -23,6 +23,23 @@ const MIN_SCALE = 0.85;
 const OPACITY_STEP = 0.08;
 const MIN_OPACITY = 0.7;
 
+/**
+ * Rank de profundidade ÚNICO por cartão: ordena os índices por distância ao
+ * ativo e, no empate (lados opostos de um activeIndex interior), pelo próprio
+ * índice. Assim nenhum par de cartões colapsa no mesmo transform/zIndex. Com
+ * activeIndex 0 o rank é o próprio índice (comportamento da F1 preservado).
+ */
+function depthRanks(count: number, activeIndex: number): number[] {
+  const order = Array.from({ length: count }, (_, i) => i).sort(
+    (a, b) => Math.abs(a - activeIndex) - Math.abs(b - activeIndex) || a - b,
+  );
+  const ranks = new Array<number>(count);
+  order.forEach((index, rank) => {
+    ranks[index] = rank;
+  });
+  return ranks;
+}
+
 export const CardsStack: React.FC<CardsStackProps> = ({
   cards,
   activeIndex = 0,
@@ -31,16 +48,12 @@ export const CardsStack: React.FC<CardsStackProps> = ({
   testID,
 }) => {
   const slotTestIdPrefix = testID ?? 'cards-stack';
+  const ranks = depthRanks(cards.length, activeIndex);
   return (
     <View testID={testID} style={[styles.container, style]}>
       {cards.map((card, index) => {
-        // Profundidade = distância ao cartão ativo; 0 = à frente.
-        // LIMITAÇÃO: com activeIndex INTERIOR e 3+ cartões, cartões em lados
-        // opostos recebem a mesma profundidade e colapsam (mesmo transform/zIndex).
-        // Aceitável para F1 (2 cartões, activeIndex 0). Revisitar na carteira F5
-        // (3+ cartões selecionáveis): trocar por uma cascata de distância COM
-        // sinal. Não reescrever o algoritmo agora — F1 não precisa.
-        const depth = Math.abs(index - activeIndex);
+        // Profundidade = rank do cartão; 0 = à frente.
+        const depth = ranks[index];
         const translateY = -depth * PEEK_OFFSET;
         const scale = Math.max(MIN_SCALE, 1 - depth * SCALE_STEP);
         const opacity = Math.max(MIN_OPACITY, 1 - depth * OPACITY_STEP);

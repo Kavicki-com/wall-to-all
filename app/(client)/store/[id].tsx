@@ -358,9 +358,11 @@ const styles = StyleSheet.create({
     gap: 0,
     zIndex: 1,
   },
+  // Figma 2663:7158: 16 entre o título "Serviços" e os cards, e 16 até os CTAs.
   servicesSection: {
     marginHorizontal: 24,
     marginBottom: 16,
+    gap: 16,
     zIndex: 1,
   },
   serviceCard: {
@@ -368,14 +370,15 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     marginHorizontal: 24,
-    marginTop: 16,
     marginBottom: 24,
     gap: 9,
     zIndex: 1,
   },
+  // marginVertical 0: o espaçamento entre os CTAs é só o gap 9 do Figma.
   primaryButton: {
     borderRadius: 24,
     height: 48,
+    marginVertical: 0,
     shadowColor: '#1D1D1D',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.24,
@@ -385,7 +388,7 @@ const styles = StyleSheet.create({
   outlineButton: {
     borderRadius: 24,
     height: 48,
-    marginTop: 0,
+    marginVertical: 0,
   },
   emptyServicesText: {
     fontSize: 14,

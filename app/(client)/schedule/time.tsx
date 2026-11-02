@@ -406,19 +406,20 @@ const ScheduleTimeScreen: React.FC = () => {
           onPressBack={() => safeGoBack('/(client)/home')}
         />
       }
-      footer={selectedTime ? (
+      footer={
+        // Figma 2663:7983: CTA sempre visível; sem horário escolhido fica azul claro.
         <View style={styles.footerContainer}>
           <CustomButton
-            compact
             title="Continuar"
             onPress={handleContinue}
             variant="primary"
+            disabled={selectedTime === null}
+            style={selectedTime === null ? styles.continueDisabled : undefined}
             accessibilityLabel="Continuar para confirmação do agendamento"
             accessibilityHint="Toque para continuar e confirmar o agendamento"
-
           />
         </View>
-      ) : undefined}
+      }
     >
       <Text style={styles.sectionTitle}>Próximos agendamentos</Text>
       {serviceName && (
@@ -626,5 +627,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     paddingTop: 12,
     paddingBottom: 20,
+  },
+  continueDisabled: {
+    backgroundColor: colors.surfacePrimaryLight,
+    borderColor: colors.surfacePrimaryLight,
+    opacity: 1,
   },
 });

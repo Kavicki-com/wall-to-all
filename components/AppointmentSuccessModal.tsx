@@ -7,43 +7,37 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
 } from 'react-native';
-import { IconCheckCircle } from '../lib/icons';
+import { Icon } from './ui/Icon';
 import { colors } from '../lib/theme';
+
+// Figma node 2663:8057: check verde, "Agendamento concluído" e "Fechar" como
+// link (button-ghost), sem botão preenchido.
 
 interface AppointmentSuccessModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-const AppointmentSuccessModal: React.FC<AppointmentSuccessModalProps> = ({
-  visible,
-  onClose,
-}) => {
+const AppointmentSuccessModal: React.FC<AppointmentSuccessModalProps> = ({ visible, onClose }) => {
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
             <View style={styles.modalContainer}>
               {/* Success Icon */}
-              <View style={styles.iconContainer}>
-                <IconCheckCircle size={67} color="#17723F" />
-              </View>
+              <Icon
+                name="check_circle"
+                family="MaterialSymbols"
+                size={40}
+                color={colors.surfaceSuccess}
+              />
 
               {/* Success Text */}
               <Text style={styles.successText}>Agendamento concluído</Text>
 
               {/* Close Button */}
-              <TouchableOpacity
-                style={styles.closeButton}
-                activeOpacity={0.8}
-                onPress={onClose}
-              >
+              <TouchableOpacity style={styles.closeButton} activeOpacity={0.8} onPress={onClose}>
                 <Text style={styles.closeButtonText}>Fechar</Text>
               </TouchableOpacity>
             </View>
@@ -59,7 +53,7 @@ export default AppointmentSuccessModal;
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -67,43 +61,33 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 16,
-    width: '100%',
-    maxWidth: 400,
+    width: 288,
+    maxWidth: '100%',
     alignItems: 'center',
     gap: 16,
-    shadowColor: '#1D1D1D',
+    shadowColor: colors.textPrimary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.24,
     shadowRadius: 16,
     elevation: 8,
-    marginHorizontal: 24,
-  },
-  iconContainer: {
-    width: 67,
-    height: 67,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   successText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: '#17723F',
+    color: colors.surfaceSuccess,
     textAlign: 'center',
   },
   closeButton: {
-    width: '100%',
-    backgroundColor: colors.brand,
+    alignSelf: 'stretch',
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
   },
   closeButtonText: {
     fontSize: 16,
     fontFamily: 'Montserrat_700Bold',
-    color: colors.surface,
+    color: colors.brand,
   },
 });
-
