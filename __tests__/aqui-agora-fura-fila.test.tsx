@@ -1,9 +1,10 @@
 import React from 'react';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import { renderWithProviders } from './test-utils';
 import { MockQueueService } from '../lib/services/mock/mockQueueService';
 import { formatBRL } from '../lib/formatters';
 import { DEFAULT_QUEUE_SETTINGS } from '../lib/services/mock/queueFixtures';
+import { MockWalletService } from '../lib/services/mock/mockWalletService';
 
 // expo-router mockado no escopo do módulo (o Jest iça o jest.mock acima dos
 // imports). `mockPush`/`mockReplace`/`mockBack` (prefixo `mock` exigido pelo
@@ -21,6 +22,13 @@ jest.mock('expo-router', () => ({
 // A TopBar consome useSafeAreaInsets; inset determinístico (igual top-bar.test.tsx).
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, bottom: 0, left: 0, right: 0 }),
+}));
+
+// SVGs viram objeto no Jest: stub do logo do PaymentProcessingSheet (F8: o sheet
+// Pix usa o "Processando" compartilhado da F5).
+jest.mock('../lib/assets', () => ({
+  ...jest.requireActual('../lib/assets'),
+  IconLoading: () => null,
 }));
 
 import FuraFilaScreen from '../app/(client)/aqui-agora/fura-fila';
@@ -115,5 +123,59 @@ describe('FuraFilaScreen (aqui e agora — seleção fura-fila)', () => {
     mockParams = { merchantId: 'nope' }; // id inexistente → tela de erro
     const { findByText } = renderWithProviders(<FuraFilaScreen />);
     await findByText('Não foi possível carregar este estabelecimento.');
+  });
+
+  describe('cobrança sem re-cobrar (F8)', () => {
+    async function payByCard(utils: ReturnType<typeof renderWithProviders>) {
+      fireEvent.press(await utils.findByText('Alterar'));
+      fireEvent.press(await utils.findByText('Confirmar e Pagar'));
+      await utils.findByText('•••• 4242');
+      fireEvent.press(utils.getByText('Concluir Pagamento'));
+    }
+
+    it('retries only joinQueue after an approved card when joining fails', async () => {
+      const queue = new MockQueueService({ latencyMs: 0 });
+      const joinSpy = jest
+        .spyOn(queue, 'joinQueue')
+        .mockRejectedValueOnce(new Error('fila indisponível'));
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      const paySpy = jest.spyOn(wallet, 'payWithCard');
+      const utils = renderWithProviders(<FuraFilaScreen />, { queue, wallet });
+
+      await payByCard(utils);
+      fireEvent.press(await utils.findByText('Tentar entrar na fila'));
+
+      await utils.findByText('Pagamento Realizado', {}, { timeout: 2000 });
+      expect(paySpy).toHaveBeenCalledTimes(1);
+      expect(joinSpy).toHaveBeenCalledTimes(2);
+      expect(paySpy.mock.calls[0][3]).toEqual({
+        purpose: { kind: 'fura_fila', merchantRef: 'm1' },
+        idempotencyKey: expect.stringMatching(/^chk_/),
+      });
+    });
+
+    it('uses the same key for every charge of the same attempt', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      const paySpy = jest
+        .spyOn(wallet, 'payWithCard')
+        .mockResolvedValueOnce({ status: 'declined', paymentId: 'p1' });
+      const utils = renderWithProviders(<FuraFilaScreen />, { wallet });
+
+      fireEvent.press(await utils.findByText('Alterar'));
+      fireEvent.press(await utils.findByText('Confirmar e Pagar'));
+      await utils.findByText('•••• 4242');
+      // A recusa resolve num microtask, fora do findBy.
+      await act(async () => {
+        fireEvent.press(utils.getByText('Concluir Pagamento'));
+      });
+      await utils.findByText('Pagamento recusado. Tente outro cartão.');
+      fireEvent.press(utils.getByText('Concluir Pagamento'));
+      await utils.findByText('Pagamento Realizado', {}, { timeout: 2000 });
+
+      const keys = paySpy.mock.calls.map((call) => call[3]?.idempotencyKey);
+      expect(keys).toHaveLength(2);
+      expect(keys[0]).toMatch(/^chk_/);
+      expect(keys[1]).toBe(keys[0]);
+    });
   });
 });

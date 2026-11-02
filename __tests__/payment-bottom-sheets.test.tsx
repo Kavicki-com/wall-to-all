@@ -11,6 +11,13 @@ import * as Clipboard from 'expo-clipboard';
 // espia `setStringAsync` para provar que "Copiar código PIX" copia o payload.
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
 
+// SVGs viram objeto no Jest: stub do logo do PaymentProcessingSheet (F8: o sheet
+// Pix usa o "Processando" compartilhado da F5).
+jest.mock('../lib/assets', () => ({
+  ...jest.requireActual('../lib/assets'),
+  IconLoading: () => null,
+}));
+
 // Cobrança Pix determinística (copyPasteCode distinto p/ asserção direta na UI).
 const PIX_CHARGE: PixCharge = {
   qrCode: '00020126QRPAYLOAD5204000053039865802BR6304QRQR',
@@ -94,7 +101,10 @@ describe('PaymentPixBottomSheet', () => {
     jest.useFakeTimers();
     fireEvent.press(confirm);
 
-    // O estado "Processando..." (node 2663:7091) pinta antes do onSuccess.
+    // O "Processando..." compartilhado (F5) pinta antes do onSuccess.
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(getByText('Processando seu pagamento...')).toBeTruthy();
     expect(onSuccess).not.toHaveBeenCalled();
 
@@ -150,7 +160,9 @@ describe('PaymentCardBottomSheet', () => {
     fireEvent.press(getByText('Concluir Pagamento'));
 
     // Default = cartão isDefault (Visa) → paga esse id.
-    await waitFor(() => expect(paySpy).toHaveBeenCalledWith('card_visa_1', AMOUNT, DESCRIPTION));
+    await waitFor(() =>
+      expect(paySpy).toHaveBeenCalledWith('card_visa_1', AMOUNT, DESCRIPTION, undefined),
+    );
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
   });
 
@@ -176,7 +188,7 @@ describe('PaymentCardBottomSheet', () => {
     fireEvent.press(getByText('Concluir Pagamento'));
 
     await waitFor(() =>
-      expect(paySpy).toHaveBeenCalledWith('card_mastercard_1', AMOUNT, DESCRIPTION),
+      expect(paySpy).toHaveBeenCalledWith('card_mastercard_1', AMOUNT, DESCRIPTION, undefined),
     );
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
   });
@@ -221,5 +233,201 @@ describe('PaymentCardBottomSheet', () => {
 
     expect(queryByText('Pagamento com cartão')).toBeNull();
     expect(cardsSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('PaymentPixBottomSheet (F8: confirmado pelo servidor)', () => {
+  const CTX = {
+    purpose: { kind: 'fura_fila' as const, merchantRef: 'm1' },
+    idempotencyKey: 'chk_teste123',
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+  afterEach(() => jest.useRealTimers());
+
+  function renderPix(wallet: MockWalletService, onSuccess = jest.fn(), pollIntervalMs?: number) {
+    const utils = renderWithProviders(
+      <PaymentPixBottomSheet
+        visible
+        amountCents={AMOUNT}
+        description={DESCRIPTION}
+        context={CTX}
+        onSuccess={onSuccess}
+        onClose={noop}
+        pollIntervalMs={pollIntervalMs}
+      />,
+      { wallet },
+    );
+    return { ...utils, onSuccess };
+  }
+
+  it('shows the Stripe QR image when there is one, else the placeholder', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0 });
+    jest
+      .spyOn(wallet, 'createPixCharge')
+      .mockResolvedValueOnce({ ...PIX_CHARGE, paymentId: 'p1', qrImageUrl: 'https://qr/x.png' });
+    const withImage = renderPix(wallet);
+    expect(await withImage.findByTestId('pix-qr-image')).toBeTruthy();
+    withImage.unmount();
+
+    const placeholder = renderPix(new MockWalletService({ latencyMs: 0 }));
+    await placeholder.findByText('Já realizei o pagamento');
+    expect(placeholder.queryByTestId('pix-qr-image')).toBeNull();
+    expect(placeholder.getByLabelText('QR Code do pagamento Pix')).toBeTruthy();
+  });
+
+  it('passes the context to createPixCharge', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0 });
+    const spy = jest.spyOn(wallet, 'createPixCharge');
+    const { findByText } = renderPix(wallet);
+    await findByText('Já realizei o pagamento');
+    expect(spy).toHaveBeenCalledWith(AMOUNT, DESCRIPTION, CTX);
+  });
+
+  it('polls the payment status and calls onSuccess once when it succeeds', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0, pixAutoConfirm: false });
+    const statusSpy = jest
+      .spyOn(wallet, 'getPaymentStatus')
+      .mockResolvedValueOnce('processing')
+      .mockResolvedValue('succeeded');
+    const { findByText, onSuccess } = renderPix(wallet, jest.fn(), 20);
+    await findByText('Já realizei o pagamento');
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    expect(onSuccess).toHaveBeenCalledWith(expect.stringMatching(/^pay_mock_/));
+    expect(statusSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    // Concluído: o polling para e o onSuccess não repete.
+    const calls = statusSpy.mock.calls.length;
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(statusSpy.mock.calls.length).toBe(calls);
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('"Já realizei o pagamento" checks now and warns when not paid yet', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0, pixAutoConfirm: false });
+    const statusSpy = jest.spyOn(wallet, 'getPaymentStatus');
+    const { findByText, getByText, onSuccess } = renderPix(wallet);
+
+    fireEvent.press(await findByText('Já realizei o pagamento'));
+    expect(await findByText('Ainda não identificamos o pagamento')).toBeTruthy();
+    expect(statusSpy).toHaveBeenCalledTimes(1);
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(getByText('Já realizei o pagamento')).toBeTruthy();
+  });
+
+  it('"Já realizei o pagamento" concludes when the server already has it', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0 });
+    const { findByText, onSuccess } = renderPix(wallet);
+    fireEvent.press(await findByText('Já realizei o pagamento'));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1), { timeout: 2000 });
+  });
+
+  it('stops polling when closed', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0, pixAutoConfirm: false });
+    const statusSpy = jest.spyOn(wallet, 'getPaymentStatus');
+    const onSuccess = jest.fn();
+    const utils = renderPix(wallet, onSuccess, 20);
+    await utils.findByText('Já realizei o pagamento');
+    await waitFor(() => expect(statusSpy).toHaveBeenCalled());
+
+    utils.rerender(
+      <PaymentPixBottomSheet
+        visible={false}
+        amountCents={AMOUNT}
+        description={DESCRIPTION}
+        context={CTX}
+        onSuccess={onSuccess}
+        onClose={noop}
+        pollIntervalMs={20}
+      />,
+    );
+    const calls = statusSpy.mock.calls.length;
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    });
+    expect(statusSpy.mock.calls.length).toBe(calls);
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe('PaymentCardBottomSheet (F8)', () => {
+  it('passes the context to payWithCard and the paymentId to onSuccess', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0 });
+    const paySpy = jest.spyOn(wallet, 'payWithCard');
+    const onSuccess = jest.fn();
+    const ctx = {
+      purpose: { kind: 'fura_fila' as const, merchantRef: 'm1' },
+      idempotencyKey: 'chk_teste123',
+    };
+    const { findByText, getByText } = renderWithProviders(
+      <PaymentCardBottomSheet
+        visible
+        amountCents={AMOUNT}
+        description={DESCRIPTION}
+        context={ctx}
+        onSuccess={onSuccess}
+        onClose={noop}
+      />,
+      { wallet },
+    );
+    await findByText('•••• 4242');
+    fireEvent.press(getByText('Concluir Pagamento'));
+    await waitFor(() =>
+      expect(paySpy).toHaveBeenCalledWith('card_visa_1', AMOUNT, DESCRIPTION, ctx),
+    );
+    await waitFor(() =>
+      expect(onSuccess).toHaveBeenCalledWith(expect.stringMatching(/^pay_mock_/)),
+    );
+  });
+});
+
+describe('PaymentCardBottomSheet (F8: erro da cobrança)', () => {
+  it('shows the payment error message instead of failing silently', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0 });
+    const timeout = Object.assign(
+      new Error('Ainda não confirmamos o pagamento. Tente de novo em instantes.'),
+      { name: 'PaymentsApiError' },
+    );
+    jest.spyOn(wallet, 'payWithCard').mockRejectedValue(timeout);
+    const onSuccess = jest.fn();
+    const { findByText, getByText } = renderWithProviders(
+      <PaymentCardBottomSheet
+        visible
+        amountCents={AMOUNT}
+        description={DESCRIPTION}
+        onSuccess={onSuccess}
+        onClose={noop}
+      />,
+      { wallet },
+    );
+    await findByText('•••• 4242');
+    await act(async () => {
+      fireEvent.press(getByText('Concluir Pagamento'));
+    });
+    expect(await findByText(/ainda não confirmamos o pagamento/i)).toBeTruthy();
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it('uses a generic message for unexpected errors', async () => {
+    const wallet = new MockWalletService({ latencyMs: 0 });
+    jest.spyOn(wallet, 'payWithCard').mockRejectedValue(new Error('TypeError interno xyz'));
+    const { findByText, getByText, queryByText } = renderWithProviders(
+      <PaymentCardBottomSheet
+        visible
+        amountCents={AMOUNT}
+        description={DESCRIPTION}
+        onSuccess={jest.fn()}
+        onClose={noop}
+      />,
+      { wallet },
+    );
+    await findByText('•••• 4242');
+    await act(async () => {
+      fireEvent.press(getByText('Concluir Pagamento'));
+    });
+    expect(await findByText('Não foi possível concluir o pagamento. Tente de novo.')).toBeTruthy();
+    expect(queryByText(/xyz/)).toBeNull();
   });
 });

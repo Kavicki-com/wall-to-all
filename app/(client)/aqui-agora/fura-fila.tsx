@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueueService, useWalletService } from '../../../context/ServicesContext';
-import type { PaymentCard } from '../../../lib/services/types';
+import type { PaymentCard, PaymentRequestContext } from '../../../lib/services/types';
+import { newCheckoutKey } from '../../../lib/payments/checkoutKey';
 import { TopBar } from '../../../components/layout/TopBar';
 import { Icon } from '../../../components/ui/Icon';
 import { IconCheckCircle, IconRadioFill, IconRadioNoFill } from '../../../lib/icons';
@@ -67,6 +68,13 @@ const FuraFilaScreen: React.FC = () => {
   // vive no sheet (Task 17); esta tela apenas o abre e reage ao onSuccess.
   const [openSheet, setOpenSheet] = useState<Method | null>(null);
   const [success, setSuccess] = useState(false);
+  // F8: uma chave por tentativa de checkout. Retries e troca de método reusam
+  // a mesma chave, então a mesma tentativa nunca vira duas cobranças.
+  const [checkoutKey, setCheckoutKey] = useState(newCheckoutKey);
+  // Cobrança já paga nesta tentativa: falha do joinQueue só repete o joinQueue.
+  const [paidPaymentId, setPaidPaymentId] = useState<string | null>(null);
+  const [joinFailed, setJoinFailed] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -87,6 +95,21 @@ const FuraFilaScreen: React.FC = () => {
   const feeCents = urgency === 'furar' ? (merchant?.queue.settings.furaFilaPriceCents ?? 0) : 0;
   const totalCents = SERVICE_BASE_CENTS + feeCents;
 
+  // Valor mudou antes de pagar (trocou a urgência): tentativa nova, chave nova
+  // (o servidor recusa a mesma chave com outro valor).
+  useEffect(() => {
+    if (!paidPaymentId) setCheckoutKey(newCheckoutKey());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalCents]);
+
+  const paymentContext = useMemo<PaymentRequestContext | undefined>(
+    () =>
+      merchant
+        ? { purpose: { kind: 'fura_fila', merchantRef: merchant.id }, idempotencyKey: checkoutKey }
+        : undefined,
+    [merchant, checkoutKey],
+  );
+
   const handleBack = useCallback(() => {
     router.back();
   }, [router]);
@@ -105,31 +128,44 @@ const FuraFilaScreen: React.FC = () => {
 
   // "Confirmar e Pagar" abre o sheet do método selecionado; o pagamento ocorre lá.
   const handleConfirm = useCallback(() => {
-    if (!merchant) return;
+    if (!merchant || paidPaymentId) return;
     setOpenSheet(method);
-  }, [merchant, method]);
+  }, [merchant, method, paidPaymentId]);
 
   const handleCloseSheet = useCallback(() => {
     setOpenSheet(null);
   }, []);
 
-  /**
-   * `onSuccess` dos bottom-sheets: fecha o sheet, entra na fila com o flag de
-   * urgência e abre o modal de sucesso. O pagamento já foi tratado no sheet.
-   * NB: se joinQueue falhar APÓS um pagamento de cartão aprovado, uma nova
-   * tentativa re-cobra o cartão. No mock isso é inócuo (nada rejeita), mas o
-   * fluxo real precisa de idempotência na cobrança / retry só do joinQueue (F3).
-   */
-  const handleSheetSuccess = useCallback(async () => {
+  /** Entra na fila. Falhou: mostra "Tentar entrar na fila" (sem cobrar de novo). */
+  const joinQueue = useCallback(async () => {
     if (!merchant) return;
-    setOpenSheet(null);
+    setJoining(true);
+    setJoinFailed(false);
     try {
       await queueService.joinQueue(merchant.id, { furaFila: urgency === 'furar' });
       setSuccess(true);
     } catch {
-      // Falha ao entrar na fila: sheet já fechado; o CTA segue disponível.
+      setJoinFailed(true);
+    } finally {
+      setJoining(false);
     }
   }, [merchant, urgency, queueService]);
+
+  /**
+   * `onSuccess` dos bottom-sheets: o pagamento já está confirmado. Guarda o
+   * `paymentId` (a tentativa está paga) e entra na fila. Se o joinQueue falhar,
+   * a nova tentativa só repete o joinQueue: a cobrança não se repete (F8,
+   * fecha a dívida F1/F3 de re-cobrança).
+   */
+  const handleSheetSuccess = useCallback(
+    async (paymentId?: string) => {
+      if (!merchant) return;
+      setOpenSheet(null);
+      setPaidPaymentId(paymentId ?? 'paid');
+      await joinQueue();
+    },
+    [merchant, joinQueue],
+  );
 
   const handleCloseSuccess = useCallback(() => {
     // `replace` (não `push`): ao voltar da senha não reexibe a tela/modal de
@@ -274,9 +310,30 @@ const FuraFilaScreen: React.FC = () => {
         </View>
 
         {/* CTA primário: abre o bottom-sheet de pagamento do método selecionado. */}
-        <Pressable accessibilityRole="button" style={styles.confirmButton} onPress={handleConfirm}>
-          <Text style={styles.confirmButtonText}>Confirmar e Pagar</Text>
-        </Pressable>
+        {paidPaymentId && joinFailed ? (
+          <>
+            <Text accessibilityLiveRegion="polite" style={styles.joinError}>
+              Pagamento confirmado, mas não conseguimos te colocar na fila.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.confirmButton}
+              onPress={() => void joinQueue()}
+              disabled={joining}
+              accessibilityState={{ disabled: joining, busy: joining }}
+            >
+              <Text style={styles.confirmButtonText}>Tentar entrar na fila</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            style={styles.confirmButton}
+            onPress={handleConfirm}
+          >
+            <Text style={styles.confirmButtonText}>Confirmar e Pagar</Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       {/* Bottom-sheets de pagamento (Task 17). Visível conforme o método aberto. */}
@@ -284,6 +341,7 @@ const FuraFilaScreen: React.FC = () => {
         visible={openSheet === 'pix'}
         amountCents={totalCents}
         description={paymentDescription}
+        context={paymentContext}
         onSuccess={handleSheetSuccess}
         onClose={handleCloseSheet}
       />
@@ -291,6 +349,7 @@ const FuraFilaScreen: React.FC = () => {
         visible={openSheet === 'card'}
         amountCents={totalCents}
         description={paymentDescription}
+        context={paymentContext}
         onSuccess={handleSheetSuccess}
         onClose={handleCloseSheet}
       />
@@ -610,6 +669,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_700Bold',
     fontSize: 16,
     color: colors.brand,
+  },
+  joinError: {
+    fontFamily: 'Montserrat_500Medium',
+    fontSize: 12,
+    color: colors.error,
+    textAlign: 'center',
   },
   confirmButton: {
     height: 48,
