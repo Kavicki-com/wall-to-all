@@ -145,6 +145,23 @@ export interface FeedService {
 | 8 | Estados de permissão negada, carregando, erro e vazio | Não desenhados |
 | 9 | Chips de categoria do mock | Figma mostra "Cabelo, Barba, Recuperação folicular, Corte máquina" como exemplo; a lista vem do `FeedService` |
 
+### 6.1 Divergências encontradas na execução (Tasks 4 a 11)
+
+| # | Divergência | Razão |
+|---|---|---|
+| 10 | Raio do card 16 e handle 16 | O Figma usa 16 nos dois; este doc previa 24 e 18. Vale o Figma |
+| 11 | Anel do "Seu story" branco quando inativo | Figma; este doc previa navy |
+| 12 | Ícone de "Agendar" é `calendar-clock-outline` | Mais próximo do glifo do Figma que `event` |
+| 13 | Barra de progresso do story estática (sem animação de preenchimento) | Visualizador não desenhado (#5); avanço por timer de 5 s em foto e `playToEnd` em vídeo |
+| 14 | Galeria da câmera é um ícone (`photo-library`) | O Figma mostra um gradiente de placeholder no lugar da última mídia; ler a galeria pediria permissão extra |
+| 15 | Fundo da câmera em `colors.textPrimary` | Igual ao Figma `content/dark` (#0F0F0F); sem token novo |
+| 16 | Preço do serviço vinculado "R$ 80,00 • 60 min" | Figma "R$ 80 • 60 min"; o app usa sempre `formatBRL` com centavos |
+| 17 | "Alterar" abre lista inline com os serviços ativos | Seletor não desenhado |
+| 18 | Player do preview começa pausado; o botão central alterna play e pause | Estado tocando não desenhado |
+| 19 | Legenda e "Alterar" em Montserrat | O Figma usa Inter nesses textos; o app usa só Montserrat |
+| 20 | Placeholder da legenda "Conte o que aparece no seu post..." | O Figma mostra um texto de exemplo preenchido |
+| 21 | Falha ao carregar serviços mostra "Não foi possível carregar seus serviços." e publica sem vínculo | Estado não desenhado (#8); não bloqueia a publicação |
+
 ## 7. Fluxos
 
 ```
@@ -201,3 +218,5 @@ Verificação: `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck`, `npx 
 - Categorias do composer são lista fixa do mock.
 - "Permitir downloads" e "Compartilhar com clientes vinculados" só são gravados; o efeito (download no card, notificação aos clientes vinculados) chega com o backend.
 - Link do compartilhar é provisório (sem deep link de post).
+- O serviço vinculado é um snapshot (nome, preço, duração) tirado na publicação; se o lojista mudar o serviço, o post mostra o valor antigo. A F8 decide entre snapshot e referência viva.
+- A lista de serviços do composer não pagina (`services` ativos da loja, por nome); serve enquanto o catálogo de cada loja for pequeno.
