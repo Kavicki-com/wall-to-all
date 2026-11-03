@@ -102,6 +102,17 @@ NOTA: Em builds do EAS, as credenciais devem ser configuradas via secrets.
     console.warn('[app.config] GOOGLE_MAPS_ANDROID_API_KEY not set — Android map will not render');
   }
 
+  // Pagamentos (F8): provedor e publishable key da Stripe. A secret key NUNCA
+  // entra no app (fica nos secrets das Edge Functions); barrar aqui evita
+  // embutir uma por engano no bundle.
+  const stripePublishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || undefined;
+  if (stripePublishableKey && /^(sk|rk)_/.test(stripePublishableKey)) {
+    throw new Error(
+      '[app.config] EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY contém uma secret key. Use a publishable key (pk_).',
+    );
+  }
+  const paymentsProvider = process.env.EXPO_PUBLIC_PAYMENTS_PROVIDER || 'mock';
+
   return {
     expo: {
       ...appJson.expo,
@@ -119,6 +130,8 @@ NOTA: Em builds do EAS, as credenciais devem ser configuradas via secrets.
         ...appJson.expo?.extra,
         supabaseUrl: finalSupabaseUrl,
         supabaseAnonKey: finalSupabaseAnonKey,
+        paymentsProvider,
+        stripePublishableKey,
         eas: {
           ...appJson.expo?.extra?.eas,
         },

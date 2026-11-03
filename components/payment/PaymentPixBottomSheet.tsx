@@ -6,21 +6,30 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Image,
   StyleSheet,
 } from 'react-native';
 import { Svg, Rect } from 'react-native-svg';
 import * as Clipboard from 'expo-clipboard';
 import { useWalletService } from '../../context/ServicesContext';
-import type { PixCharge } from '../../lib/services/types';
+import type { PaymentRequestContext, PixCharge } from '../../lib/services/types';
 import { colors } from '../../lib/theme';
 import { formatBRL } from '../../lib/formatters';
+import { PaymentProcessingSheet } from './PaymentProcessingSheet';
 
 export interface PaymentPixBottomSheetProps {
   visible: boolean;
   amountCents: number;
   description: string;
-  /** Chamado quando o usuário confirma que pagou (o pai fecha o sheet + segue o fluxo). */
-  onSuccess: () => void;
+  /** F8: finalidade e chave da cobrança (obrigatório na carteira Stripe). */
+  context?: PaymentRequestContext;
+  /**
+   * Pagamento confirmado pelo servidor (polling ou "Já realizei o pagamento").
+   * Recebe o `paymentId` da cobrança (ausente só numa cobrança sem id).
+   */
+  onSuccess: (paymentId?: string) => void;
+  /** Intervalo do polling do status enquanto o sheet está aberto. Default 2 s. */
+  pollIntervalMs?: number;
   /** Fecha o sheet (backdrop/arrasto). */
   onClose: () => void;
 }
@@ -31,8 +40,9 @@ export interface PaymentPixBottomSheetProps {
 const QR_MODULES = 21; // Malha do placeholder de QR (v1 clássico: 21×21 módulos).
 const QR_SIZE = 176; // Lado do QR renderizado (px).
 const HIT_SLOP = { top: 8, bottom: 8, left: 8, right: 8 };
-// Duração do estado "Processando..." (node 2663:7091) antes de sinalizar sucesso.
+// Duração do estado "Processando..." (node 2663:9149) antes de sinalizar sucesso.
 const PROCESSING_MS = 600;
+const DEFAULT_POLL_MS = 2000;
 
 /**
  * Constrói uma matriz booleana determinística a partir do payload (copia-e-cola)
@@ -107,49 +117,101 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
   visible,
   amountCents,
   description,
+  context,
   onSuccess,
   onClose,
+  pollIntervalMs = DEFAULT_POLL_MS,
 }) => {
   const wallet = useWalletService();
+  // O pai recria o objeto a cada render: a cobrança só é refeita quando a
+  // chave muda; o contexto mais recente vem pela ref.
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const contextKey = context?.idempotencyKey;
   const [charge, setCharge] = useState<PixCharge | null>(null);
   const [copied, setCopied] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [notYet, setNotYet] = useState(false);
   // Ref para o onSuccess mais recente (o timeout do "Processando..." dispara mais
   // tarde; sem ref capturaria um onSuccess velho). Timeout guardado p/ cancelar.
   const onSuccessRef = useRef(onSuccess);
   const processingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Conclui uma vez só (polling e o botão podem achar o pagamento juntos).
+  const finishedRef = useRef(false);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
 
   useEffect(() => {
     onSuccessRef.current = onSuccess;
   }, [onSuccess]);
 
-  // Ao abrir, cria a cobrança Pix (mock). Reseta o estado transitório a cada
-  // abertura; só busca quando visível (não desperdiça chamadas com o sheet fechado).
+  // Ao abrir, cria (ou retoma, mesma chave) a cobrança Pix. Reseta o estado
+  // transitório a cada abertura; só busca quando visível.
   useEffect(() => {
     if (!visible) return;
     let active = true;
+    finishedRef.current = false;
     setCharge(null);
     setCopied(false);
     setProcessing(false);
+    setNotYet(false);
     wallet
-      .createPixCharge(amountCents, description)
+      .createPixCharge(amountCents, description, contextRef.current)
       .then((result) => {
         if (active) setCharge(result);
       })
       .catch(() => {
         // Falha ao criar a cobrança deixa o sheet no estado de carregamento;
-        // fechar e reabrir tenta de novo (fluxo real detalha erros na F3).
+        // fechar e reabrir tenta de novo.
       });
     return () => {
       active = false;
-      // Cancela o timeout do "Processando..." se o sheet fechar antes de disparar
-      // (fechar pelo backdrop após confirmar não deve concluir o pagamento).
+      // Fechar antes do fim do "Processando..." não conclui o pagamento.
       if (processingTimeout.current) {
         clearTimeout(processingTimeout.current);
         processingTimeout.current = null;
       }
     };
-  }, [visible, wallet, amountCents, description]);
+  }, [visible, wallet, amountCents, description, contextKey]);
+
+  /** Mostra o "Processando..." compartilhado e só então avisa o pai. */
+  const finish = useCallback((paymentId?: string) => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    setProcessing(true);
+    processingTimeout.current = setTimeout(() => {
+      onSuccessRef.current(paymentId);
+    }, PROCESSING_MS);
+  }, []);
+
+  // Enquanto aberto, consulta o status no servidor (o webhook grava o pago).
+  // A primeira consulta espera um intervalo: o QR precisa ficar na tela.
+  const paymentId = charge?.paymentId;
+  useEffect(() => {
+    if (!visible || !paymentId) return;
+    let active = true;
+    let inFlight = false;
+    const timer = setInterval(() => {
+      if (inFlight || finishedRef.current) return;
+      inFlight = true;
+      wallet
+        .getPaymentStatus(paymentId)
+        .then((status) => {
+          if (active && status === 'succeeded') finish(paymentId);
+        })
+        .catch(() => {
+          // Rede instável: a próxima consulta decide.
+        })
+        .finally(() => {
+          inFlight = false;
+        });
+    }, pollIntervalMs);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [visible, paymentId, wallet, pollIntervalMs, finish]);
 
   const handleCopy = useCallback(async () => {
     if (!charge) return;
@@ -157,18 +219,32 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
     setCopied(true);
   }, [charge]);
 
-  const handleConfirm = useCallback(() => {
-    // Mostra o estado "Processando..." do Figma (node 2663:7091) e só então
-    // sinaliza sucesso ao pai. O onSuccess é DEFERIDO (setTimeout) porque o pai
-    // zera `visible` de forma síncrona — sem o atraso o "Processando..." nunca
-    // pintaria. `onSuccessRef` evita capturar um onSuccess velho no timeout.
-    setProcessing(true);
-    processingTimeout.current = setTimeout(() => {
-      onSuccessRef.current();
-    }, PROCESSING_MS);
-  }, []);
+  // "Já realizei o pagamento" força uma consulta; nunca conclui sem o servidor.
+  const handleConfirm = useCallback(async () => {
+    if (!charge || checking) return;
+    const id = charge.paymentId;
+    if (!id) {
+      // Cobrança sem id (contrato antigo): não há o que consultar.
+      finish();
+      return;
+    }
+    setChecking(true);
+    setNotYet(false);
+    try {
+      const status = await wallet.getPaymentStatus(id);
+      if (!visibleRef.current) return;
+      if (status === 'succeeded') finish(id);
+      else setNotYet(true);
+    } catch {
+      if (visibleRef.current) setNotYet(true);
+    } finally {
+      setChecking(false);
+    }
+  }, [charge, checking, wallet, finish]);
 
   if (!visible) return null;
+
+  if (processing) return <PaymentProcessingSheet visible />;
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -186,59 +262,75 @@ export const PaymentPixBottomSheet: React.FC<PaymentPixBottomSheetProps> = ({
             Pagamento via PIX
           </Text>
 
-          {processing ? (
-            <View style={styles.processing}>
-              <ActivityIndicator color={colors.brand} size="large" />
-              <Text style={styles.processingText}>Processando seu pagamento...</Text>
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={styles.amountBlock}>
+              <Text style={styles.amount}>{formatBRL(amountCents)}</Text>
+              <Text style={styles.amountCaption}>Valor a pagar</Text>
             </View>
-          ) : (
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-              <View style={styles.amountBlock}>
-                <Text style={styles.amount}>{formatBRL(amountCents)}</Text>
-                <Text style={styles.amountCaption}>Valor a pagar</Text>
-              </View>
 
-              {charge ? (
-                <>
-                  <QrPlaceholder code={charge.qrCode} />
-                  <Text style={styles.instruction}>
-                    Escaneie o QR Code no app do seu banco ou copie o código abaixo.
-                  </Text>
-                  <View style={styles.codeBox}>
-                    <Text selectable style={styles.code}>
-                      {charge.copyPasteCode}
-                    </Text>
+            {charge ? (
+              <>
+                {charge.qrImageUrl ? (
+                  <View style={styles.qrBox}>
+                    <Image
+                      testID="pix-qr-image"
+                      source={{ uri: charge.qrImageUrl }}
+                      style={styles.qrImage}
+                      accessibilityRole="image"
+                      accessibilityLabel="QR Code do pagamento Pix"
+                    />
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Copiar código PIX"
-                    hitSlop={HIT_SLOP}
-                    style={styles.copyButton}
-                    onPress={handleCopy}
-                  >
-                    <Text style={styles.copyButtonText}>Copiar código PIX</Text>
-                  </Pressable>
-                  {copied ? (
-                    <Text accessibilityLiveRegion="polite" style={styles.copiedHint}>
-                      Código copiado!
-                    </Text>
-                  ) : null}
-                  <Pressable
-                    accessibilityRole="button"
-                    hitSlop={HIT_SLOP}
-                    style={styles.confirmButton}
-                    onPress={handleConfirm}
-                  >
-                    <Text style={styles.confirmButtonText}>Já realizei o pagamento</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <View style={styles.loading}>
-                  <ActivityIndicator color={colors.brand} />
+                ) : (
+                  <QrPlaceholder code={charge.qrCode} />
+                )}
+                <Text style={styles.instruction}>
+                  Escaneie o QR Code no app do seu banco ou copie o código abaixo.
+                </Text>
+                <View style={styles.codeBox}>
+                  <Text selectable style={styles.code}>
+                    {charge.copyPasteCode}
+                  </Text>
                 </View>
-              )}
-            </ScrollView>
-          )}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Copiar código PIX"
+                  hitSlop={HIT_SLOP}
+                  style={styles.copyButton}
+                  onPress={handleCopy}
+                >
+                  <Text style={styles.copyButtonText}>Copiar código PIX</Text>
+                </Pressable>
+                {copied ? (
+                  <Text accessibilityLiveRegion="polite" style={styles.copiedHint}>
+                    Código copiado!
+                  </Text>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  hitSlop={HIT_SLOP}
+                  style={styles.confirmButton}
+                  onPress={() => void handleConfirm()}
+                  disabled={checking}
+                  accessibilityState={{ disabled: checking, busy: checking }}
+                >
+                  {checking ? (
+                    <ActivityIndicator color={colors.white} />
+                  ) : (
+                    <Text style={styles.confirmButtonText}>Já realizei o pagamento</Text>
+                  )}
+                </Pressable>
+                {notYet ? (
+                  <Text accessibilityLiveRegion="polite" style={styles.notYetHint}>
+                    Ainda não identificamos o pagamento
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <View style={styles.loading}>
+                <ActivityIndicator color={colors.brand} />
+              </View>
+            )}
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -295,6 +387,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_500Medium',
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  qrImage: {
+    width: QR_SIZE,
+    height: QR_SIZE,
+  },
+  notYetHint: {
+    fontFamily: 'Montserrat_500Medium',
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   qrBox: {
     padding: 12,
@@ -357,17 +459,5 @@ const styles = StyleSheet.create({
   },
   loading: {
     paddingVertical: 40,
-  },
-  processing: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    rowGap: 16,
-    paddingVertical: 48,
-  },
-  processingText: {
-    fontFamily: 'Montserrat_700Bold',
-    fontSize: 16,
-    color: colors.textPrimary,
-    textAlign: 'center',
   },
 });

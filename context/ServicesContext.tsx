@@ -32,6 +32,7 @@ import {
   MockProfileStampsService,
   SIMULATED_LATENCY_MS as STAMPS_LATENCY_MS,
 } from '../lib/services/mock/mockProfileStampsService';
+import { getStripeConfig } from '../lib/payments/stripeConfig';
 
 interface ServicesContextType {
   queue: QueueService;
@@ -72,11 +73,11 @@ interface ServicesProviderProps {
  */
 export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, services }) => {
   const queueRef = useRef<MockQueueService | null>(null);
-  const walletRef = useRef<MockWalletService | null>(null);
-  const qiRef = useRef<MockQiService | null>(null);
-  const bookingRef = useRef<MockBookingPaymentService | null>(null);
+  const walletRef = useRef<WalletService | null>(null);
+  const qiRef = useRef<QiService | null>(null);
+  const bookingRef = useRef<BookingPaymentService | null>(null);
   const feedRef = useRef<MockFeedService | null>(null);
-  const subscriptionRef = useRef<MockSubscriptionService | null>(null);
+  const subscriptionRef = useRef<SubscriptionService | null>(null);
   const stampsRef = useRef<MockProfileStampsService | null>(null);
 
   // NOTA: as instâncias default são criadas aqui no render (lazy via ref) e o
@@ -88,15 +89,40 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   // Só cria os singletons quando nenhum serviço é injetado.
   if (!services && queueRef.current === null) {
     queueRef.current = new MockQueueService({ latencyMs: QUEUE_LATENCY_MS });
-    walletRef.current = new MockWalletService({ latencyMs: WALLET_LATENCY_MS });
-    // O MockQiService não tem timers persistentes — dispensa dispose no unmount.
-    qiRef.current = new MockQiService({ latencyMs: QI_LATENCY_MS });
-    // Registro de pagamento dos agendamentos (F5): só um Map, dispensa dispose.
-    bookingRef.current = new MockBookingPaymentService({ latencyMs: BOOKING_LATENCY_MS });
+    // F8: carteira e agendamento reais só com EXPO_PUBLIC_PAYMENTS_PROVIDER=stripe
+    // e publishable key válida; sem isso, os mocks de sempre.
+    if (getStripeConfig().provider === 'stripe') {
+      // `require` só neste ramo: no modo mock o app (e o jest) não carrega o
+      // supabase-js nem o SDK da Stripe por causa dos pagamentos.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const wallet = require('../lib/services/stripe/stripeWalletService') as typeof import('../lib/services/stripe/stripeWalletService');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const booking = require('../lib/services/stripe/stripeBookingPaymentService') as typeof import('../lib/services/stripe/stripeBookingPaymentService');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const qi = require('../lib/services/stripe/stripeQiService') as typeof import('../lib/services/stripe/stripeQiService');
+      const stripeWallet = new wallet.StripeWalletService();
+      walletRef.current = stripeWallet;
+      bookingRef.current = new booking.StripeBookingPaymentService();
+      // QI híbrido (Task 16): saldo e saque reais, o resto do MockQiService.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const subscription = require('../lib/services/stripe/stripeSubscriptionService') as typeof import('../lib/services/stripe/stripeSubscriptionService');
+      // Assinatura do lojista no Stripe Billing (Task 17).
+      subscriptionRef.current = new subscription.StripeSubscriptionService();
+      qiRef.current = new qi.StripeQiService({
+        base: new MockQiService({ latencyMs: QI_LATENCY_MS }),
+        businessId: () => stripeWallet.currentBusinessId(),
+      });
+    } else {
+      walletRef.current = new MockWalletService({ latencyMs: WALLET_LATENCY_MS });
+      // Registro de pagamento dos agendamentos (F5): só um Map, dispensa dispose.
+      bookingRef.current = new MockBookingPaymentService({ latencyMs: BOOKING_LATENCY_MS });
+      // O MockQiService não tem timers persistentes, dispensa dispose no unmount.
+      qiRef.current = new MockQiService({ latencyMs: QI_LATENCY_MS });
+    }
     // Feed (F6): estado em memória sem timers, dispensa dispose.
     feedRef.current = new MockFeedService({ latencyMs: FEED_LATENCY_MS });
     // Assinatura do lojista (F7): estado em memória sem timers, dispensa dispose.
-    subscriptionRef.current = new MockSubscriptionService({ latencyMs: SUBSCRIPTION_LATENCY_MS });
+    subscriptionRef.current ??= new MockSubscriptionService({ latencyMs: SUBSCRIPTION_LATENCY_MS });
     // Selos do perfil do lojista (F7): lista fixa, dispensa dispose.
     stampsRef.current = new MockProfileStampsService({ latencyMs: STAMPS_LATENCY_MS });
   }

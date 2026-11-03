@@ -4,7 +4,11 @@
  * sem mudança de comportamento. Supabase mockado no escopo do módulo com um
  * builder encadeável por tabela (insert/select/eq/single).
  */
-import { BookingError, createAppointment } from '../lib/booking/createAppointment';
+import {
+  BookingError,
+  createAppointment,
+  notifyAppointmentCreated,
+} from '../lib/booking/createAppointment';
 import type { AppointmentDraft } from '../lib/booking/createAppointment';
 import { checkAppointmentConflicts } from '../lib/utils';
 import { notifyAppointmentRequested } from '../lib/notifications';
@@ -138,5 +142,26 @@ describe('createAppointment', () => {
   it('does not throw when the notification fails (best effort)', async () => {
     mockedNotify.mockRejectedValue(new Error('rls'));
     await expect(createAppointment(DRAFT)).resolves.toMatchObject({ id: 77 });
+  });
+
+  // F8: no pagamento online a reserva vem antes da cobrança e não notifica.
+  it('does not notify with notify: false', async () => {
+    const result = await createAppointment(DRAFT, { notify: false });
+    expect(result.id).toBe(77);
+    expect(mockInsert).toHaveBeenCalled();
+    expect(mockedNotify).not.toHaveBeenCalled();
+  });
+
+  it('notifyAppointmentCreated notifies the merchant of an existing reservation', async () => {
+    await notifyAppointmentCreated(DRAFT, { id: 77, startTime: expectedStart, endTime: expectedEnd });
+    expect(mockedNotify).toHaveBeenCalledWith('owner-9', 77, 'Ana', 'Corte', expectedStart);
+  });
+
+  it('notifyAppointmentCreated never throws (best effort)', async () => {
+    mockGetUser.mockRejectedValue(new Error('offline'));
+    await expect(
+      notifyAppointmentCreated(DRAFT, { id: 77, startTime: expectedStart, endTime: expectedEnd }),
+    ).resolves.toBeUndefined();
+    expect(mockedNotify).not.toHaveBeenCalled();
   });
 });

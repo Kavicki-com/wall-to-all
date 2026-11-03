@@ -91,7 +91,35 @@ export interface PixCharge {
   amountCents: number;
   /** ISO 8601 */
   expiresAt: string;
+  /** F8: id da cobrança (linha em `payments` na Stripe; fake no mock). */
+  paymentId?: string;
+  /** F8: PNG do QR gerado pela Stripe; null no mock (a UI usa o placeholder). */
+  qrImageUrl?: string | null;
 }
+
+// ── Pagamentos reais (F8) ──────────────────────────────────
+/** Para que serve a cobrança: o servidor confere o valor a partir disso. */
+export type PaymentPurpose =
+  | { kind: 'booking'; appointmentId: number }
+  | { kind: 'fura_fila'; merchantRef: string };
+
+export interface PaymentRequestContext {
+  purpose: PaymentPurpose;
+  /** `booking:{id}` no agendamento; `chk_...` por tentativa no fura-fila. Mesma chave = mesma cobrança. */
+  idempotencyKey: string;
+}
+
+export type PaymentStatus =
+  | 'requires_payment'
+  | 'requires_action'
+  | 'processing'
+  | 'succeeded'
+  | 'failed'
+  | 'canceled'
+  | 'refunded';
+
+/** Conta de recebimento do lojista: `active` só quando o saque está liberado. */
+export type PayoutAccountStatus = 'active' | 'pending' | 'none';
 
 // ── Chaves Pix, extrato e carteira do lojista (F3) ─────────
 export type PixKeyType = 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
@@ -122,14 +150,34 @@ export interface WalletEntry {
 
 export interface WalletService {
   getCards(): Promise<PaymentCard[]>;
-  createPixCharge(amountCents: number, description: string): Promise<PixCharge>;
+  /** `context` (F8): obrigatório na implementação Stripe; opcional no mock. */
+  createPixCharge(
+    amountCents: number,
+    description: string,
+    context?: PaymentRequestContext,
+  ): Promise<PixCharge>;
+  /** `approved` só quando a cobrança está paga de verdade (na Stripe, confirmado pelo banco). */
   payWithCard(
     cardId: string,
     amountCents: number,
     description: string,
-  ): Promise<{ status: 'approved' | 'declined' }>;
+    context?: PaymentRequestContext,
+  ): Promise<{ status: 'approved' | 'declined'; paymentId?: string }>;
+  // pagamentos reais (F8)
+  getPaymentStatus(paymentId: string): Promise<PaymentStatus>;
+  /**
+   * true: o SetupIntent precisa ser confirmado no SDK da Stripe (CardField)
+   * entre `beginCardSetup` e `completeCardSetup`. Mock: false, a tela completa
+   * direto (sem SDK nativo nem StripeProvider).
+   */
+  readonly cardSetupConfirmsWithStripe: boolean;
+  beginCardSetup(): Promise<{ setupIntentClientSecret: string }>;
+  completeCardSetup(setupIntentId: string): Promise<PaymentCard>;
+  /** Lojista: estado da conta de recebimento. Mock: 'active'. */
+  getPayoutAccountStatus(): Promise<PayoutAccountStatus>;
+  /** Lojista: URL do formulário de ativação de recebimentos. */
+  startPayoutOnboarding(): Promise<{ url: string }>;
   // cliente (F3)
-  addCard(input: { number: string; holderName: string; expiry: string; cvv: string }): Promise<PaymentCard>;
   getPixKeys(): Promise<PixKey[]>;
   addPixKey(input: { type: PixKeyType; value: string }): Promise<PixKey>;
   getStatement(): Promise<WalletEntry[]>;
@@ -138,7 +186,11 @@ export interface WalletService {
   getMerchantStatement(): Promise<WalletEntry[]>;
   /** Cotação do saque (taxa/isenção) — mesma régua do QI (F4). */
   quoteWithdraw(amountCents: number): Promise<WithdrawQuote>;
-  requestWithdraw(amountCents: number, pixKeyId: string): Promise<void>;
+  /**
+   * `idempotencyKey` (F8): uma por tentativa de saque, reaproveitada no retry
+   * (o servidor retoma o mesmo saque). Sem ela, a implementação Stripe gera uma por chamada; o mock ignora.
+   */
+  requestWithdraw(amountCents: number, pixKeyId: string, idempotencyKey?: string): Promise<void>;
 }
 
 // ── QI: programa de indicações com cashback (F4) ───────────
@@ -206,5 +258,11 @@ export interface QiService {
   getIndicacaoStatement(side: QiSide, id: string): Promise<QiStatementEntry[]>;
   getProgramRules(): Promise<QiProgramRules>;
   quoteWithdraw(amountCents: number): Promise<WithdrawQuote>;
-  requestQiWithdraw(side: QiSide, amountCents: number, pixKeyId: string): Promise<void>;
+  /** F8: `idempotencyKey` por tentativa (o retry com a mesma chave retoma o saque). */
+  requestQiWithdraw(
+    side: QiSide,
+    amountCents: number,
+    pixKeyId: string,
+    idempotencyKey?: string,
+  ): Promise<void>;
 }

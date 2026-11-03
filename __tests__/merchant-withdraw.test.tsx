@@ -15,7 +15,7 @@
  * REGEX nos dígitos ("100,00"), nunca pela string literal.
  */
 import React from 'react';
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { renderWithProviders } from './test-utils';
 import { ToastProvider } from '../components/ui/ToastProvider';
 import { MockWalletService } from '../lib/services/mock/mockWalletService';
@@ -40,6 +40,11 @@ jest.mock('expo-router', () => {
 // A tela usa useSafeAreaInsets no header "Voltar"; inset determinístico.
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, bottom: 0, left: 0, right: 0 }),
+}));
+
+// F8: o estado bloqueado tem o CTA de ativação (formulário hospedado).
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: jest.fn(async () => ({ type: 'cancel' })),
 }));
 
 import WithdrawScreen from '../app/(merchant)/financeiro/withdraw';
@@ -74,6 +79,8 @@ describe('WithdrawScreen (solicitar saque do lojista)', () => {
     fireEvent.changeText(getByTestId('input-amount'), '9999999');
 
     expect(getByTestId('btn-confirm-withdraw').props.accessibilityState.disabled).toBe(true);
+    // A cotação do valor digitado resolve depois: drena dentro de act.
+    await act(async () => {});
   });
 
   it('valor válido + chave selecionada → chama requestWithdraw e mostra o modal de sucesso; ao fechar, volta', async () => {
@@ -92,7 +99,9 @@ describe('WithdrawScreen (solicitar saque do lojista)', () => {
 
     fireEvent.press(getByTestId('btn-confirm-withdraw'));
 
-    await waitFor(() => expect(withdrawSpy).toHaveBeenCalledWith(10000, cpfKey.id));
+    await waitFor(() =>
+      expect(withdrawSpy).toHaveBeenCalledWith(10000, cpfKey.id, expect.stringMatching(/^chk_/)),
+    );
 
     // Modal de sucesso aparece.
     expect(await findByText('Saque solicitado')).toBeTruthy();
@@ -131,5 +140,85 @@ describe('WithdrawScreen (solicitar saque do lojista)', () => {
     expect(await findByText('Não foi possível solicitar o saque. Tente novamente.')).toBeTruthy();
     // Sem modal de sucesso.
     expect(queryByText('Saque solicitado')).toBeNull();
+  });
+
+  describe('F8: carga resiliente, conta inativa e idempotência', () => {
+    it('carga falhando: mensagem de erro, "Tentar novamente" recarrega e "Voltar" presente', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      const balanceSpy = jest
+        .spyOn(wallet, 'getMerchantBalanceCents')
+        .mockRejectedValueOnce(new Error('rede'));
+      const { findByText, getByTestId, findByTestId, queryByTestId } = renderScreen(wallet);
+
+      expect(await findByText('Não foi possível carregar os dados do saque.')).toBeTruthy();
+      expect(getByTestId('btn-back')).toBeTruthy();
+      expect(queryByTestId('btn-confirm-withdraw')).toBeNull();
+
+      await act(async () => fireEvent.press(getByTestId('btn-retry')));
+
+      expect(await findByTestId('btn-confirm-withdraw')).toBeTruthy();
+      expect(balanceSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('"Voltar" do estado de erro sai da tela', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      jest.spyOn(wallet, 'getPixKeys').mockRejectedValue(new Error('rede'));
+      const { findByText, getByTestId } = renderScreen(wallet);
+
+      await findByText('Não foi possível carregar os dados do saque.');
+      fireEvent.press(getByTestId('btn-back'));
+      expect(mockBack).toHaveBeenCalled();
+    });
+
+    it.each(['pending', 'none'] as const)(
+      'conta %s: formulário bloqueado e CTA de ativação',
+      async (payoutStatus) => {
+        const wallet = new MockWalletService({ latencyMs: 0, payoutStatus });
+        const { findByText, getByTestId, queryByTestId } = renderScreen(wallet);
+
+        expect(await findByText('Ative seus recebimentos')).toBeTruthy();
+        expect(getByTestId('btn-activate-payouts')).toBeTruthy();
+        expect(queryByTestId('btn-confirm-withdraw')).toBeNull();
+        expect(getByTestId('btn-back')).toBeTruthy();
+      },
+    );
+
+    it('retry depois de falha reusa a chave de idempotência', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      const [cpfKey] = await wallet.getPixKeys();
+      const spy = jest.spyOn(wallet, 'requestWithdraw').mockRejectedValueOnce(new Error('rede'));
+      const { findByTestId, getByTestId, findByText } = renderScreen(wallet);
+
+      fireEvent.changeText(await findByTestId('input-amount'), '10000');
+      fireEvent.press(getByTestId(`pix-option-${cpfKey.id}`));
+      await act(async () => fireEvent.press(getByTestId('btn-confirm-withdraw')));
+      await findByText('Não foi possível solicitar o saque. Tente novamente.');
+
+      await act(async () => fireEvent.press(getByTestId('btn-confirm-withdraw')));
+      await findByText('Saque solicitado');
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      const firstKey = spy.mock.calls[0][2];
+      expect(firstKey).toMatch(/^chk_/);
+      expect(spy.mock.calls[1][2]).toBe(firstKey);
+    });
+
+    it('mudar o valor depois de uma falha gera chave nova', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      const [cpfKey] = await wallet.getPixKeys();
+      const spy = jest.spyOn(wallet, 'requestWithdraw').mockRejectedValueOnce(new Error('rede'));
+      const { findByTestId, getByTestId, findByText } = renderScreen(wallet);
+
+      fireEvent.changeText(await findByTestId('input-amount'), '10000');
+      fireEvent.press(getByTestId(`pix-option-${cpfKey.id}`));
+      await act(async () => fireEvent.press(getByTestId('btn-confirm-withdraw')));
+      await findByText('Não foi possível solicitar o saque. Tente novamente.');
+
+      fireEvent.changeText(getByTestId('input-amount'), '20000');
+      await act(async () => fireEvent.press(getByTestId('btn-confirm-withdraw')));
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls[1][2]).not.toBe(spy.mock.calls[0][2]);
+    });
   });
 });

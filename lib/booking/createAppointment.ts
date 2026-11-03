@@ -49,13 +49,25 @@ export interface CreatedAppointment {
   endTime: string;
 }
 
+export interface CreateAppointmentOptions {
+  /**
+   * Notifica o lojista ao criar (default `true`). F8: o pagamento online
+   * reserva antes de cobrar com `false`; quem notifica depois é o webhook
+   * (Stripe) ou a tela via `notifyAppointmentCreated` (mock).
+   */
+  notify?: boolean;
+}
+
 /**
  * Cria o agendamento `pending` no Supabase (extraído de `schedule/confirm.tsx`
  * sem mudança de comportamento): valida horário e data, checa conflito, insere
  * em `appointments` e notifica o lojista em best-effort (falha de notificação
  * nunca bloqueia a criação).
  */
-export async function createAppointment(draft: AppointmentDraft): Promise<CreatedAppointment> {
+export async function createAppointment(
+  draft: AppointmentDraft,
+  { notify = true }: CreateAppointmentOptions = {},
+): Promise<CreatedAppointment> {
   const now = new Date();
   const startDate = new Date(`${draft.date}T${draft.time}:00`);
 
@@ -117,9 +129,30 @@ export async function createAppointment(draft: AppointmentDraft): Promise<Create
     throw new BookingError('insert_failed', processed.userMessage);
   }
 
-  await notifyMerchant(user.id, draft, appointmentData.id, startTime);
+  if (notify) {
+    await notifyMerchant(user.id, draft, appointmentData.id, startTime);
+  }
 
   return { id: appointmentData.id, startTime, endTime };
+}
+
+/**
+ * Notifica o lojista de uma reserva já criada com `notify: false` (pagamento
+ * online aprovado no modo mock, onde não há webhook). Best-effort: nunca lança.
+ */
+export async function notifyAppointmentCreated(
+  draft: AppointmentDraft,
+  created: CreatedAppointment,
+): Promise<void> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    await notifyMerchant(user.id, draft, created.id, created.startTime);
+  } catch (error) {
+    logger.warn('Erro ao notificar o lojista (não crítico):', error);
+  }
 }
 
 /** Notificação ao lojista. Best-effort: erros de RLS ou rede só viram log. */

@@ -29,7 +29,8 @@ export interface MockSubscriptionServiceOptions {
   now?: () => Date;
 }
 
-const PLAN: SubscriptionPlan = {
+/** Texto do plano único (Figma). O StripeSubscriptionService usa o mesmo texto com o preço do Price. */
+export const SUBSCRIPTION_PLAN: SubscriptionPlan = {
   id: 'plan_premium_monthly',
   name: 'Wall to All Premium',
   badge: 'PLANO ÚNICO',
@@ -45,6 +46,7 @@ const PLAN: SubscriptionPlan = {
     'Suporte prioritário ao lojista',
   ],
 };
+const PLAN = SUBSCRIPTION_PLAN;
 
 /** Dia do mês em que a assinatura semeada é cobrada (Figma: "14 jun 2026"). */
 const SEED_BILLING_DAY = 14;

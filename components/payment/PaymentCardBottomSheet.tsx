@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useWalletService } from '../../context/ServicesContext';
-import type { PaymentCard } from '../../lib/services/types';
+import type { PaymentCard, PaymentRequestContext } from '../../lib/services/types';
 import { colors } from '../../lib/theme';
 import { formatBRL } from '../../lib/formatters';
 import { CreditCard } from './CreditCard';
@@ -19,8 +19,10 @@ export interface PaymentCardBottomSheetProps {
   visible: boolean;
   amountCents: number;
   description: string;
-  /** Chamado quando o pagamento é aprovado (o pai fecha o sheet + segue o fluxo). */
-  onSuccess: () => void;
+  /** F8: finalidade e chave da cobrança (obrigatório na carteira Stripe). */
+  context?: PaymentRequestContext;
+  /** Pagamento aprovado (o pai fecha o sheet + segue o fluxo), com o id da cobrança. */
+  onSuccess: (paymentId?: string) => void;
   /** Fecha o sheet (backdrop/arrasto). */
   onClose: () => void;
 }
@@ -36,6 +38,7 @@ export const PaymentCardBottomSheet: React.FC<PaymentCardBottomSheetProps> = ({
   visible,
   amountCents,
   description,
+  context,
   onSuccess,
   onClose,
 }) => {
@@ -45,6 +48,7 @@ export const PaymentCardBottomSheet: React.FC<PaymentCardBottomSheetProps> = ({
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [declined, setDeclined] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Ao abrir, carrega os cartões salvos e pré-seleciona o default (isDefault) —
   // ou o primeiro. Só busca quando visível.
@@ -53,6 +57,7 @@ export const PaymentCardBottomSheet: React.FC<PaymentCardBottomSheetProps> = ({
     let active = true;
     setLoading(true);
     setDeclined(false);
+    setErrorMessage(null);
     setPaying(false);
     wallet
       .getCards()
@@ -80,25 +85,34 @@ export const PaymentCardBottomSheet: React.FC<PaymentCardBottomSheetProps> = ({
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
     setDeclined(false); // Trocar de cartão após uma recusa limpa a mensagem.
+    setErrorMessage(null);
   }, []);
 
   const handlePay = useCallback(async () => {
     if (paying || !selectedId) return;
     setPaying(true);
     setDeclined(false);
+    setErrorMessage(null);
     try {
-      const result = await wallet.payWithCard(selectedId, amountCents, description);
+      const result = await wallet.payWithCard(selectedId, amountCents, description, context);
       if (result.status === 'approved') {
-        onSuccess(); // Pai fecha o sheet; não reabilita o CTA aqui.
+        onSuccess(result.paymentId); // Pai fecha o sheet; não reabilita o CTA aqui.
         return;
       }
       // Recusado: mostra o estado e reabilita o CTA para tentar outro cartão.
       setDeclined(true);
       setPaying(false);
-    } catch {
+    } catch (err) {
+      // Erro de pagamento (F8) já vem com copy pt-BR; o resto vira genérico
+      // (nada técnico na tela). Repetir é seguro: mesma chave, mesma cobrança.
+      setErrorMessage(
+        err instanceof Error && err.name === 'PaymentsApiError'
+          ? err.message
+          : 'Não foi possível concluir o pagamento. Tente de novo.',
+      );
       setPaying(false);
     }
-  }, [paying, selectedId, wallet, amountCents, description, onSuccess]);
+  }, [paying, selectedId, wallet, amountCents, description, context, onSuccess]);
 
   if (!visible) return null;
 
@@ -149,6 +163,11 @@ export const PaymentCardBottomSheet: React.FC<PaymentCardBottomSheetProps> = ({
                 {declined ? (
                   <Text accessibilityLiveRegion="polite" style={styles.decline}>
                     Pagamento recusado. Tente outro cartão.
+                  </Text>
+                ) : null}
+                {errorMessage ? (
+                  <Text accessibilityLiveRegion="polite" style={styles.decline}>
+                    {errorMessage}
                   </Text>
                 ) : null}
 

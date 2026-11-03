@@ -153,7 +153,14 @@ describe('Saque do QI', () => {
     fireEvent.press(getByTestId('btn-confirm-withdraw'));
 
     // O lado ('client') é injetado pelo wrapper: é o que esta rota existe para fazer.
-    await waitFor(() => expect(withdrawSpy).toHaveBeenCalledWith('client', 5000, PIX_KEY_ID));
+    await waitFor(() =>
+      expect(withdrawSpy).toHaveBeenCalledWith(
+        'client',
+        5000,
+        PIX_KEY_ID,
+        expect.stringMatching(/^chk_/),
+      ),
+    );
 
     expect(await findByText('Saque solicitado')).toBeTruthy();
 
@@ -243,7 +250,14 @@ describe('Saque do QI', () => {
     await typeAmount(getByTestId('input-amount'), '5000');
     fireEvent.press(getByTestId('btn-confirm-withdraw'));
 
-    await waitFor(() => expect(withdrawSpy).toHaveBeenCalledWith('merchant', 5000, PIX_KEY_ID));
+    await waitFor(() =>
+      expect(withdrawSpy).toHaveBeenCalledWith(
+        'merchant',
+        5000,
+        PIX_KEY_ID,
+        expect.stringMatching(/^chk_/),
+      ),
+    );
     expect(await findByText('Saque solicitado')).toBeTruthy();
 
     // O saque debitou o saldo do QI do LOJISTA (8909 − 5000 = 3909), e o do

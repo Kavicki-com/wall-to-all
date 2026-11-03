@@ -387,13 +387,6 @@ export type Database = {
             referencedRelation: "referrals"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "commissions_referrer_id_fkey"
-            columns: ["referrer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
         ]
       }
       faq_entries: {
@@ -428,6 +421,70 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      ledger_entries: {
+        Row: {
+          account: Database["public"]["Enums"]["ledger_account"]
+          amount_cents: number
+          business_id: number | null
+          created_at: string
+          id: number
+          kind: Database["public"]["Enums"]["ledger_kind"]
+          payment_id: string | null
+          subtitle: string
+          title: string
+          user_id: string | null
+          withdrawal_id: string | null
+        }
+        Insert: {
+          account: Database["public"]["Enums"]["ledger_account"]
+          amount_cents: number
+          business_id?: number | null
+          created_at?: string
+          id?: number
+          kind: Database["public"]["Enums"]["ledger_kind"]
+          payment_id?: string | null
+          subtitle?: string
+          title: string
+          user_id?: string | null
+          withdrawal_id?: string | null
+        }
+        Update: {
+          account?: Database["public"]["Enums"]["ledger_account"]
+          amount_cents?: number
+          business_id?: number | null
+          created_at?: string
+          id?: number
+          kind?: Database["public"]["Enums"]["ledger_kind"]
+          payment_id?: string | null
+          subtitle?: string
+          title?: string
+          user_id?: string | null
+          withdrawal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_entries_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_entries_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_entries_withdrawal_id_fkey"
+            columns: ["withdrawal_id"]
+            isOneToOne: false
+            referencedRelation: "withdrawals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       legal_documents: {
         Row: {
@@ -464,6 +521,53 @@ export type Database = {
           version?: number
         }
         Relationships: []
+      }
+      merchant_accounts: {
+        Row: {
+          account_id: string
+          business_id: number
+          charges_enabled: boolean
+          created_at: string
+          details_submitted: boolean
+          disconnected_at: string | null
+          payouts_enabled: boolean
+          provider: string
+          requirements_due: Json
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          business_id: number
+          charges_enabled?: boolean
+          created_at?: string
+          details_submitted?: boolean
+          disconnected_at?: string | null
+          payouts_enabled?: boolean
+          provider?: string
+          requirements_due?: Json
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          business_id?: number
+          charges_enabled?: boolean
+          created_at?: string
+          details_submitted?: boolean
+          disconnected_at?: string | null
+          payouts_enabled?: boolean
+          provider?: string
+          requirements_due?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_accounts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -512,6 +616,120 @@ export type Database = {
           },
         ]
       }
+      payments: {
+        Row: {
+          amount_cents: number
+          appointment_id: number | null
+          card_brand: string | null
+          card_last4: string | null
+          confirm_attempts: number
+          created_at: string
+          failure_code: string | null
+          funds_flow: Database["public"]["Enums"]["funds_flow"]
+          id: string
+          idempotency_key: string
+          merchant_business_id: number | null
+          merchant_ref: string | null
+          method: Database["public"]["Enums"]["payment_method"]
+          paid_at: string | null
+          payer_id: string | null
+          platform_fee_cents: number
+          provider: string | null
+          provider_payment_id: string | null
+          purpose: Database["public"]["Enums"]["payment_purpose"]
+          status: Database["public"]["Enums"]["payment_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          appointment_id?: number | null
+          card_brand?: string | null
+          card_last4?: string | null
+          confirm_attempts?: number
+          created_at?: string
+          failure_code?: string | null
+          funds_flow: Database["public"]["Enums"]["funds_flow"]
+          id?: string
+          idempotency_key: string
+          merchant_business_id?: number | null
+          merchant_ref?: string | null
+          method: Database["public"]["Enums"]["payment_method"]
+          paid_at?: string | null
+          payer_id?: string | null
+          platform_fee_cents?: number
+          provider?: string | null
+          provider_payment_id?: string | null
+          purpose: Database["public"]["Enums"]["payment_purpose"]
+          status?: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          appointment_id?: number | null
+          card_brand?: string | null
+          card_last4?: string | null
+          confirm_attempts?: number
+          created_at?: string
+          failure_code?: string | null
+          funds_flow?: Database["public"]["Enums"]["funds_flow"]
+          id?: string
+          idempotency_key?: string
+          merchant_business_id?: number | null
+          merchant_ref?: string | null
+          method?: Database["public"]["Enums"]["payment_method"]
+          paid_at?: string | null
+          payer_id?: string | null
+          platform_fee_cents?: number
+          provider?: string | null
+          provider_payment_id?: string | null
+          purpose?: Database["public"]["Enums"]["payment_purpose"]
+          status?: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_merchant_business_id_fkey"
+            columns: ["merchant_business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pix_keys: {
+        Row: {
+          created_at: string
+          id: string
+          masked_value: string
+          type: Database["public"]["Enums"]["pix_key_type"]
+          user_id: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          masked_value: string
+          type: Database["public"]["Enums"]["pix_key_type"]
+          user_id: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          masked_value?: string
+          type?: Database["public"]["Enums"]["pix_key_type"]
+          user_id?: string
+          value?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -521,7 +739,6 @@ export type Database = {
           id: string
           last_signup_step: string | null
           referral_code: string | null
-          referral_code_id: number | null
           referred_by: string | null
           signup_complete: boolean
           signup_completed_at: string | null
@@ -537,7 +754,6 @@ export type Database = {
           id: string
           last_signup_step?: string | null
           referral_code?: string | null
-          referral_code_id?: number | null
           referred_by?: string | null
           signup_complete?: boolean
           signup_completed_at?: string | null
@@ -553,7 +769,6 @@ export type Database = {
           id?: string
           last_signup_step?: string | null
           referral_code?: string | null
-          referral_code_id?: number | null
           referred_by?: string | null
           signup_complete?: boolean
           signup_completed_at?: string | null
@@ -561,84 +776,26 @@ export type Database = {
           updated_at?: string
           user_type?: Database["public"]["Enums"]["user_type"]
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_referred_by_fkey"
-            columns: ["referred_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
-      referral_codes: {
+      psp_customers: {
         Row: {
-          code: string
-          created_at: string | null
-          id: number
-          is_active: boolean | null
-          updated_at: string | null
+          created_at: string
+          customer_id: string
+          provider: string
           user_id: string
-          uses_count: number | null
         }
         Insert: {
-          code: string
-          created_at?: string | null
-          id?: number
-          is_active?: boolean | null
-          updated_at?: string | null
+          created_at?: string
+          customer_id: string
+          provider?: string
           user_id: string
-          uses_count?: number | null
         }
         Update: {
-          code?: string
-          created_at?: string | null
-          id?: number
-          is_active?: boolean | null
-          updated_at?: string | null
+          created_at?: string
+          customer_id?: string
+          provider?: string
           user_id?: string
-          uses_count?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "referral_codes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      referral_settings: {
-        Row: {
-          commission_rate: number | null
-          commission_type: string | null
-          created_at: string | null
-          eligibility_months: number | null
-          id: number
-          is_active: boolean | null
-          min_withdrawal: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          commission_rate?: number | null
-          commission_type?: string | null
-          created_at?: string | null
-          eligibility_months?: number | null
-          id?: number
-          is_active?: boolean | null
-          min_withdrawal?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          commission_rate?: number | null
-          commission_type?: string | null
-          created_at?: string | null
-          eligibility_months?: number | null
-          id?: number
-          is_active?: boolean | null
-          min_withdrawal?: number | null
-          updated_at?: string | null
         }
         Relationships: []
       }
@@ -690,6 +847,69 @@ export type Database = {
         }
         Relationships: []
       }
+      referral_codes: {
+        Row: {
+          code: string
+          created_at: string | null
+          id: number
+          is_active: boolean | null
+          updated_at: string | null
+          user_id: string
+          uses_count: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          uses_count?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          uses_count?: number | null
+        }
+        Relationships: []
+      }
+      referral_settings: {
+        Row: {
+          commission_rate: number | null
+          commission_type: string | null
+          created_at: string | null
+          eligibility_months: number | null
+          id: number
+          is_active: boolean | null
+          min_withdrawal: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          commission_rate?: number | null
+          commission_type?: string | null
+          created_at?: string | null
+          eligibility_months?: number | null
+          id?: number
+          is_active?: boolean | null
+          min_withdrawal?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          commission_rate?: number | null
+          commission_type?: string | null
+          created_at?: string | null
+          eligibility_months?: number | null
+          id?: number
+          is_active?: boolean | null
+          min_withdrawal?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       referrals: {
         Row: {
           converted_at: string | null
@@ -724,20 +944,6 @@ export type Database = {
             columns: ["referral_code_id"]
             isOneToOne: false
             referencedRelation: "referral_codes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referred_id_fkey"
-            columns: ["referred_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referrer_id_fkey"
-            columns: ["referrer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -875,6 +1081,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      stripe_events: {
+        Row: {
+          endpoint: string
+          error: string | null
+          id: string
+          livemode: boolean
+          processed_at: string | null
+          received_at: string
+          type: string
+        }
+        Insert: {
+          endpoint: string
+          error?: string | null
+          id: string
+          livemode?: boolean
+          processed_at?: string | null
+          received_at?: string
+          type: string
+        }
+        Update: {
+          endpoint?: string
+          error?: string | null
+          id?: string
+          livemode?: boolean
+          processed_at?: string | null
+          received_at?: string
+          type?: string
+        }
+        Relationships: []
       }
       user_legal_acceptances: {
         Row: {
@@ -1023,17 +1259,146 @@ export type Database = {
           },
         ]
       }
+      withdrawals: {
+        Row: {
+          amount_cents: number
+          business_id: number | null
+          created_at: string
+          destination_label: string | null
+          failure_code: string | null
+          fee_cents: number
+          id: string
+          idempotency_key: string
+          net_cents: number
+          pix_key_id: string | null
+          provider_payout_id: string | null
+          provider_reversal_id: string | null
+          provider_transfer_id: string | null
+          source: Database["public"]["Enums"]["withdrawal_source"]
+          status: Database["public"]["Enums"]["withdrawal_status"]
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          business_id?: number | null
+          created_at?: string
+          destination_label?: string | null
+          failure_code?: string | null
+          fee_cents?: number
+          id?: string
+          idempotency_key: string
+          net_cents: number
+          pix_key_id?: string | null
+          provider_payout_id?: string | null
+          provider_reversal_id?: string | null
+          provider_transfer_id?: string | null
+          source: Database["public"]["Enums"]["withdrawal_source"]
+          status?: Database["public"]["Enums"]["withdrawal_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          business_id?: number | null
+          created_at?: string
+          destination_label?: string | null
+          failure_code?: string | null
+          fee_cents?: number
+          id?: string
+          idempotency_key?: string
+          net_cents?: number
+          pix_key_id?: string | null
+          provider_payout_id?: string | null
+          provider_reversal_id?: string | null
+          provider_transfer_id?: string | null
+          source?: Database["public"]["Enums"]["withdrawal_source"]
+          status?: Database["public"]["Enums"]["withdrawal_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawals_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "withdrawals_pix_key_id_fkey"
+            columns: ["pix_key_id"]
+            isOneToOne: false
+            referencedRelation: "my_pix_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "withdrawals_pix_key_id_fkey"
+            columns: ["pix_key_id"]
+            isOneToOne: false
+            referencedRelation: "pix_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      my_pix_keys: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          masked_value: string | null
+          type: Database["public"]["Enums"]["pix_key_type"] | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          masked_value?: string | null
+          type?: Database["public"]["Enums"]["pix_key_type"] | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          masked_value?: string | null
+          type?: Database["public"]["Enums"]["pix_key_type"] | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      check_profile_integrity: {
+      add_pix_key: {
         Args: {
-          user_id: string
+          p_type: Database["public"]["Enums"]["pix_key_type"]
+          p_value: string
         }
+        Returns: {
+          created_at: string | null
+          id: string | null
+          masked_value: string | null
+          type: Database["public"]["Enums"]["pix_key_type"] | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "my_pix_keys"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      apply_payment_event: {
+        Args: {
+          p_cancel_appointment?: boolean
+          p_fields?: Json
+          p_ledger?: Json
+          p_payment_id: string
+          p_status: Database["public"]["Enums"]["payment_status"]
+        }
+        Returns: Json
+      }
+      can_notify: {
+        Args: { p_caller: string; p_target: string }
         Returns: boolean
       }
+      check_profile_integrity: { Args: { user_id: string }; Returns: boolean }
       check_rate_limit: {
         Args: {
           p_identifier: string
@@ -1042,28 +1407,7 @@ export type Database = {
         }
         Returns: Json
       }
-      create_referral_code_on_signup: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          avatar_url: string | null
-          created_at: string
-          email: string | null
-          full_name: string | null
-          id: string
-          last_signup_step: string | null
-          referral_code: string | null
-          referred_by: string | null
-          signup_complete: boolean
-          signup_completed_at: string | null
-          signup_started_at: string | null
-          updated_at: string
-          user_type: Database["public"]["Enums"]["user_type"]
-        }
-      }
-      generate_referral_code: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      generate_referral_code: { Args: never; Returns: string }
       get_waitlist_count: {
         Args: { p_business_id: number; p_date: string; p_start_time?: string }
         Returns: number
@@ -1090,16 +1434,68 @@ export type Database = {
         }
         Returns: Json
       }
+      merchant_balance_cents: {
+        Args: {
+          p_account?: Database["public"]["Enums"]["ledger_account"]
+          p_business_id: number
+        }
+        Returns: number
+      }
+      my_qi_balance_cents: { Args: never; Returns: number }
+      payment_can_transition: {
+        Args: {
+          p_from: Database["public"]["Enums"]["payment_status"]
+          p_to: Database["public"]["Enums"]["payment_status"]
+        }
+        Returns: boolean
+      }
       process_referral: {
         Args: { p_referral_code: string; p_referred_id: string }
         Returns: boolean
       }
+      record_pay_on_site: {
+        Args: { p_appointment_id: number }
+        Returns: string
+      }
+      release_unpaid_appointments: {
+        Args: { p_older_than?: string }
+        Returns: number
+      }
     }
     Enums: {
       appointment_status: "pending" | "confirmed" | "completed" | "canceled"
+      funds_flow: "destination" | "platform" | "none"
+      ledger_account: "merchant" | "merchant_qi" | "client_qi" | "platform"
+      ledger_kind:
+        | "service"
+        | "fura_fila"
+        | "platform_fee"
+        | "withdraw"
+        | "withdraw_fee"
+        | "qi_cashback"
+        | "qi_withdraw"
+        | "refund"
       location_type: "shop" | "home"
       payment_method: "pix" | "card" | "cash"
+      payment_purpose: "booking" | "fura_fila" | "subscription"
+      payment_status:
+        | "requires_payment"
+        | "requires_action"
+        | "processing"
+        | "succeeded"
+        | "failed"
+        | "canceled"
+        | "refunded"
+        | "pay_on_site"
+      pix_key_type: "cpf" | "cnpj" | "email" | "phone" | "random"
       user_type: "client" | "merchant"
+      withdrawal_source: "financeiro" | "qi_merchant" | "qi_client"
+      withdrawal_status:
+        | "requested"
+        | "processing"
+        | "paid"
+        | "failed"
+        | "manual_pending"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1113,124 +1509,156 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-  ? R
-  : never
+    ? R
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
+      Insert: infer I
+    }
+    ? I
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
+      Update: infer U
+    }
+    ? U
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {
     Enums: {
       appointment_status: ["pending", "confirmed", "completed", "canceled"],
+      funds_flow: ["destination", "platform", "none"],
+      ledger_account: ["merchant", "merchant_qi", "client_qi", "platform"],
+      ledger_kind: [
+        "service",
+        "fura_fila",
+        "platform_fee",
+        "withdraw",
+        "withdraw_fee",
+        "qi_cashback",
+        "qi_withdraw",
+        "refund",
+      ],
       location_type: ["shop", "home"],
       payment_method: ["pix", "card", "cash"],
+      payment_purpose: ["booking", "fura_fila", "subscription"],
+      payment_status: [
+        "requires_payment",
+        "requires_action",
+        "processing",
+        "succeeded",
+        "failed",
+        "canceled",
+        "refunded",
+        "pay_on_site",
+      ],
+      pix_key_type: ["cpf", "cnpj", "email", "phone", "random"],
       user_type: ["client", "merchant"],
+      withdrawal_source: ["financeiro", "qi_merchant", "qi_client"],
+      withdrawal_status: [
+        "requested",
+        "processing",
+        "paid",
+        "failed",
+        "manual_pending",
+      ],
     },
   },
 } as const

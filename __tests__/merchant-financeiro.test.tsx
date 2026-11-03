@@ -15,7 +15,7 @@
  * REGEX nos dígitos ("591,20"), nunca pela string literal.
  */
 import React from 'react';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { renderWithProviders } from './test-utils';
 import { MockWalletService } from '../lib/services/mock/mockWalletService';
 
@@ -57,6 +57,11 @@ jest.mock('../components/notifications/NotificationModal', () => {
       visible ? React.createElement(View, { testID: 'notif-modal' }) : null,
   };
 });
+
+// F8: o aviso de ativação abre o formulário hospedado pelo expo-web-browser.
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: jest.fn(async () => ({ type: 'cancel' })),
+}));
 
 import MerchantFinanceiroScreen from '../app/(merchant)/financeiro/index';
 
@@ -113,5 +118,52 @@ describe('MerchantFinanceiroScreen (financeiro do lojista)', () => {
     fireEvent.press(getByTestId('topbar-menu'));
 
     expect(await findByText('Financeiro')).toBeTruthy();
+  });
+
+  describe('F8: aviso de ativação de recebimentos', () => {
+    it('conta ativa: sem aviso', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0, payoutStatus: 'active' });
+      const { findByText, queryByText } = renderWithProviders(<MerchantFinanceiroScreen />, {
+        wallet,
+      });
+
+      await findByText(/591,20/);
+      expect(queryByText('Ative seus recebimentos')).toBeNull();
+    });
+
+    it.each(['pending', 'none'] as const)('conta %s: mostra o aviso', async (payoutStatus) => {
+      const wallet = new MockWalletService({ latencyMs: 0, payoutStatus });
+      const { findByText } = renderWithProviders(<MerchantFinanceiroScreen />, { wallet });
+
+      expect(await findByText('Ative seus recebimentos')).toBeTruthy();
+    });
+
+    it('ativar e voltar: recarrega o status e o aviso some', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0, payoutStatus: 'pending' });
+      const statusSpy = jest
+        .spyOn(wallet, 'getPayoutAccountStatus')
+        .mockResolvedValueOnce('pending')
+        .mockResolvedValue('active');
+      const { findByTestId, queryByText } = renderWithProviders(<MerchantFinanceiroScreen />, {
+        wallet,
+      });
+
+      const cta = await findByTestId('btn-activate-payouts');
+      await act(async () => fireEvent.press(cta));
+
+      await waitFor(() => expect(queryByText('Ative seus recebimentos')).toBeNull());
+      expect(statusSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('falha ao ler o status não derruba a tela (sem aviso, saldo visível)', async () => {
+      const wallet = new MockWalletService({ latencyMs: 0 });
+      jest.spyOn(wallet, 'getPayoutAccountStatus').mockRejectedValue(new Error('rede'));
+      const { findByText, queryByText } = renderWithProviders(<MerchantFinanceiroScreen />, {
+        wallet,
+      });
+
+      expect(await findByText(/591,20/)).toBeTruthy();
+      expect(queryByText('Ative seus recebimentos')).toBeNull();
+    });
   });
 });

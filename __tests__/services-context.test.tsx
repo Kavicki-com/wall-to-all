@@ -14,6 +14,23 @@ import {
 import { MockQueueService } from '../lib/services/mock/mockQueueService';
 import { MockFeedService } from '../lib/services/mock/mockFeedService';
 import { renderWithProviders } from './test-utils';
+import { MockWalletService } from '../lib/services/mock/mockWalletService';
+import { StripeWalletService } from '../lib/services/stripe/stripeWalletService';
+import { MockBookingPaymentService } from '../lib/services/mock/mockBookingPaymentService';
+import { StripeBookingPaymentService } from '../lib/services/stripe/stripeBookingPaymentService';
+import { getStripeConfig } from '../lib/payments/stripeConfig';
+import { useQiService } from '../context/ServicesContext';
+import { MockQiService } from '../lib/services/mock/mockQiService';
+import { StripeQiService } from '../lib/services/stripe/stripeQiService';
+import { StripeSubscriptionService } from '../lib/services/stripe/stripeSubscriptionService';
+import { MockSubscriptionService } from '../lib/services/mock/mockSubscriptionService';
+
+// O StripeWalletService importa o cliente real; aqui só a classe importa.
+jest.mock('../lib/supabase', () => ({ supabase: {} }));
+jest.mock('../lib/payments/stripeConfig', () => ({
+  getStripeConfig: jest.fn(() => ({ provider: 'mock' })),
+}));
+const mockedGetStripeConfig = getStripeConfig as jest.MockedFunction<typeof getStripeConfig>;
 
 const Probe = () => {
   const { queue, wallet } = useServices();
@@ -185,5 +202,104 @@ describe('ServicesProvider', () => {
     unmount();
     expect(disposeSpy).toHaveBeenCalledTimes(1);
     disposeSpy.mockRestore();
+  });
+
+  describe('seleção da carteira por provedor (F8)', () => {
+    const WalletProbe = ({ onWallet }: { onWallet: (w: unknown) => void }) => {
+      onWallet(useWalletService());
+      return <Text>wallet</Text>;
+    };
+
+    afterEach(() => mockedGetStripeConfig.mockReturnValue({ provider: 'mock' }));
+
+    it('sem configuração Stripe usa o MockWalletService', () => {
+      let wallet: unknown;
+      render(
+        <ServicesProvider>
+          <WalletProbe onWallet={(w) => (wallet = w)} />
+        </ServicesProvider>,
+      );
+      expect(wallet).toBeInstanceOf(MockWalletService);
+    });
+
+    it('agendamento: mock por default e Stripe com provider stripe', () => {
+      const BookingProbe = ({ onBooking }: { onBooking: (b: unknown) => void }) => {
+        onBooking(useBookingPaymentService());
+        return <Text>booking</Text>;
+      };
+      let booking: unknown;
+      const first = render(
+        <ServicesProvider>
+          <BookingProbe onBooking={(b) => (booking = b)} />
+        </ServicesProvider>,
+      );
+      expect(booking).toBeInstanceOf(MockBookingPaymentService);
+      first.unmount();
+
+      mockedGetStripeConfig.mockReturnValue({ provider: 'stripe', publishableKey: 'pk_test_x' });
+      render(
+        <ServicesProvider>
+          <BookingProbe onBooking={(b) => (booking = b)} />
+        </ServicesProvider>,
+      );
+      expect(booking).toBeInstanceOf(StripeBookingPaymentService);
+    });
+
+    it('QI: mock por default e StripeQiService (híbrido) com provider stripe', () => {
+      const QiProbe = ({ onQi }: { onQi: (q: unknown) => void }) => {
+        onQi(useQiService());
+        return <Text>qi</Text>;
+      };
+      let qi: unknown;
+      const first = render(
+        <ServicesProvider>
+          <QiProbe onQi={(q) => (qi = q)} />
+        </ServicesProvider>,
+      );
+      expect(qi).toBeInstanceOf(MockQiService);
+      first.unmount();
+
+      mockedGetStripeConfig.mockReturnValue({ provider: 'stripe', publishableKey: 'pk_test_x' });
+      render(
+        <ServicesProvider>
+          <QiProbe onQi={(q) => (qi = q)} />
+        </ServicesProvider>,
+      );
+      expect(qi).toBeInstanceOf(StripeQiService);
+    });
+
+    it('assinatura: mock por default e StripeSubscriptionService com provider stripe', () => {
+      const SubscriptionProbe = ({ onSub }: { onSub: (s: unknown) => void }) => {
+        onSub(useSubscriptionService());
+        return <Text>assinatura</Text>;
+      };
+      let subscription: unknown;
+      const first = render(
+        <ServicesProvider>
+          <SubscriptionProbe onSub={(s) => (subscription = s)} />
+        </ServicesProvider>,
+      );
+      expect(subscription).toBeInstanceOf(MockSubscriptionService);
+      first.unmount();
+
+      mockedGetStripeConfig.mockReturnValue({ provider: 'stripe', publishableKey: 'pk_test_x' });
+      render(
+        <ServicesProvider>
+          <SubscriptionProbe onSub={(s) => (subscription = s)} />
+        </ServicesProvider>,
+      );
+      expect(subscription).toBeInstanceOf(StripeSubscriptionService);
+    });
+
+    it('com provider stripe usa o StripeWalletService', () => {
+      mockedGetStripeConfig.mockReturnValue({ provider: 'stripe', publishableKey: 'pk_test_x' });
+      let wallet: unknown;
+      render(
+        <ServicesProvider>
+          <WalletProbe onWallet={(w) => (wallet = w)} />
+        </ServicesProvider>,
+      );
+      expect(wallet).toBeInstanceOf(StripeWalletService);
+    });
   });
 });
