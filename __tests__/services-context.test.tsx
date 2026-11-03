@@ -8,6 +8,8 @@ import {
   useWalletService,
   useBookingPaymentService,
   useFeedService,
+  useSubscriptionService,
+  useProfileStampsService,
 } from '../context/ServicesContext';
 import { MockQueueService } from '../lib/services/mock/mockQueueService';
 import { MockFeedService } from '../lib/services/mock/mockFeedService';
@@ -108,6 +110,68 @@ describe('ServicesProvider', () => {
     const overridden = renderWithProviders(<FeedProbe />, { feed: custom });
     expect(seen).toBe(custom);
     expect(overridden.feed).toBe(custom);
+  });
+
+  it('useSubscriptionService throws outside provider and resolves inside', async () => {
+    let planName: string | null = null;
+    const SubscriptionProbe = () => {
+      const subscription = useSubscriptionService();
+      React.useEffect(() => {
+        subscription.getPlan().then((p) => {
+          planName = p.name;
+        });
+      }, [subscription]);
+      return <Text>subscription-ok</Text>;
+    };
+
+    expect(() => render(<SubscriptionProbe />)).toThrow(/ServicesProvider/);
+
+    const { getByText } = render(
+      <ServicesProvider>
+        <SubscriptionProbe />
+      </ServicesProvider>,
+    );
+    expect(getByText('subscription-ok')).toBeTruthy();
+    await waitFor(() => expect(planName).toBe('Wall to All Premium'));
+
+    let seen: unknown = null;
+    const SameProbe = () => {
+      seen = useSubscriptionService();
+      return <Text>probe</Text>;
+    };
+    const result = renderWithProviders(<SameProbe />);
+    expect(seen).toBe(result.subscription);
+  });
+
+  it('useProfileStampsService throws outside provider and resolves inside', async () => {
+    let count: number | null = null;
+    const StampsProbe = () => {
+      const stamps = useProfileStampsService();
+      React.useEffect(() => {
+        stamps.getStamps().then((s) => {
+          count = s.length;
+        });
+      }, [stamps]);
+      return <Text>stamps-ok</Text>;
+    };
+
+    expect(() => render(<StampsProbe />)).toThrow(/ServicesProvider/);
+
+    const { getByText } = render(
+      <ServicesProvider>
+        <StampsProbe />
+      </ServicesProvider>,
+    );
+    expect(getByText('stamps-ok')).toBeTruthy();
+    await waitFor(() => expect(count).toBe(2));
+
+    let seen: unknown = null;
+    const SameProbe = () => {
+      seen = useProfileStampsService();
+      return <Text>probe</Text>;
+    };
+    const result = renderWithProviders(<SameProbe />);
+    expect(seen).toBe(result.stamps);
   });
 
   it('disposes the queue service on unmount', () => {

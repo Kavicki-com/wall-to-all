@@ -6,17 +6,26 @@ import {
   ActivityIndicator,
   FlatList,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { useBusinessProfile } from '../../../context/BusinessProfileContext';
+import { useProfileStampsService, useQiService } from '../../../context/ServicesContext';
+import {
+  EMPTY_MERCHANT_KPIS,
+  loadMerchantKpis,
+  type MerchantKpis,
+} from '../../../lib/merchant/merchantKpis';
+import type { ProfileStamp } from '../../../lib/services/profileTypes';
+import ProfileStampsRow from '../../../components/profile/ProfileStampsRow';
+import { KpiCard } from '../../../components/dashboard/KpiCard';
 import { formatWorkDays } from '../../../lib/workDaysUtils';
 import ScreenContainer from '../../../components/layout/ScreenContainer';
 import ServiceCard from '../../../components/ServiceCard';
 import BricksBackground from '../../../components/profile/BricksBackground';
 import ProfileHero from '../../../components/profile/ProfileHero';
 import RatingsRowCard from '../../../components/profile/RatingsRowCard';
-import ProfileAddressCard from '../../../components/profile/ProfileAddressCard';
 import OperatingHoursCard from '../../../components/profile/OperatingHoursCard';
 import PaymentMethodsCard from '../../../components/profile/PaymentMethodsCard';
 import SectionTitle from '../../../components/ui/SectionTitle';
@@ -35,12 +44,38 @@ const MerchantProfileScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [services, setServices] = useState<Service[]>([]);
   const [reviewStats, setReviewStats] = useState<ReviewStats>({ average_rating: 0, total_reviews: 0 });
+  const [kpis, setKpis] = useState<MerchantKpis>(EMPTY_MERCHANT_KPIS);
+  const [stamps, setStamps] = useState<ProfileStamp[]>([]);
+  const qiService = useQiService();
+  const stampsService = useProfileStampsService();
 
   React.useEffect(() => {
     if (businessProfile && !profileLoading) {
       loadBusinessData();
+      loadInsights(businessProfile.id);
     }
   }, [businessProfile?.id, profileLoading]);
+
+  // Selos e KPIs (F7) carregam à parte: falha em um não derruba o resto da tela.
+  // KPI com erro fica nos valores default; selo com erro some da tela.
+  const loadInsights = async (businessId: number) => {
+    const [kpisResult, stampsResult] = await Promise.allSettled([
+      loadMerchantKpis(businessId, qiService),
+      stampsService.getStamps(),
+    ]);
+    if (kpisResult.status === 'fulfilled') {
+      setKpis(kpisResult.value);
+    } else {
+      logger.error('Erro ao carregar KPIs do perfil:', kpisResult.reason);
+      setKpis(EMPTY_MERCHANT_KPIS);
+    }
+    if (stampsResult.status === 'fulfilled') {
+      setStamps(stampsResult.value);
+    } else {
+      logger.error('Erro ao carregar selos do perfil:', stampsResult.reason);
+      setStamps([]);
+    }
+  };
 
   const loadBusinessData = async () => {
     try {
@@ -171,6 +206,11 @@ const MerchantProfileScreen: React.FC = () => {
             businessName={businessProfile.business_name}
             description={businessProfile.description || businessProfile.categories?.name || undefined}
           />
+          {stamps.length > 0 && (
+            <View style={styles.stampsRow}>
+              <ProfileStampsRow stamps={stamps} />
+            </View>
+          )}
           <RatingsRowCard
             averageRating={reviewStats.average_rating}
             totalReviews={reviewStats.total_reviews}
@@ -178,10 +218,50 @@ const MerchantProfileScreen: React.FC = () => {
           />
         </View>
 
-        {businessProfile.address && <ProfileAddressCard address={businessProfile.address} />}
-        <OperatingHoursCard hours={formatWorkDays(businessProfile.work_days || null)} />
+        {/* KPIs do lojista (profile-view 2611:6893): cards 124 x 111, rolagem horizontal. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.kpiScroll}
+          contentContainerStyle={styles.kpiRow}
+        >
+          <KpiCard
+            testID="profile-kpi-agendamentos"
+            style={styles.kpiCard}
+            icon={<Icon name="date-range" size={20} color={colors.brand} />}
+            label="Agendamentos"
+            value={kpis.agendamentos.value}
+            delta={kpis.agendamentos.delta}
+          />
+          <KpiCard
+            testID="profile-kpi-avaliacao"
+            style={styles.kpiCard}
+            icon={<Icon name="star" size={20} color={colors.brand} />}
+            label="Avaliação"
+            value={kpis.avaliacao.value}
+            delta={kpis.avaliacao.delta}
+          />
+          <KpiCard
+            testID="profile-kpi-indicacoes"
+            style={styles.kpiCard}
+            icon={<Icon name="handshake" size={20} color={colors.brand} />}
+            label="Indicações"
+            value={kpis.indicacoes.value}
+            delta={kpis.indicacoes.delta}
+          />
+          <KpiCard
+            testID="profile-kpi-novos-clientes"
+            style={styles.kpiCard}
+            icon={<Icon name="account-circle" size={20} color={colors.brand} />}
+            label="Novos clientes"
+            value={kpis.novosClientes.value}
+            delta={kpis.novosClientes.delta}
+          />
+        </ScrollView>
 
+        {/* Ordem do Figma: pagamentos antes do horário. Sem card de endereço (F7). */}
         <PaymentMethodsCard methods={paymentMethods} />
+        <OperatingHoursCard hours={formatWorkDays(businessProfile.work_days || null)} />
 
         <TouchableOpacity
           style={styles.editProfileLink}
@@ -247,6 +327,24 @@ const styles = StyleSheet.create({
   topSection: {
     gap: 0,
     zIndex: 1,
+  },
+  // Selos 8 abaixo da hero; o -8 compensa o marginTop 16 do RatingsRowCard,
+  // deixando 8 entre selos e avaliações (y 138 e 210 no Figma).
+  stampsRow: {
+    marginTop: 8,
+    marginBottom: -8,
+    marginHorizontal: 24,
+  },
+  kpiScroll: {
+    marginBottom: 8,
+    zIndex: 1,
+  },
+  kpiRow: {
+    gap: 8,
+    paddingHorizontal: 24,
+  },
+  kpiCard: {
+    width: 124,
   },
   servicesSection: {
     marginHorizontal: 24,

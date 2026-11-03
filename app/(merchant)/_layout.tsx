@@ -190,6 +190,14 @@ const MerchantLayout: React.FC = () => {
           }}
         />
 
+        {/* Assinatura do lojista F7 */}
+        <Tabs.Screen
+          name="assinatura/index"
+          options={{
+            tabBarButton: () => null,
+          }}
+        />
+
         {/* Feed F6 */}
         <Tabs.Screen
           name="feed/index"
