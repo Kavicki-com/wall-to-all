@@ -296,7 +296,7 @@ Sem conta conectada ativa (`payouts_enabled = false`): banner "Ative seus recebi
 | Q | Saque QI do cliente e vínculo de indicação | sem primitiva Stripe; piloto `manual_pending`. Acúmulo usa `profiles.referred_by` (coluna existe; captação foi removida na F4) |
 | E | Política de estorno/cancelamento de agendamento pago | não modelada; piloto: estorno manual pelo dashboard |
 | H | Prazo de reserva não paga / validade do Pix | proposta 30 min / 15 min (`PIX_EXPIRY_MS`) |
-| S | Plano e preço da assinatura | F7 ainda sem UI |
+| S | Plano e preço da assinatura | **Decidido (03/11):** plano único "Wall to All Premium", R$ 29,90/mês, igual ao Figma e ao mock da F7. Price `price_1UXicR3seqKLeNs2oDd4l3cA` (lookup key `wall_to_all_premium_monthly`) |
 | X | Quem absorve a tarifa da Stripe | destination charge: a plataforma (padrão) |
 
 ## 14. Riscos
@@ -391,3 +391,13 @@ Observação: a conta de teste `acct_1UXBoK3seq5yk1Fo` está com capabilities `i
 - Cashback QI: crédito de `QI_CASHBACK_PCT` (default 10, secret não definido) do valor do agendamento, arredondado para baixo, ao `profiles.referred_by` do pagador: `merchant_qi` do negócio quando o indicador é lojista, `client_qi` caso contrário. Autoindicação não conta. Entra na mesma transação do `succeeded` e o estorno total o espelha. Não há débito explícito na conta `platform` (colidiria com o estorno da taxa no unique do ledger); o custo da plataforma é a soma dos `qi_cashback`. Estorno depois de um saque do cashback deixa o saldo QI do indicador negativo (aceito no piloto).
 - QI no app: `StripeQiService` híbrido (saldo real pelos RPCs, saque pelo `wallet-withdraw`; código, indicações, extrato, regras e cotação seguem do mock).
 - Demo: o cliente QA (`f8.qa.cliente`) tem `referred_by` = lojista QA (negócio 39). Validação de ponta a ponta: o `payment_intent.succeeded` do agendamento 87 (PI pago antes de os endpoints existirem, reenviado pela API `events/{id}/retry`) gravou `merchant +6500` e `merchant_qi +650` no negócio 39.
+
+**Decisões de execução (Task 17, 03/11):**
+
+- Assinatura com `payment_behavior: 'allow_incomplete'` em vez de `default_incomplete`: a Stripe cobra a 1ª fatura na hora com o cartão salvo, como o contrato da F7 pede (aprovado vira `active`, recusa vira `incomplete` sem lançar). Com `default_incomplete` a fatura ficaria esperando confirmação do app. `payment_settings.payment_method_types: ['card']` é aceito nesta versão da API (só o PaymentIntent avulso perdeu o campo).
+- 3DS: quando o PaymentIntent da fatura fica `requires_action` (lido por `invoicePayments.list`), a função devolve o `client_secret` e o app conclui com `handleNextAction`, depois consulta até a assinatura sair de `incomplete` (ou de `past_due`, na troca de cartão). Na troca de cartão, `invoices.pay` com cartão 3DS responde `card_error` / `invoice_payment_intent_requires_action`.
+- Fonte da verdade é a Stripe: a função `subscriptions` lista as assinaturas do Customer do lojista filtradas por `metadata.business_id` e grava a cópia em `subscriptions` a cada resposta. O webhook relê a assinatura em `customer.subscription.*`, `invoice.paid` e `invoice.payment_failed` e grava a mesma cópia. Eventos adicionados ao endpoint da plataforma (`we_1UXDYt3seqKLeNs2xijEtgpN`). Nesta versão da API, fim do período fica em `items.data[0].current_period_end` e a fatura aponta para a assinatura por `parent.subscription_details.subscription`.
+- Assinar de novo com uma `incomplete` viva cancela a anterior antes de criar a nova (nunca duas vivas). Cancelar uma `incomplete` não gera `customer.subscription.deleted`; a própria função grava o `canceled`.
+- O texto do plano (nome, selo, descrição e itens) segue o do Figma, exportado do mock como `SUBSCRIPTION_PLAN`; só o preço vem do Price.
+- Validação: cenários da função com o lojista QA (negócio 39): recusa (`incomplete`, sem `clientSecret`), 3DS (`incomplete` com `clientSecret`), aprovado (`active`), assinar de novo (409 `invalid_state`), cancelar e manter, trocar cartão, faturas e cartão de outro Customer (404 `card_not_found`). Renovação com test clock: `invoice.paid` levou a cópia ao período seguinte, e a renovação com cartão recusado levou a cópia a `past_due`; relógio e linha sintética apagados depois. O negócio 39 ficou com uma assinatura `active` de teste (cartão 4242).
+- Dívida que continua (F7 § 9): o lojista não tem tela de cadastro de cartão; para a demo, cartões de teste foram anexados ao Customer do lojista QA pela API.
