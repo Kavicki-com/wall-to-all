@@ -31,6 +31,8 @@ const ITEMS_UP_TO_QI: DrawerItem[] = [
 ];
 const ITEMS_AFTER_QI: DrawerItem[] = [
   { label: 'Perfil', route: '/(merchant)/profile' },
+  // Assinatura do lojista (F7), logo depois do Perfil.
+  { label: 'Assinatura', route: '/(merchant)/assinatura' },
   { label: 'Configurações', route: '/(merchant)/settings' },
 ];
 
