@@ -15,11 +15,23 @@ import { applyAcceptedReschedules } from '../../../lib/utils';
 import { logger } from '../../../lib/logger';
 import { colors } from '../../../lib/theme';
 import { getInitials } from '../../../lib/formatters';
+import { computeMonthOverview, groupRevenueByService } from '../../../lib/dashboardMetrics';
 import {
-  computeMonthOverview,
-  groupRevenueByService,
-  computeDelta,
-} from '../../../lib/dashboardMetrics';
+  REVENUE_STATUSES,
+  EMPTY_MERCHANT_KPIS,
+  computeMerchantKpis,
+  fetchPriorClientIds,
+  firstOf,
+  monthClientIds,
+  monthWindows,
+} from '../../../lib/merchant/merchantKpis';
+import type {
+  JoinedService,
+  MaybeJoined,
+  MerchantKpis,
+  MetricsRow,
+  ReviewRow,
+} from '../../../lib/merchant/merchantKpis';
 import type {
   MonthOverview,
   RevenueSegment,
@@ -65,26 +77,8 @@ import { Business } from '../../../lib/types';
  * disso). A contagem "Agendamentos" usa o mesmo filtro de status.
  */
 
-// Status que contam como receita/agendamento (mesma definição de useMerchantMetrics).
-const REVENUE_STATUSES = ['confirmed', 'completed'];
-
-// Variação exibida no badge do KpiCard (ou null para escondê-lo).
-type Delta = { text: string; up: boolean } | null;
-
-// ── Shapes das linhas das consultas (o join do Supabase pode vir objeto ou array) ──
-interface JoinedService {
-  id: number;
-  name: string;
-  price: number | null;
-}
-type MaybeJoined<T> = T | T[] | null;
-
-interface MetricsRow {
-  start_time: string;
-  status: string;
-  client_id: string | null;
-  service: MaybeJoined<JoinedService>;
-}
+// Status, shapes das linhas e cálculo dos KPIs vivem em lib/merchant/merchantKpis
+// (F7), compartilhados com o perfil do lojista.
 interface UpcomingRow {
   id: number;
   start_time: string;
@@ -93,9 +87,6 @@ interface UpcomingRow {
   service: MaybeJoined<JoinedService>;
   client: MaybeJoined<{ id: string; full_name: string | null }>;
 }
-interface ReviewRow {
-  rating: number | null;
-}
 
 // Item já normalizado da lista "Próximos agendamentos".
 interface UpcomingAppointment {
@@ -103,24 +94,6 @@ interface UpcomingAppointment {
   start_time: string;
   serviceName: string;
   clientName: string;
-}
-
-// Normaliza um join to-one que o Supabase às vezes entrega como array de 1.
-function firstOf<T>(value: MaybeJoined<T>): T | null {
-  if (!value) return null;
-  return Array.isArray(value) ? value[0] ?? null : value;
-}
-
-// Variação percentual (ex.: "+12%") — usada em "Agendamentos".
-function pctDelta(delta: { pct: number; up: boolean } | null): Delta {
-  if (delta === null) return null;
-  return { text: `${delta.pct > 0 ? '+' : ''}${delta.pct}%`, up: delta.up };
-}
-
-// Variação absoluta (ex.: "+3"), usada em "Novos clientes".
-function absDelta(delta: { abs: number; up: boolean } | null): Delta {
-  if (delta === null) return null;
-  return { text: `${delta.abs > 0 ? '+' : ''}${delta.abs}`, up: delta.up };
 }
 
 const MerchantHomeScreen: React.FC = () => {
@@ -138,17 +111,7 @@ const MerchantHomeScreen: React.FC = () => {
     total: 0,
     segments: [],
   });
-  const [kpis, setKpis] = useState<{
-    agendamentos: { value: string; delta: Delta };
-    avaliacao: { value: string; delta: Delta };
-    indicacoes: { value: string; delta: Delta };
-    novosClientes: { value: string; delta: Delta };
-  }>({
-    agendamentos: { value: '0', delta: null },
-    avaliacao: { value: '—', delta: null },
-    indicacoes: { value: '0', delta: null },
-    novosClientes: { value: '0', delta: null },
-  });
+  const [kpis, setKpis] = useState<MerchantKpis>(EMPTY_MERCHANT_KPIS);
 
   // Menu lateral (AppDrawer) e modal de notificações — donos do estado que a
   // HomeTopBar (genérica) apenas dispara via callbacks (idêntico à home do cliente).
@@ -200,25 +163,8 @@ const MerchantHomeScreen: React.FC = () => {
         const now = new Date();
         const dayOfMonth = now.getDate();
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        const startOfPreviousMonth = new Date(
-          now.getFullYear(),
-          now.getMonth() - 1,
-          1,
-          0,
-          0,
-          0,
-          0,
-        );
-        const endOfCurrentMonth = new Date(
-          now.getFullYear(),
-          now.getMonth() + 1,
-          0,
-          23,
-          59,
-          59,
-          999,
-        );
+        const { startOfCurrentMonth, startOfPreviousMonth, endOfCurrentMonth } =
+          monthWindows(now);
         const last30Start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
         // 2. Consultas independentes em paralelo (Supabase + resumo do QI).
@@ -255,16 +201,11 @@ const MerchantHomeScreen: React.FC = () => {
         const upcomingRows = (upcomingRes.data ?? []) as UpcomingRow[];
         const reviewRows = (reviewsRes.data ?? []) as ReviewRow[];
 
-        // ── Receita, contagem, donut e clientes do mês (partição no cliente) ──
+        // ── Receita e donut (partição no cliente) ──
         // Só agendamentos 'confirmed'/'completed' contam (cancelados/pendentes fora).
         let currentRevenue = 0;
         let previousRevenue = 0;
-        let currentCount = 0;
-        let previousCount = 0;
         const donutRows: ServiceRevenueRow[] = [];
-        // Clientes distintos com agendamento no mês (base do "Novos clientes").
-        const currentMonthClientIds = new Set<string>();
-        const previousMonthClientIds = new Set<string>();
 
         for (const row of metricsRows) {
           if (!REVENUE_STATUSES.includes(row.status)) continue;
@@ -275,14 +216,10 @@ const MerchantHomeScreen: React.FC = () => {
           const inPreviousMonth = start >= startOfPreviousMonth && start < startOfCurrentMonth;
 
           if (inCurrentMonth) {
-            currentCount += 1;
-            if (row.client_id) currentMonthClientIds.add(row.client_id);
             // "Realizado" = apenas o que JÁ ocorreu (start <= agora); agendamentos
             // futuros do mês não inflam a receita realizada (igual useMerchantMetrics).
             if (start <= now) currentRevenue += price;
           } else if (inPreviousMonth) {
-            previousCount += 1;
-            if (row.client_id) previousMonthClientIds.add(row.client_id);
             previousRevenue += price;
           }
 
@@ -297,67 +234,24 @@ const MerchantHomeScreen: React.FC = () => {
         );
         setDonut(groupRevenueByService(donutRows));
 
-        // ── KPI: Avaliação (média). Delta absoluto não é barato (exigiria média
-        // por período com reviews datadas) → degrada para null (esconde o badge). ──
-        const ratings = reviewRows
-          .map((r) => r.rating)
-          .filter((r): r is number => typeof r === 'number');
-        const ratingValue =
-          ratings.length > 0
-            ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
-            : '—';
-
-        // ── KPI: Novos clientes (clientes cujo 1º agendamento cai no mês) ──
-        // Em vez de varrer todo o histórico (que truncaria em lojas grandes),
-        // perguntamos APENAS pelos clientes do mês: quais já tinham agendamento
-        // ANTES do início do mês? Quem não tinha é "novo". Consulta limitada ao
-        // conjunto (pequeno) de clientes do mês.
-        const fetchPriorClientIds = async (
-          clientIds: string[],
-          before: Date,
-        ): Promise<Set<string>> => {
-          const prior = new Set<string>();
-          if (clientIds.length === 0) return prior;
-          const { data } = await supabase
-            .from('appointments')
-            .select('client_id')
-            .eq('business_id', businessData.id)
-            .in('client_id', clientIds)
-            .lt('start_time', before.toISOString());
-          for (const r of (data ?? []) as Array<{ client_id: string | null }>) {
-            if (r.client_id) prior.add(r.client_id);
-          }
-          return prior;
-        };
-
+        // ── KPIs (lib/merchant/merchantKpis): mesmas linhas da meta/donut. ──
+        // "Novos clientes": pergunta só pelos clientes do mês quais já tinham
+        // agendamento antes do início do mês (consulta limitada ao conjunto).
+        const monthClients = monthClientIds(metricsRows, now);
         const [priorCurrent, priorPrevious] = await Promise.all([
-          fetchPriorClientIds([...currentMonthClientIds], startOfCurrentMonth),
-          fetchPriorClientIds([...previousMonthClientIds], startOfPreviousMonth),
+          fetchPriorClientIds(businessData.id, monthClients.current, startOfCurrentMonth),
+          fetchPriorClientIds(businessData.id, monthClients.previous, startOfPreviousMonth),
         ]);
-        const newClientsCurrent = [...currentMonthClientIds].filter(
-          (id) => !priorCurrent.has(id),
-        ).length;
-        const newClientsPrevious = [...previousMonthClientIds].filter(
-          (id) => !priorPrevious.has(id),
-        ).length;
-
-        setKpis({
-          agendamentos: {
-            value: String(currentCount),
-            delta: pctDelta(computeDelta(currentCount, previousCount)),
-          },
-          avaliacao: { value: ratingValue, delta: null },
-          indicacoes: {
-            // Vem do resumo do QI (mock): total de indicadas do lojista.
-            value: String(qiSummary.indicadosCount),
-            // TODO(F8): o mock do QI não modela série mensal; sem variação por ora.
-            delta: null,
-          },
-          novosClientes: {
-            value: String(newClientsCurrent),
-            delta: absDelta(computeDelta(newClientsCurrent, newClientsPrevious)),
-          },
-        });
+        setKpis(
+          computeMerchantKpis({
+            rows: metricsRows,
+            reviewRows,
+            indicadosCount: qiSummary.indicadosCount,
+            now,
+            priorCurrent,
+            priorPrevious,
+          }),
+        );
 
         // ── Próximos agendamentos (máx. 3), aplicando reagendamentos aceitos ──
         // Exclui cancelados (defensivo, além do filtro na consulta).
