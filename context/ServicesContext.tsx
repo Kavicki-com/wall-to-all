@@ -27,6 +27,11 @@ import {
   MockSubscriptionService,
   SIMULATED_LATENCY_MS as SUBSCRIPTION_LATENCY_MS,
 } from '../lib/services/mock/mockSubscriptionService';
+import type { ProfileStampsService } from '../lib/services/profileTypes';
+import {
+  MockProfileStampsService,
+  SIMULATED_LATENCY_MS as STAMPS_LATENCY_MS,
+} from '../lib/services/mock/mockProfileStampsService';
 
 interface ServicesContextType {
   queue: QueueService;
@@ -35,6 +40,7 @@ interface ServicesContextType {
   booking: BookingPaymentService;
   feed: FeedService;
   subscription: SubscriptionService;
+  stamps: ProfileStampsService;
 }
 
 // Default undefined + guard no hook: consumir fora do provider deve lançar.
@@ -71,6 +77,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   const bookingRef = useRef<MockBookingPaymentService | null>(null);
   const feedRef = useRef<MockFeedService | null>(null);
   const subscriptionRef = useRef<MockSubscriptionService | null>(null);
+  const stampsRef = useRef<MockProfileStampsService | null>(null);
 
   // NOTA: as instâncias default são criadas aqui no render (lazy via ref) e o
   // dispose() da fila roda no cleanup do useEffect abaixo. Esse acoplamento
@@ -90,6 +97,8 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
     feedRef.current = new MockFeedService({ latencyMs: FEED_LATENCY_MS });
     // Assinatura do lojista (F7): estado em memória sem timers, dispensa dispose.
     subscriptionRef.current = new MockSubscriptionService({ latencyMs: SUBSCRIPTION_LATENCY_MS });
+    // Selos do perfil do lojista (F7): lista fixa, dispensa dispose.
+    stampsRef.current = new MockProfileStampsService({ latencyMs: STAMPS_LATENCY_MS });
   }
 
   useEffect(() => {
@@ -109,6 +118,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
         booking: bookingRef.current!,
         feed: feedRef.current!,
         subscription: subscriptionRef.current!,
+        stamps: stampsRef.current!,
       },
     [services],
   );
@@ -116,7 +126,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   return <ServicesContext.Provider value={value}>{children}</ServicesContext.Provider>;
 };
 
-/** Retorna `{ queue, wallet, qi, booking, feed, subscription }`. Lança se usado fora do ServicesProvider. */
+/** Retorna `{ queue, wallet, qi, booking, feed, subscription, stamps }`. Lança se usado fora do ServicesProvider. */
 export const useServices = (): ServicesContextType => {
   const context = useContext(ServicesContext);
   if (context === undefined) {
@@ -142,3 +152,6 @@ export const useFeedService = (): FeedService => useServices().feed;
 
 /** Atalho para o SubscriptionService (assinatura do lojista). Herda o guard de useServices. */
 export const useSubscriptionService = (): SubscriptionService => useServices().subscription;
+
+/** Atalho para o ProfileStampsService (selos do perfil). Herda o guard de useServices. */
+export const useProfileStampsService = (): ProfileStampsService => useServices().stamps;

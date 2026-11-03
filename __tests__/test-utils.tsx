@@ -11,6 +11,8 @@ import { MockFeedService } from '../lib/services/mock/mockFeedService';
 import type { FeedService } from '../lib/services/feedTypes';
 import { MockSubscriptionService } from '../lib/services/mock/mockSubscriptionService';
 import type { SubscriptionService } from '../lib/services/subscriptionTypes';
+import { MockProfileStampsService } from '../lib/services/mock/mockProfileStampsService';
+import type { ProfileStampsService } from '../lib/services/profileTypes';
 
 /**
  * Harness compartilhado dos testes de tela da F1 (reusado pelas Tasks 15-23).
@@ -50,6 +52,8 @@ export interface RenderWithProvidersOptions extends Omit<RenderOptions, 'wrapper
   feed?: FeedService;
   /** Sobrepõe o SubscriptionService injetado (default: `MockSubscriptionService` latência 0). */
   subscription?: SubscriptionService;
+  /** Sobrepõe o ProfileStampsService injetado (default: `MockProfileStampsService` latência 0). */
+  stamps?: ProfileStampsService;
 }
 
 export type RenderWithProvidersResult = ReturnType<typeof render> & {
@@ -59,6 +63,7 @@ export type RenderWithProvidersResult = ReturnType<typeof render> & {
   booking: BookingPaymentService;
   feed: FeedService;
   subscription: SubscriptionService;
+  stamps: ProfileStampsService;
 };
 
 // Serviços a descartar após cada teste — criados por default OU injetados. Um
@@ -78,7 +83,8 @@ function trackDisposable(
     | QiService
     | BookingPaymentService
     | FeedService
-    | SubscriptionService,
+    | SubscriptionService
+    | ProfileStampsService,
 ): void {
   if (typeof (service as Partial<Disposable>).dispose === 'function') {
     disposables.add(service as unknown as Disposable);
@@ -103,6 +109,7 @@ export function renderWithProviders(
     booking: bookingOverride,
     feed: feedOverride,
     subscription: subscriptionOverride,
+    stamps: stampsOverride,
     ...renderOptions
   } = options;
   const queue: QueueService = queueOverride ?? new MockQueueService({ latencyMs: 0 });
@@ -119,13 +126,16 @@ export function renderWithProviders(
   const subscription: SubscriptionService =
     subscriptionOverride ?? new MockSubscriptionService({ latencyMs: 0 });
   trackDisposable(subscription); // no-op hoje, idem.
+  const stamps: ProfileStampsService =
+    stampsOverride ?? new MockProfileStampsService({ latencyMs: 0 });
+  trackDisposable(stamps); // no-op hoje, idem.
 
   // Referência estável do objeto de serviços (não recriado a cada render do wrapper).
-  const services = { queue, wallet, qi, booking, feed, subscription };
+  const services = { queue, wallet, qi, booking, feed, subscription, stamps };
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <ServicesProvider services={services}>{children}</ServicesProvider>
   );
 
   const result = render(ui, { wrapper: Wrapper, ...renderOptions });
-  return { ...result, queue, wallet, qi, booking, feed, subscription };
+  return { ...result, queue, wallet, qi, booking, feed, subscription, stamps };
 }
