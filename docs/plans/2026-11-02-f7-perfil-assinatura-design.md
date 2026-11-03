@@ -190,6 +190,10 @@ Sem cartão salvo: CTA desabilitado e aviso "Nenhum cartão salvo" (decisão #12
 | 9 | Perfil sem card de endereço | O frame 🆕 não tem; a loja do cliente mantém |
 | 10 | "Processando..." com duração mínima simulada | O mock responde na hora (precedente F5 #13) |
 | 11 | "Minha assinatura" como título no corpo da tela, não dentro da top bar | A `HomeTopBar` (casca das telas-hub, como no Financeiro) não tem slot de título; alterá-la mexeria em componente compartilhado de outras fases |
+| 12 | Selos em SVG, não PNG | O export PNG do Figma vem com fundo opaco do canvas; os SVGs são importados só via `components/profile/stampArt.ts` (um único módulo para mockar nos testes) |
+| 13 | Card de formas de pagamento antes do card de horário no perfil | Segue a ordem do frame `2611:6893`; a tela anterior tinha a ordem inversa |
+| 14 | Linha de preço do card de status com o separador "•" ("R$ 29,90 • cobrado mensalmente") | Diverge do texto do Figma; mantido por legibilidade da linha única |
+| 15 | Brilho radial do card de status e da oferta simplificado para gradiente linear | Simplificação visual com `expo-linear-gradient`, já usado nos cards; o radial exigiria um `RadialGradient` SVG dimensionado por card |
 
 ## 7. Paralelismo: território, zonas compartilhadas e dependências cruzadas
 

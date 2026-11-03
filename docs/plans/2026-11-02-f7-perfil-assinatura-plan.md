@@ -273,7 +273,7 @@ git commit -m "feat(subscription): subscription entry in merchant drawer"
 ## Task 10: Verificação final, rebase e PR
 
 1. `NODE_OPTIONS=--max-old-space-size=8192 npm run typecheck` → 0 erros. `npm run lint` → nenhum problema novo. `npx jest --maxWorkers=2` → todas verdes (baseline 525 só cresce). `git diff origin/main --name-only | xargs grep -nP "\x{2014}"` → nenhum hit em linha adicionada pela F7.
-2. Fidelidade final vs `2611:6893`, `2625:5970`, `2678:150`, `2680:177`, contra a tabela de 11 divergências do design § 6.
+2. Fidelidade final vs `2611:6893`, `2625:5970`, `2678:150`, `2680:177`, contra a tabela de 15 divergências do design § 6.
 3. QA manual sugerido (registrar no PR como pendente em dispositivo): perfil (selos, KPIs rolando, sem endereço) · drawer → Assinatura → assinar → gerenciar → alterar cartão → cancelar → manter.
 4. **Rebase:** `git fetch origin` e `git rebase origin/main`. Conflitos esperados em `context/ServicesContext.tsx`, `__tests__/test-utils.tsx`, `app/(merchant)/_layout.tsx`, `components/layout/merchantDrawerItems.ts` e talvez `app/(merchant)/home/index.tsx`: manter as adições de TODAS as fases. Se a F8 tiver mudado as props de `CardSelectionBottomSheet`/`PaymentProcessingSheet`, ajustar só as chamadas. Rodar typecheck e suíte de novo.
 5. `git push -u origin feat/f7-perfil-assinatura`. PR pela REST API do GitHub (o `gh` não está instalado): token de `git credential fill` (nunca imprimir), corpo JSON montado em UTF-8 com node, sem rodapé de AI. Corpo: resumo, decisões, tabela de divergências, dívidas F8, zonas compartilhadas tocadas, contrato para a Task 17 da F8 (incluindo `resume()`).
