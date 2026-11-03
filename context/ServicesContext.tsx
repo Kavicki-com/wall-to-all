@@ -77,7 +77,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
   const qiRef = useRef<QiService | null>(null);
   const bookingRef = useRef<BookingPaymentService | null>(null);
   const feedRef = useRef<MockFeedService | null>(null);
-  const subscriptionRef = useRef<MockSubscriptionService | null>(null);
+  const subscriptionRef = useRef<SubscriptionService | null>(null);
   const stampsRef = useRef<MockProfileStampsService | null>(null);
 
   // NOTA: as instâncias default são criadas aqui no render (lazy via ref) e o
@@ -104,6 +104,10 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
       walletRef.current = stripeWallet;
       bookingRef.current = new booking.StripeBookingPaymentService();
       // QI híbrido (Task 16): saldo e saque reais, o resto do MockQiService.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const subscription = require('../lib/services/stripe/stripeSubscriptionService') as typeof import('../lib/services/stripe/stripeSubscriptionService');
+      // Assinatura do lojista no Stripe Billing (Task 17).
+      subscriptionRef.current = new subscription.StripeSubscriptionService();
       qiRef.current = new qi.StripeQiService({
         base: new MockQiService({ latencyMs: QI_LATENCY_MS }),
         businessId: () => stripeWallet.currentBusinessId(),
@@ -118,7 +122,7 @@ export const ServicesProvider: React.FC<ServicesProviderProps> = ({ children, se
     // Feed (F6): estado em memória sem timers, dispensa dispose.
     feedRef.current = new MockFeedService({ latencyMs: FEED_LATENCY_MS });
     // Assinatura do lojista (F7): estado em memória sem timers, dispensa dispose.
-    subscriptionRef.current = new MockSubscriptionService({ latencyMs: SUBSCRIPTION_LATENCY_MS });
+    subscriptionRef.current ??= new MockSubscriptionService({ latencyMs: SUBSCRIPTION_LATENCY_MS });
     // Selos do perfil do lojista (F7): lista fixa, dispensa dispose.
     stampsRef.current = new MockProfileStampsService({ latencyMs: STAMPS_LATENCY_MS });
   }

@@ -22,6 +22,8 @@ import { getStripeConfig } from '../lib/payments/stripeConfig';
 import { useQiService } from '../context/ServicesContext';
 import { MockQiService } from '../lib/services/mock/mockQiService';
 import { StripeQiService } from '../lib/services/stripe/stripeQiService';
+import { StripeSubscriptionService } from '../lib/services/stripe/stripeSubscriptionService';
+import { MockSubscriptionService } from '../lib/services/mock/mockSubscriptionService';
 
 // O StripeWalletService importa o cliente real; aqui só a classe importa.
 jest.mock('../lib/supabase', () => ({ supabase: {} }));
@@ -264,6 +266,29 @@ describe('ServicesProvider', () => {
         </ServicesProvider>,
       );
       expect(qi).toBeInstanceOf(StripeQiService);
+    });
+
+    it('assinatura: mock por default e StripeSubscriptionService com provider stripe', () => {
+      const SubscriptionProbe = ({ onSub }: { onSub: (s: unknown) => void }) => {
+        onSub(useSubscriptionService());
+        return <Text>assinatura</Text>;
+      };
+      let subscription: unknown;
+      const first = render(
+        <ServicesProvider>
+          <SubscriptionProbe onSub={(s) => (subscription = s)} />
+        </ServicesProvider>,
+      );
+      expect(subscription).toBeInstanceOf(MockSubscriptionService);
+      first.unmount();
+
+      mockedGetStripeConfig.mockReturnValue({ provider: 'stripe', publishableKey: 'pk_test_x' });
+      render(
+        <ServicesProvider>
+          <SubscriptionProbe onSub={(s) => (subscription = s)} />
+        </ServicesProvider>,
+      );
+      expect(subscription).toBeInstanceOf(StripeSubscriptionService);
     });
 
     it('com provider stripe usa o StripeWalletService', () => {
