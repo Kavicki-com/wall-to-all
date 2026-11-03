@@ -197,10 +197,34 @@ Feed de vídeos e fotos das lojas (PR #9). Domínio novo `FeedService` em `lib/s
 
 **Dívidas registradas para a F8:** `MockFeedService` em memória (posts, curtidas e "seguindo" somem ao reiniciar e não distinguem usuário) · mídia publicada é a URI local do dispositivo; F8: upload ao Supabase Storage (720p, até 30 s), capa gerada e posts persistidos · ids de loja das fixtures podem não existir no banco de dev ("Agendar" cai em "Loja não encontrada") · categorias do composer são lista fixa do mock · "Permitir downloads" e "Compartilhar com clientes vinculados" só são gravados, sem efeito · link do compartilhar provisório (sem deep link de post) · serviço vinculado é snapshot tirado na publicação · lista de serviços do composer sem paginação · `TODO(F6)` em `components/home/StoriesRow.tsx` ficou (fora do território; o toque já é ligado pela home).
 
-### Fase 7 — Profile lojista + Assinatura
+### Fase 7: Perfil do lojista + Assinatura ✅ implementada (2026-11-03)
 
 Profile (seção `2643:8170`): profile-view `2611:6893` · profile-stamps `2625:5970`
 Assinatura (seção `2678:149`): subscription-offer `2678:150` · subscription-manage `2680:177`
+
+Perfil do lojista e assinatura do lojista (PR #13). Perfil: fileira de selos (`ProfileStampsService` em `lib/services/profileTypes.ts`, mock fixo com os dois acesos; arte em SVG via `components/profile/stampArt.ts`), linha de 4 KPIs rolável (Agendamentos, Avaliação, Indicações, Novos clientes) e sem card de endereço (a loja do cliente mantém). O cálculo dos KPIs saiu da home do lojista para `lib/merchant/merchantKpis.ts`, coberto por teste de caracterização antes da extração; home e perfil consomem dele. Assinatura: domínio novo `SubscriptionService` em `lib/services/subscriptionTypes.ts` (sem tocar `lib/services/types.ts`) + `MockSubscriptionService` em memória, injetados no `ServicesProvider` como `subscription` e `stamps`. O serviço cobra (`subscribe(card)` devolve `active` ou `incomplete`, espelhando o Stripe Billing), status `active`, `past_due`, `canceled`, `incomplete` + `cancelAtPeriodEnd`. Rota hub `app/(merchant)/assinatura/index.tsx`: Oferta (sem assinatura, `canceled` ou `incomplete`) ou Gerenciar (`active` ou `past_due`), com assinar, alterar cartão, cancelar com confirmação e "Manter assinatura" (`resume()`). Entrada: item "Assinatura" no drawer do lojista, depois de "Perfil". `components/payment/*` consumido sem edição. Sem dependência nova. Design e plano: `docs/plans/2026-11-02-f7-perfil-assinatura-design.md` e `-plan.md`.
+
+**Divergências deliberadas do Figma nesta fase:**
+
+| # | Divergência | Razão |
+|---|---|---|
+| 1 | Bottom nav do lojista nas telas de assinatura | O Figma usa a nav do cliente nesses frames |
+| 2 | Gerenciar sem "Voltar" | Visão da rota hub |
+| 3 | Selos de mock fixo | Critério de negócio indefinido |
+| 4 | Avaliação e Indicações sem variação | Herdado da home (F2) |
+| 5 | Linha de pagamento com o cartão real do mock (•••• 4242) | O Figma traz "0928" estático (precedente F5 #5) |
+| 6 | Estados `past_due`, cancelamento agendado, modal de cancelar, toasts e "Nenhum cartão salvo" | Não desenhados |
+| 7 | "Ver todas as faturas" expande na própria tela | Não há frame de lista completa |
+| 8 | Sheet de cartão com os textos da F5 | `components/payment/*` fora do escopo da fase |
+| 9 | Perfil sem card de endereço | O frame novo não tem |
+| 10 | "Processando..." com duração mínima simulada | O mock responde na hora (precedente F5 #13) |
+| 11 | "Minha assinatura" como título no corpo da tela | `HomeTopBar` não tem slot de título |
+| 12 | Selos em SVG, não PNG | O export PNG do Figma vem com fundo opaco do canvas |
+| 13 | Card de pagamentos antes do de horário no perfil | Ordem do frame `2611:6893` (a tela anterior tinha a ordem inversa) |
+| 14 | Separador "•" na linha de preço do card de status | Diverge do texto do Figma; legibilidade da linha única |
+| 15 | Brilho radial simplificado para gradiente linear | `expo-linear-gradient`, já usado nos cards |
+
+**Dívidas registradas para a F8:** `MockSubscriptionService` em memória (a assinatura some ao reiniciar); Task 17: tabela `subscriptions` + Stripe Billing + webhook, com `resume()` mapeado para `cancel_at_period_end: false` · lojista sem rota de cadastro de cartão (com a carteira vazia não há como assinar); criar a entrada na Task 14 · selos com critério indefinido · KPIs sem variação para Avaliação e Indicações (herdado da F2) · plano e valor (decisão "S" da F8) só no mock · faturas sem paginação (com Stripe, paginar `invoices.list`).
 
 ### Fase 8 — Integração real (planejar em detalhe ao final da UI)
 - Backend Supabase por feature: fila em tempo real (Realtime), transações/carteira, posts + storage/streaming de vídeo, assinatura
@@ -252,5 +276,6 @@ Assinatura (seção `2678:149`): subscription-offer `2678:150` · subscription-m
 | Plano da F4 (QI) | ✅ criado; F4 **implementada** (2026-08-17), mock-first (`QiService` + `MockQiService`, fixtures do Figma); suíte 463/463 em 57 suítes, typecheck 0 erros, lint sem nenhum problema novo (o único warning em arquivo tocado é pré-existente, commit `4a33246f`). Referral legado **removido por completo**, incluindo o campo de código no signup: `git grep -ri referral` em `app/ components/ lib/ __tests__/` retorna zero hits, e a captação real de indicação só volta na F8. Fecha o débito do resumo de taxa da F3. Pendente: QA em dispositivo (cliente e lojista: QI → detalhes → como funciona → saque com saldo atualizado; financeiro com resumo de taxa; signup sem campo de código) + revisão de fidelidade visual vs Figma (`2628:6934`, `2606:5475`, `2628:7149`, `2628:7226`, `2715:3711`), contra a tabela de 12 divergências deliberadas da § Fase 4. |
 | Design doc + plano da F5 (agendamento com pagamento) | ✅ criado; F5 **implementada** (2026-11-02, PR #7), mock-first (`BookingPaymentService` + `MockBookingPaymentService`); suíte 525/525 em 69 suítes, typecheck 0 erros, lint sem nenhum problema novo. Pendente: QA em dispositivo (home → loja → serviço → hora → confirmar com cartão, Pix, pagar na hora com Dinheiro, cartão recusado; detalhe com a linha de status) + revisão de fidelidade visual vs Figma (`2663:7158`, `2663:7678`, `2663:7937`, `2663:8034`, `2668:18327`, `2663:8057`), contra a tabela de 16 divergências deliberadas da § Fase 5. |
 | Design doc + plano da F6 (feed) | ✅ criado; F6 **implementada** (2026-11-02, PR #9), mock-first (`FeedService` + `MockFeedService`); suíte 640/640 em 82 suítes, typecheck 0 erros, lint sem nenhum problema novo. Sem rebuild do dev client, desde que o instalado seja posterior à F0. Pendente: QA em dispositivo (cliente: home → story → feed → curtir, seguir, agendar, compartilhar; lojista: feed → Seu story → vídeo de 30 s e foto → galeria com vídeo longo → preview → publicar → post no topo) + revisão de fidelidade visual vs Figma (`2485:146`, `2643:7839`, `2501:396`, `2502:396`), contra a tabela de 21 divergências deliberadas da § Fase 6. |
+| Design doc + plano da F7 (perfil do lojista + assinatura) | ✅ criado; F7 **implementada** (2026-11-03, PR #13), mock-first (`SubscriptionService` + `MockSubscriptionService`, `ProfileStampsService` + mock fixo); suíte 717/717 em 92 suítes, typecheck 0 erros, lint sem nenhum problema novo (o único warning em arquivo tocado é o `exhaustive-deps` pré-existente em `app/(merchant)/profile/index.tsx`). Pendente: QA em dispositivo (perfil: selos, KPIs rolando, sem endereço; drawer → Assinatura → assinar → gerenciar → alterar cartão → cancelar → manter; carteira vazia com aviso "Nenhum cartão salvo") + revisão de fidelidade visual vs Figma (`2611:6893`, `2625:5970`, `2678:150`, `2680:177`), contra a tabela de 15 divergências deliberadas da § Fase 7. |
 | Design doc + plano das demais fases | imediatamente antes de cada fase |
 | Plano da F8 (integração) | ao final da F7, com PSP decidido |
