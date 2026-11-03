@@ -10,6 +10,10 @@
  *    notificação ao lojista.
  * 4. Sucesso grava `processed_at`; falha grava `error` e responde 500 para a
  *    Stripe reenviar.
+ *
+ * Eventos de assinatura (`customer.subscription.*`, `invoice.paid`,
+ * `invoice.payment_failed`) não passam pelo plano de pagamento: relêem a
+ * assinatura na Stripe e gravam a cópia em `subscriptions`.
  */
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.85.0';
@@ -25,6 +29,8 @@ import {
   type WebhookPlan,
 } from '../_shared/webhookPlan.ts';
 import type { QiReferrer } from '../_shared/ledger.ts';
+import { subscriptionEventTarget } from '../_shared/subscriptionStatus.ts';
+import { syncSubscription } from '../_shared/subscriptionSync.ts';
 
 const SECRETS: Array<[string, 'platform' | 'connect']> = [
   ['STRIPE_WEBHOOK_SECRET', 'platform'],
@@ -285,6 +291,11 @@ Deno.serve(async (req) => {
     if (event.livemode) {
       // Projeto do piloto é só test mode: evento real nunca mexe no banco.
       result = 'ignored:livemode';
+    } else if (subscriptionEventTarget(event as unknown as StripeEventShape)) {
+      // Assinatura do lojista (Task 17): relê na Stripe e grava a cópia. O
+      // PaymentIntent da fatura não tem linha em `payments` e cai no ignore.
+      const target = subscriptionEventTarget(event as unknown as StripeEventShape)!;
+      result = await syncSubscription(db, stripe, target.subscriptionId);
     } else {
       const shape = event as unknown as StripeEventShape;
       const lookup = paymentLookup(shape);
